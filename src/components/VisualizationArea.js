@@ -4,6 +4,7 @@ import Timeline from './Timeline';
 import './VisualizationArea.css';
 
 const VisualizationArea = ({ 
+  demoMode = false,
   spikeData, 
   selectedChannels, 
   channelScrollOffset,
@@ -147,17 +148,17 @@ const VisualizationArea = ({
             />
             <span>Invert Data</span>
           </label>
-          {selectedDataType === 'spikes' && (
-            <label className="precomputed-checkbox" style={{ opacity: precomputedAvailable ? 1 : 0.5 }}>
-              <input 
-                type="checkbox" 
-                checked={usePrecomputedSpikes}
-                onChange={(e) => onUsePrecomputedChange(e.target.checked)}
-                disabled={!precomputedAvailable}
-              />
-              <span>Use Pre-computed Spikes {!precomputedAvailable && '(No spike times loaded)'}</span>
-            </label>
-          )}
+          {selectedDataType === 'spikes' && !demoMode && (
+  <label className="precomputed-checkbox" style={{ opacity: precomputedAvailable ? 1 : 0.5 }}>
+    <input
+      type="checkbox"
+      checked={usePrecomputedSpikes}
+      onChange={(e) => onUsePrecomputedChange(e.target.checked)}
+      disabled={!precomputedAvailable}
+    />
+    <span>Use Pre-computed Spikes {!precomputedAvailable && '(No spike times loaded)'}</span>
+  </label>
+)}
         </div>
       </div>
 

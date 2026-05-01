@@ -168,7 +168,7 @@ function App({ demoMode = false }) {
         setCurrentDataset(demoDatasetName);
         setDatasetInfo({
           totalChannels: 385,
-          totalDataPoints: 3500000
+          totalDataPoints: 4000
         });
 
         setAllAlgorithms(demoAlgorithms);
@@ -811,6 +811,7 @@ setSpikeData(syntheticSpikeData);
               />
             ) : selectedView === 'signal' ? (
               <VisualizationArea
+                demoMode={demoMode}
                 spikeData={spikeData}
                 selectedChannels={selectedChannels}
                 channelScrollOffset={channelScrollOffset}

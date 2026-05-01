@@ -26,7 +26,20 @@ const Header = ({
     <div className="header">
       <div className="header-left">
         <Link to="/" className="dashboard-title-link">
-  <h1 className="dashboard-title">SpikeScope</h1>
+   <div className="landing-nav-brand">
+          <div className="landing-nav-logo">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#bolt-grad)" />
+              <defs>
+                <linearGradient id="bolt-grad" x1="3" y1="2" x2="21" y2="22">
+                  <stop stopColor="#40e0d0" />
+                  <stop offset="1" stopColor="#0d9488" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <span className="landing-nav-title">SpikeScope</span>
+        </div>
 </Link>
 {demoMode && <span className="playground-badge">Playground</span>}
       </div>
@@ -92,10 +105,10 @@ const Header = ({
           </svg>
         </button>
         )}
-        {demoMode ? (
-  <a href="/login" className="upload-button-header" title="Sign in">
+       {demoMode ? (
+  <Link to="/login" className="demo-signin-button" title="Sign in">
     Sign In
-  </a>
+  </Link>
 ) : (
   <UserMenu />
 )}

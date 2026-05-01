@@ -14,17 +14,17 @@ const LandingPage = () => {
   const { isAuthenticated } = useAuth();
   const canvasRef = useRef(null);
   const teamMembers = [
-  { name: 'Abdulrahman Mahmoud', affiliation: 'MBZUAI', role: 'Assistant Professor of Computer Science' },
-  { name: 'Elizabeth Churchill', affiliation: 'MBZUAI', role: 'Department Chair and Professor of Human-Computer Interaction' },
-  { name: 'James Smith', affiliation: 'University of Wisconsin', role: 'Team Member' },
-  { name: 'Abhishek Bhattachargee', affiliation: 'Yale University', role: 'Team Member' },
-  { name: 'Raghav', affiliation: 'UNC', role: 'Team Member' },
-  { name: 'Luciano', affiliation: 'IE University', role: 'Team Member' },
-  { name: 'Dongning Ma', affiliation: 'MBZUAI', role: 'Postdoctoral Associate' },
+  { name: 'Abdulrahman Mahmoud', affiliation: 'MBZUAI', role: 'Assistant Professor of Computer Science', image: 'images/Abdulrahman_inner.png' },
+  { name: 'Elizabeth Churchill', affiliation: 'MBZUAI', role: 'Department Chair and Professor of Human-Computer Interaction' , image: 'images/images (1).png' },
+  { name: 'James Smith', affiliation: 'University of Wisconsin', role: 'Professor Emeritus', image: 'images/James_E_Smith.jpg' },
+  { name: 'Abhishek Bhattachargee', affiliation: 'Yale University', role: 'Professor of Computer Science', image: 'images/citations.jpg' },
+  { name: 'Raghav', affiliation: 'UNC', role: 'Assistant Professor', image: 'images/Pothukuchi.jpg' },
+  { name: 'Luciano Dyballa', affiliation: 'IE University', role: 'Assistant Professor', image: 'images/prof-luciano-dyballa_1.png' },
+  { name: 'Dongning Ma', affiliation: 'MBZUAI', role: 'Postdoctoral Associate', image: 'images/profile.png' },
   { name: 'Juwayni Macadato Lucman', affiliation: 'MBZUAI', role: 'Phd Student' },
-  { name: 'Mohamed Aziz Benzarti', affiliation: 'MBZUAI', role: 'Research Engineer' },
+  { name: 'Mohamed Aziz Benzarti', affiliation: 'MBZUAI', role: 'Research Engineer' , image: 'images/1758875142554.jpg'},
   
-  { name: 'Mohamed Elzeftawy', affiliation: 'MBZUAI', role: 'MSc Student' },
+  { name: 'Mohamed Elzeftawy', affiliation: 'MBZUAI', role: 'MSc Student', image: 'images/zeftawy.jpeg' },
   { name: 'Dastan Bekmukhanbetov', affiliation: 'MBZUAI', role: 'MSc Student' },
 ];
 
@@ -158,7 +158,7 @@ const getInitials = (name) =>
 ) : (
   <div className="landing-nav-actions">
     <Link to="/demo" className="landing-nav-cta">
-      Try Public Demo
+      Try Demo
     </Link>
     <Link to="/login" className="landing-nav-cta">
       Sign In
@@ -183,7 +183,7 @@ const getInitials = (name) =>
           </p>
           <div className="landing-hero-actions">
             <Link
-              to={isAuthenticated ? '/dashboard' : '/login'}
+              to={'/demo'}
               className="landing-btn-primary"
             >
               <span>Try It Now</span>
@@ -473,9 +473,7 @@ const getInitials = (name) =>
       {teamMembers.map((member, index) => (
         <div key={index} className="team-card">
           <div className="team-card-image">
-            <div className="team-avatar-placeholder">
-              {getInitials(member.name)}
-            </div>
+            <img src={member.image} alt={member.name} className="team-avatar-image" />
           </div>
 
           <div className="team-card-body">
