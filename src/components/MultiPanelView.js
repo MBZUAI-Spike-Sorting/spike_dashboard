@@ -22,16 +22,22 @@ const DEFAULT_WIDGET_STATES = {
   waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null }
 };
 
-const MultiPanelView = forwardRef(({ 
-  selectedDataset, 
-  clusteringResults, 
-  selectedAlgorithm, 
+const MultiPanelView = forwardRef(({
+  demoMode = false,
+  selectedDataset,
+  clusteringResults,
+  selectedAlgorithm,
   datasetInfo,
   algorithms,
   onAlgorithmChange,
   onRunAlgorithm,
   isRunningAlgorithm,
-  onOpenParameters
+  onOpenParameters,
+  demoClusterPlotData = [],
+  demoSpikeTable = [],
+  demoClusterStats = [],
+  demoWaveforms = {},
+  demoSignalData = null
 }, ref) => {
   // State management
   const [clusters, setClusters] = useState([]);
@@ -46,7 +52,87 @@ const MultiPanelView = forwardRef(({
   const [timeRange, setTimeRange] = useState({ start: 0, end: 1000 });
   const [highlightedSpikes, setHighlightedSpikes] = useState([]);
   const [waveformViewMode, setWaveformViewMode] = useState('single');
+ useEffect(() => {
+  if (!demoMode) return;
 
+  // 1) Group flat PCA points by clusterId
+  const grouped = {};
+  (demoClusterPlotData || []).forEach((point) => {
+    const cid = point.clusterId;
+    if (!grouped[cid]) grouped[cid] = [];
+    grouped[cid].push(point);
+  });
+
+  const clusterIds = Object.keys(grouped)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  const normalizedClusters = clusterIds.map((clusterId, clusterIdx) => {
+    const pointsArray = grouped[clusterId] || [];
+
+    return {
+      clusterId,
+      clusterLabel: `Cluster ${clusterId}`,
+      points: pointsArray.map((p) => [p.x, p.y]),
+      spikeTimes: pointsArray.map((_, pointIdx) => 100 + pointIdx * 20),
+      spikeChannels: pointsArray.map(() => [179, 181, 183][clusterIdx % 3]),
+      pointCount: pointsArray.length
+    };
+  });
+
+  // 2) Cluster list for ClusterListTable
+  setClusters(
+    normalizedClusters.map((cluster) => ({
+      id: cluster.clusterId,
+      size: cluster.pointCount
+    }))
+  );
+
+  // 3) PCA / dimensionality reduction data
+  setClusterData({
+    clusters: normalizedClusters,
+    clusterIds,
+    numClusters: normalizedClusters.length,
+    totalPoints: normalizedClusters.reduce((sum, c) => sum + c.pointCount, 0)
+  });
+
+  // 4) Preselect first 3 clusters
+  setSelectedClusters(clusterIds.slice(0, 3));
+
+  // 5) Normalize spike table shape
+  const normalizedSpikes = (demoSpikeTable || []).map((row) => ({
+    time: row.spikeTime,
+    clusterId: row.assignedClusterId
+  }));
+  setSpikes(normalizedSpikes);
+
+  // 6) Normalize stats into lookup object
+  const normalizedStats = {};
+  (demoClusterStats || []).forEach((row) => {
+    normalizedStats[row.clusterId] = {
+      count: row.count,
+      meanAmplitude: row.meanAmplitude
+    };
+  });
+  setClusterStats(normalizedStats);
+
+  // 7) Keep waveforms as-is
+  setClusterWaveforms(demoWaveforms || {});
+}, [
+  demoMode,
+  demoClusterPlotData,
+  demoSpikeTable,
+  demoClusterStats,
+  demoWaveforms
+]);
+useEffect(() => {
+  if (!demoMode) return;
+  console.log('DEMO clusters:', clusters);
+  console.log('DEMO spikes:', spikes);
+  console.log('DEMO clusterStats:', clusterStats);
+  console.log('DEMO clusterData:', clusterData);
+  console.log('DEMO waveforms:', clusterWaveforms);
+}, [demoMode, clusters, spikes, clusterStats, clusterData, clusterWaveforms]);
   // Widget Bank state
   const [isWidgetBankOpen, setIsWidgetBankOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -228,7 +314,8 @@ const MultiPanelView = forwardRef(({
 
   // Fetch cluster list on mount or when clustering results change
   useEffect(() => {
-    fetchClusterList();
+    if (demoMode) return;
+    fetchClusterList() ;
   }, [selectedDataset, clusteringResults, selectedAlgorithm]);
 
   // Auto-select clusters 0, 1, 2 for preprocessed algorithms
@@ -257,8 +344,11 @@ const MultiPanelView = forwardRef(({
   // Fetch spikes when clusters are selected or when clusterData becomes available
   useEffect(() => {
     if (selectedClusters.length > 0) {
+      if (demoMode) return;
       fetchSpikesForClusters();
+      if (demoMode) return;
       fetchClusterStatistics();
+      if (demoMode) return;
       fetchClusterWaveforms();
     } else {
       setSpikes([]);
@@ -902,9 +992,11 @@ const MultiPanelView = forwardRef(({
               isMaximized={widgetStates.signalView.maximized}
             >
               <SignalViewPanel
-                highlightedSpikes={highlightedSpikes}
-                datasetInfo={datasetInfo}
-              />
+  demoMode={demoMode}
+  highlightedSpikes={highlightedSpikes}
+  datasetInfo={datasetInfo}
+  demoSignalData={demoSignalData}
+/>
             </DockableWidget>
           </div>
         )}

@@ -229,3 +229,33 @@
 .widget-bank-arrow.open {
   transform: rotate(180deg);
 }
+.dashboard-title-link {
+  text-decoration: none;
+  color: inherit;
+  display: inline-block;
+}
+
+.dashboard-title-link:hover {
+  opacity: 0.95;
+  cursor: pointer;
+}
+.dashboard-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.playground-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #14b8a6, #22d3ee);
+  color: #06202a;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(34, 211, 238, 0.25);
+}

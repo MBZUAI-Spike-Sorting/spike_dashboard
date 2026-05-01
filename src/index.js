@@ -45,6 +45,10 @@ root.render(
               </ProtectedRoute>
             } 
           />
+          <Route 
+  path="/demo/*" 
+  element={<App demoMode={true} />} 
+/>
         </Routes>
       </AuthProvider>
     </BrowserRouter>

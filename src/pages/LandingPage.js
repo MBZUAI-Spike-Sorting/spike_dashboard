@@ -13,7 +13,28 @@ import './LandingPage.css';
 const LandingPage = () => {
   const { isAuthenticated } = useAuth();
   const canvasRef = useRef(null);
+  const teamMembers = [
+  { name: 'Abdulrahman Mahmoud', affiliation: 'MBZUAI', role: 'Assistant Professor of Computer Science' },
+  { name: 'Elizabeth Churchill', affiliation: 'MBZUAI', role: 'Department Chair and Professor of Human-Computer Interaction' },
+  { name: 'James Smith', affiliation: 'University of Wisconsin', role: 'Team Member' },
+  { name: 'Abhishek Bhattachargee', affiliation: 'Yale University', role: 'Team Member' },
+  { name: 'Raghav', affiliation: 'UNC', role: 'Team Member' },
+  { name: 'Luciano', affiliation: 'IE University', role: 'Team Member' },
+  { name: 'Dongning Ma', affiliation: 'MBZUAI', role: 'Postdoctoral Associate' },
+  { name: 'Juwayni Macadato Lucman', affiliation: 'MBZUAI', role: 'Phd Student' },
+  { name: 'Mohamed Aziz Benzarti', affiliation: 'MBZUAI', role: 'Research Engineer' },
+  
+  { name: 'Mohamed Elzeftawy', affiliation: 'MBZUAI', role: 'MSc Student' },
+  { name: 'Dastan Bekmukhanbetov', affiliation: 'MBZUAI', role: 'MSc Student' },
+];
 
+const getInitials = (name) =>
+  name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
   // Animated neural network background
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -129,11 +150,21 @@ const LandingPage = () => {
           <a href="#features" className="landing-nav-link">Features</a>
           <a href="#workflow" className="landing-nav-link">Workflow</a>
           <a href="#about" className="landing-nav-link">About</a>
+          <a href="#team" className="landing-nav-link">Team</a>
           {isAuthenticated ? (
-            <Link to="/dashboard" className="landing-nav-cta">Go to Dashboard</Link>
-          ) : (
-            <Link to="/login" className="landing-nav-cta">Sign In</Link>
-          )}
+  <Link to="/dashboard" className="landing-nav-cta">
+    Go to Dashboard
+  </Link>
+) : (
+  <div className="landing-nav-actions">
+    <Link to="/demo" className="landing-nav-cta">
+      Try Public Demo
+    </Link>
+    <Link to="/login" className="landing-nav-cta">
+      Sign In
+    </Link>
+  </div>
+)}
         </div>
       </nav>
 
@@ -426,7 +457,37 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+<section id="team" className="team-section">
+  <div className="team-container">
+    <div className="team-header">
+      <span className="team-eyebrow">Our Team</span>
+      <h2>Meet the Team</h2>
+      <p>
+        SpikeScope is being developed through a collaborative effort across
+        institutions, combining expertise in neuroscience, spike sorting,
+        machine learning, and systems engineering.
+      </p>
+    </div>
 
+    <div className="team-grid">
+      {teamMembers.map((member, index) => (
+        <div key={index} className="team-card">
+          <div className="team-card-image">
+            <div className="team-avatar-placeholder">
+              {getInitials(member.name)}
+            </div>
+          </div>
+
+          <div className="team-card-body">
+            <h3>{member.name}</h3>
+            <p className="team-role">{member.role}</p>
+            <p className="team-affiliation">{member.affiliation}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
       {/* About / CTA Section */}
       <section id="about" className="landing-about">
         <div className="landing-about-card">

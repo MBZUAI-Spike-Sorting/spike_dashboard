@@ -12,7 +12,17 @@ import ErrorBoundary from './components/ErrorBoundary';
 import UserMenu from './components/UserMenu';
 import LRUCache from './utils/LRUCache';
 import apiClient from './api/client';
+import DemoMultiPanelView from './components/DemoMultiPanelView';
 import { useAuth } from './context/AuthContext';
+import {
+  demoDatasets,
+  demoClusterPlotData,
+  demoSpikeTable,
+  demoClusterStats,
+  demoWaveforms,
+  demoSignalData,
+  demoSettings
+} from './data/demoDashboardData';
 import {
   DEFAULT_CHANNELS,
   DEFAULT_TIME_RANGE,
@@ -29,14 +39,75 @@ import {
 } from './constants/config';
 import './App.css';
 
-function App() {
+const buildDemoClusteringResults = () => {
+  const grouped = demoClusterPlotData.reduce((acc, point) => {
+    if (!acc[point.clusterId]) acc[point.clusterId] = [];
+    acc[point.clusterId].push(point);
+    return acc;
+  }, {});
+
+  const channelMap = {
+    1: demoSettings.cluster1Channel,
+    2: demoSettings.cluster2Channel,
+    3: demoSettings.cluster3Channel
+  };
+
+  const clusterIds = Object.keys(grouped)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  const clusters = clusterIds.map((clusterId) => {
+    const points = grouped[clusterId] || [];
+    const numSpikes = points.length;
+    const baseTime = clusterId * 1000;
+
+    return {
+      clusterId,
+      numSpikes,
+      centroidShape: [2],
+      spikeTimes: Array.from({ length: numSpikes }, (_, i) => baseTime + i * 17),
+      spikeChannels: Array.from(
+        { length: numSpikes },
+        () => channelMap[clusterId] || (170 + clusterId)
+      )
+    };
+  });
+
+  return {
+    available: true,
+    demo: true,
+    algorithm: 'Synthetic Demo',
+    numClusters: clusterIds.length,
+    totalSpikes: demoClusterPlotData.length,
+    fullData: clusterIds.map((clusterId) =>
+      grouped[clusterId].map((p) => [p.x, p.y])
+    ),
+    clusters,
+    statistics: demoClusterStats,
+    waveforms: demoWaveforms
+  };
+};
+
+function App({ demoMode = false }) {
   // Auth context
   const { user, allowedAlgorithms, logout, isAdmin, hasAlgorithmAccess } = useAuth();
-  
+
+  const demoClusteringResults = useMemo(() => buildDemoClusteringResults(), []);
+  const demoAlgorithms = useMemo(
+    () => [
+      {
+        name: 'Synthetic Demo',
+        available: true,
+        description: 'Public playground synthetic clustering visualization'
+      }
+    ],
+    []
+  );
+
   // Channel state
   const [selectedChannels, setSelectedChannels] = useState(DEFAULT_CHANNELS);
   const [channelScrollOffset, setChannelScrollOffset] = useState(0);
-  
+
   // Data state
   const [spikeData, setSpikeData] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -44,26 +115,26 @@ function App() {
   const [windowSize, setWindowSize] = useState(DEFAULT_WINDOW_SIZE);
   const [spikeThreshold, setSpikeThreshold] = useState(DEFAULT_SPIKE_THRESHOLD);
   const [invertData, setInvertData] = useState(false);
-  
+
   // Dataset state
   const [datasetInfo, setDatasetInfo] = useState({ totalDataPoints: 3500000, totalChannels: 385 });
   const [datasets, setDatasets] = useState([]);
   const [currentDataset, setCurrentDataset] = useState(DEFAULT_DATASET);
-  
+
   // Modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
+
   // Spike detection state
   const [usePrecomputedSpikes, setUsePrecomputedSpikes] = useState(false);
   const [precomputedAvailable, setPrecomputedAvailable] = useState(false);
-  
+
   // View state
   const [selectedView, setSelectedView] = useState(DEFAULT_VIEW);
   const [selectedDataType, setSelectedDataType] = useState(DEFAULT_DATA_TYPE);
   const [filterType, setFilterType] = useState(DEFAULT_FILTER_TYPE);
   const [filteredLineColor, setFilteredLineColor] = useState(FILTERED_LINE_COLOR);
-  
+
   // Algorithm state
   const [allAlgorithms, setAllAlgorithms] = useState([]);
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('');
@@ -74,55 +145,112 @@ function App() {
 
   // Cache ref
   const dataCache = React.useRef(new LRUCache(CACHE_SIZE));
-  
+
   // Filter algorithms based on user role
   const algorithms = useMemo(() => {
     if (!allAlgorithms || allAlgorithms.length === 0) return [];
-    
-    // Filter algorithms based on user's allowed list
-    return allAlgorithms.filter(algo => 
+
+    if (demoMode) {
+      return allAlgorithms;
+    }
+
+    return allAlgorithms.filter((algo) =>
       hasAlgorithmAccess(algo.name)
     );
-  }, [allAlgorithms, hasAlgorithmAccess]);
+  }, [allAlgorithms, hasAlgorithmAccess, demoMode]);
 
   useEffect(() => {
     const initializeApp = async () => {
+      if (demoMode) {
+        const demoDatasetName = demoDatasets[0]?.name || 'synthetic_demo_recording';
+
+        setDatasets(demoDatasets);
+        setCurrentDataset(demoDatasetName);
+        setDatasetInfo({
+          totalChannels: 385,
+          totalDataPoints: 3500000
+        });
+
+        setAllAlgorithms(demoAlgorithms);
+        setSelectedAlgorithm(demoAlgorithms[0]?.name || 'Synthetic Demo');
+
+        setSelectedChannels([
+          demoSettings.cluster1Channel,
+          demoSettings.cluster2Channel,
+          demoSettings.cluster3Channel
+        ]);
+
+        setSelectedView('clusters');
+        setSelectedDataType('spikes');
+        setFilterType(demoSettings.filterType || DEFAULT_FILTER_TYPE);
+
+        setUsePrecomputedSpikes(false);
+        setPrecomputedAvailable(false);
+        setClusteringResults(demoClusteringResults);
+
+        // Keep spikeData empty in demo unless you later wire VisualizationArea
+        const syntheticSpikeData = {};
+(demoSignalData.traces || []).forEach((trace) => {
+  syntheticSpikeData[trace.channel] = {
+    data: trace.data,
+    filteredData: trace.filteredData,
+    isSpike: trace.isSpike,
+    spikePeaks: trace.spikePeaks,
+    startTime: trace.startTime,
+    endTime: trace.endTime
+  };
+});
+setSpikeData(syntheticSpikeData);
+        return;
+      }
+
       await fetchDatasets();
       await fetchAlgorithms();
       // Load c46 dataset by default on initial mount
       await handleDatasetChange('c46_data_5percent.pt');
     };
+
     initializeApp();
-  }, []);
+  }, [demoMode, demoAlgorithms, demoClusteringResults]);
 
   useEffect(() => {
+    if (demoMode) return;
+
     if (selectedChannels.length > 0) {
       dataCache.current.clear();
       fetchSpikeData();
     }
-  }, [selectedChannels, spikeThreshold, invertData, usePrecomputedSpikes, selectedDataType, filterType]);
+  }, [selectedChannels, spikeThreshold, invertData, usePrecomputedSpikes, selectedDataType, filterType, demoMode]);
 
   const fetchTimeoutRef = React.useRef(null);
 
   useEffect(() => {
+    if (demoMode) return;
+
     if (selectedChannels.length > 0) {
       if (fetchTimeoutRef.current) {
         clearTimeout(fetchTimeoutRef.current);
       }
-      
+
       fetchTimeoutRef.current = setTimeout(() => {
         fetchSpikeData();
       }, FETCH_DEBOUNCE_MS);
-      
+
       return () => {
         if (fetchTimeoutRef.current) {
           clearTimeout(fetchTimeoutRef.current);
         }
       };
     }
-  }, [timeRange]);
+  }, [timeRange, demoMode, selectedChannels]);
 
   const fetchDatasets = async () => {
+    if (demoMode) {
+      setDatasets(demoDatasets);
+      setCurrentDataset(demoDatasets[0]?.name || 'synthetic_demo_recording');
+      return;
+    }
+
     try {
       const data = await apiClient.getDatasets();
       console.log('Available datasets:', data);
@@ -134,18 +262,24 @@ function App() {
   };
 
   const fetchAlgorithms = async () => {
+    if (demoMode) {
+      setAllAlgorithms(demoAlgorithms);
+      setSelectedAlgorithm(demoAlgorithms[0]?.name || 'Synthetic Demo');
+      return;
+    }
+
     try {
       const data = await apiClient.getAlgorithms();
       console.log('Available algorithms:', data);
       setAllAlgorithms(data.algorithms || []);
-      
+
       // Filter algorithms based on user permissions and select default
-      const userAlgorithms = (data.algorithms || []).filter(a => 
-        hasAlgorithmAccess(a.name)
-      );
-      
+      const userAlgorithms = demoMode
+        ? (data.algorithms || [])
+        : (data.algorithms || []).filter((a) => hasAlgorithmAccess(a.name));
+
       // Select first available algorithm user has access to
-      const firstAvailable = userAlgorithms.find(a => a.available);
+      const firstAvailable = userAlgorithms.find((a) => a.available);
       if (firstAvailable) {
         setSelectedAlgorithm(firstAvailable.name);
       }
@@ -159,6 +293,11 @@ function App() {
   };
 
   const fetchClusteringResults = async () => {
+    if (demoMode) {
+      setClusteringResults(demoClusteringResults);
+      return demoClusteringResults;
+    }
+
     try {
       const data = await apiClient.getClusteringResults();
       if (data.available) {
@@ -183,6 +322,16 @@ function App() {
       return;
     }
 
+    if (demoMode) {
+      setIsRunningAlgorithm(true);
+      setTimeout(() => {
+        setClusteringResults(demoClusteringResults);
+        setSelectedView('clusters');
+        setIsRunningAlgorithm(false);
+      }, 600);
+      return;
+    }
+
     setIsRunningAlgorithm(true);
     console.log(`\n${'='.repeat(60)}`);
     console.log(`Starting ${selectedAlgorithm}...`);
@@ -192,7 +341,7 @@ function App() {
 
     try {
       const result = await apiClient.runSpikeSorting(selectedAlgorithm, algorithmParameters);
-      
+
       console.log('\n' + '='.repeat(60));
       console.log(`${selectedAlgorithm} COMPLETED!`);
       console.log('='.repeat(60));
@@ -201,12 +350,12 @@ function App() {
       console.log('Number of Spikes:', result.numSpikes);
       console.log('Response has fullData?', !!result.fullData);
       console.log('Response has available?', result.available);
-      
+
       if (result.fullData) {
         console.log('fullData length:', result.fullData.length);
         console.log('First cluster sample:', result.fullData[0]?.slice(0, 2));
       }
-      
+
       console.log('\nCluster Details:');
       result.clusters?.forEach((cluster, i) => {
         console.log(`\nCluster ${cluster.clusterId}:`);
@@ -257,10 +406,18 @@ function App() {
   };
 
   const fetchDatasetInfo = async () => {
+    if (demoMode) {
+      setDatasetInfo({
+        totalChannels: 385,
+        totalDataPoints: 3500000
+      });
+      return;
+    }
+
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '';
       const response = await fetch(`${apiUrl}/api/dataset-info`);
-      
+
       if (response.ok) {
         const info = await response.json();
         console.log('Dataset info:', info);
@@ -272,10 +429,16 @@ function App() {
   };
 
   const checkSpikeTimesAvailable = async () => {
+    if (demoMode) {
+      setPrecomputedAvailable(false);
+      setUsePrecomputedSpikes(false);
+      return;
+    }
+
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '';
       const response = await fetch(`${apiUrl}/api/spike-times-available`);
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('Spike times check response:', data);
@@ -294,6 +457,22 @@ function App() {
   };
 
   const handleDatasetChange = async (datasetName) => {
+    if (demoMode) {
+      setCurrentDataset(datasetName);
+      setDatasetInfo({
+        totalChannels: 385,
+        totalDataPoints: 3500000
+      });
+      setSelectedChannels([
+        demoSettings.cluster1Channel,
+        demoSettings.cluster2Channel,
+        demoSettings.cluster3Channel
+      ]);
+      dataCache.current.clear();
+      setClusteringResults(demoClusteringResults);
+      return;
+    }
+
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '';
       const response = await fetch(`${apiUrl}/api/dataset/set`, {
@@ -303,7 +482,7 @@ function App() {
         },
         body: JSON.stringify({ dataset: datasetName })
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         console.log('Dataset changed:', result);
@@ -312,7 +491,7 @@ function App() {
           totalChannels: result.totalChannels,
           totalDataPoints: result.totalDataPoints
         });
-        
+
         // Set default channels for c46 dataset
         if (datasetName === 'c46_data_5percent.pt') {
           setSelectedChannels([179, 181, 183]);
@@ -322,9 +501,9 @@ function App() {
 
         // Wait a bit longer for backend to fully load dataset and spike times
         // then check if precomputed spikes are available
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         await checkSpikeTimesAvailable();
-        
+
         // Fetch data after everything is initialized
         fetchSpikeData();
       }
@@ -334,6 +513,11 @@ function App() {
   };
 
   const handleUploadComplete = (uploadResult) => {
+    if (demoMode) {
+      setShowUploadModal(false);
+      return;
+    }
+
     console.log('Upload complete:', uploadResult);
     setShowUploadModal(false);
     fetchDatasets();
@@ -345,12 +529,19 @@ function App() {
   const [datasetToDelete, setDatasetToDelete] = React.useState(null);
 
   const handleDatasetDelete = (datasetName) => {
+    if (demoMode) return;
     setDatasetToDelete(datasetName);
     setShowDeleteConfirm(true);
   };
 
   const handleDeleteConfirm = async () => {
     if (!datasetToDelete) return;
+
+    if (demoMode) {
+      setShowDeleteConfirm(false);
+      setDatasetToDelete(null);
+      return;
+    }
 
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '';
@@ -361,16 +552,16 @@ function App() {
         },
         body: JSON.stringify({ dataset: datasetToDelete })
       });
-      
+
       const result = await response.json();
-      
+
       if (response.ok) {
         console.log('Dataset deleted:', result);
         setShowDeleteConfirm(false);
         setDatasetToDelete(null);
-        
+
         await fetchDatasets();
-        
+
         if (datasetToDelete === currentDataset) {
           await fetchDatasetInfo();
         }
@@ -388,16 +579,21 @@ function App() {
   };
 
   const fetchSpikeData = async () => {
+    if (demoMode) {
+      setIsLoading(false);
+      return;
+    }
+
     const buffer = windowSize;
     const fetchStart = Math.max(0, Math.floor(timeRange.start) - buffer);
     const fetchEnd = Math.min(datasetInfo.totalDataPoints, Math.ceil(timeRange.end) + buffer);
 
     const cacheKey = `${fetchStart}-${fetchEnd}-${spikeThreshold}-${invertData}-${usePrecomputedSpikes}-${selectedDataType}-${filterType}`;
-    const needsFetch = selectedChannels.some(ch => !dataCache.current.has(`${ch}-${cacheKey}`));
+    const needsFetch = selectedChannels.some((ch) => !dataCache.current.has(`${ch}-${cacheKey}`));
 
     if (!needsFetch) {
       const cachedData = {};
-      selectedChannels.forEach(ch => {
+      selectedChannels.forEach((ch) => {
         cachedData[ch] = dataCache.current.get(`${ch}-${cacheKey}`);
       });
       setSpikeData(cachedData);
@@ -427,7 +623,7 @@ function App() {
       if (response.ok) {
         const data = await response.json();
 
-        selectedChannels.forEach(ch => {
+        selectedChannels.forEach((ch) => {
           if (data[ch]) {
             dataCache.current.set(`${ch}-${cacheKey}`, data[ch]);
           }
@@ -445,9 +641,9 @@ function App() {
   };
 
   const handleChannelToggle = (channelId) => {
-    setSelectedChannels(prev => {
+    setSelectedChannels((prev) => {
       if (prev.includes(channelId)) {
-        return prev.filter(id => id !== channelId);
+        return prev.filter((id) => id !== channelId);
       } else {
         return [...prev, channelId];
       }
@@ -473,6 +669,11 @@ function App() {
   };
 
   const handleNavigateToSpike = async (spikeTime, channelId, allClusterChannels = null) => {
+    if (demoMode) {
+      setSelectedView('signal');
+      return;
+    }
+
     try {
       // Switch to signal view with spikes mode
       setSelectedView('signal');
@@ -496,19 +697,18 @@ function App() {
       setTimeRange({ start: newStart, end: newEnd });
 
       console.log(`Navigating to spike at time ${spikeTime} on channel ${channelId}, selected channels: ${allClusterChannels || [channelId]}`);
-
     } catch (error) {
       console.error('Error navigating to spike:', error);
     }
   };
 
   const handleSpikeNavigation = async (direction) => {
-    if (!usePrecomputedSpikes) return;
+    if (!usePrecomputedSpikes || demoMode) return;
 
     try {
       // Get current center of the view
       const currentCenter = Math.floor((timeRange.start + timeRange.end) / 2);
-      
+
       const apiUrl = process.env.REACT_APP_API_URL || '';
       const response = await fetch(`${apiUrl}/api/navigate-spike`, {
         method: 'POST',
@@ -521,17 +721,17 @@ function App() {
           channels: selectedChannels
         })
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         const targetSpike = data.spikeTime;
-        
+
         // Center the view on the target spike
         const halfWindow = Math.floor(windowSize / 2);
         const newStart = Math.max(0, targetSpike - halfWindow);
         const newEnd = Math.min(datasetInfo.totalDataPoints, newStart + windowSize);
         setTimeRange({ start: newStart, end: newEnd });
-        
+
         console.log(`Navigated to spike at ${targetSpike} (${data.totalSpikes} total spikes)`);
       } else {
         console.error('Failed to navigate spike');
@@ -546,32 +746,52 @@ function App() {
 
   return (
     <div className="app">
+      {demoMode && (
+        <div className="demo-banner">
+          Public demo mode
+        </div>
+      )}
+
       <Header
+        demoMode={demoMode}
         datasets={datasets}
         currentDataset={currentDataset}
         onDatasetChange={handleDatasetChange}
-        onUploadClick={() => setShowUploadModal(true)}
-        onDatasetDelete={handleDatasetDelete}
+        onUploadClick={() => {
+          if (!demoMode) setShowUploadModal(true);
+        }}
+        onDatasetDelete={demoMode ? () => {} : handleDatasetDelete}
         selectedView={selectedView}
         onViewChange={setSelectedView}
         selectedSignalType={selectedDataType}
         onSignalTypeChange={setSelectedDataType}
       />
+
       <div className="main-container">
         {selectedView === 'multipanel' ? (
-          <MultiPanelView
-            ref={multiPanelViewRef}
-            selectedDataset={currentDataset}
-            clusteringResults={clusteringResults}
-            selectedAlgorithm={selectedAlgorithm}
-            datasetInfo={datasetInfo}
-            algorithms={algorithms}
-            onAlgorithmChange={handleAlgorithmChange}
-            onRunAlgorithm={handleRunAlgorithm}
-            isRunningAlgorithm={isRunningAlgorithm}
-            onOpenParameters={handleOpenParameters}
-          />
-        ) : selectedView === 'runtime' ? (
+  demoMode ? (
+    <DemoMultiPanelView
+      demoClusterPlotData={demoClusterPlotData}
+      demoSpikeTable={demoSpikeTable}
+      demoClusterStats={demoClusterStats}
+      demoWaveforms={demoWaveforms}
+      demoSignalData={demoSignalData}
+    />
+  ) : (
+    <MultiPanelView
+      ref={multiPanelViewRef}
+      selectedDataset={currentDataset}
+      clusteringResults={clusteringResults}
+      selectedAlgorithm={selectedAlgorithm}
+      datasetInfo={datasetInfo}
+      algorithms={algorithms}
+      onAlgorithmChange={handleAlgorithmChange}
+      onRunAlgorithm={handleRunAlgorithm}
+      isRunningAlgorithm={isRunningAlgorithm}
+      onOpenParameters={handleOpenParameters}
+    />
+  )
+) : selectedView === 'runtime' ?  (
           <RuntimeAnalysisView />
         ) : (
           <>
@@ -581,6 +801,7 @@ function App() {
                 onChannelToggle={handleChannelToggle}
               />
             )}
+
             {selectedView === 'clusters' ? (
               <ClusterView
                 selectedDataset={currentDataset}
@@ -618,12 +839,14 @@ function App() {
           </>
         )}
       </div>
+
       {showUploadModal && (
-        <Upload 
+        <Upload
           onUploadComplete={handleUploadComplete}
           onClose={() => setShowUploadModal(false)}
         />
       )}
+
       <ConfirmDialog
         isOpen={showDeleteConfirm}
         title="Delete Dataset"
@@ -636,6 +859,7 @@ function App() {
         confirmText="Delete"
         cancelText="Cancel"
       />
+
       <AlgorithmParametersMenu
         isOpen={showParametersMenu}
         onClose={handleCloseParameters}
@@ -648,13 +872,12 @@ function App() {
 }
 
 // Wrap App with ErrorBoundary for production error handling
-function AppWithErrorBoundary() {
+function AppWithErrorBoundary(props) {
   return (
     <ErrorBoundary message="An error occurred in the Spike Dashboard. Please try refreshing the page.">
-      <App />
+      <App {...props} />
     </ErrorBoundary>
   );
 }
 
 export default AppWithErrorBoundary;
-

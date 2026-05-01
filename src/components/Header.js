@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import DatasetSelector from './DatasetSelector';
 import UserMenu from './UserMenu';
 import './Header.css';
-
+import { Link } from 'react-router-dom';
 /**
  * Header Component
  * 
@@ -11,6 +11,7 @@ import './Header.css';
  * user menu, and signal type controls.
  */
 const Header = ({
+  demoMode = false,
   datasets,
   currentDataset,
   onDatasetChange,
@@ -24,7 +25,10 @@ const Header = ({
   return (
     <div className="header">
       <div className="header-left">
-        <h1>Spike Visualization Dashboard</h1>
+        <Link to="/" className="dashboard-title-link">
+  <h1 className="dashboard-title">SpikeScope</h1>
+</Link>
+{demoMode && <span className="playground-badge">Playground</span>}
       </div>
 
       <div className="header-controls">
@@ -65,6 +69,7 @@ const Header = ({
           onDatasetChange={onDatasetChange}
           onDatasetDelete={onDatasetDelete}
         />
+        {!demoMode && (
 
         <button 
           className="upload-button-header" 
@@ -86,8 +91,14 @@ const Header = ({
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
         </button>
-        
-        <UserMenu />
+        )}
+        {demoMode ? (
+  <a href="/login" className="upload-button-header" title="Sign in">
+    Sign In
+  </a>
+) : (
+  <UserMenu />
+)}
       </div>
     </div>
   );
