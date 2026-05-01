@@ -21,11 +21,11 @@ const LandingPage = () => {
   { name: 'Raghav', affiliation: 'UNC', role: 'Assistant Professor', image: 'images/Pothukuchi.jpg' },
   { name: 'Luciano Dyballa', affiliation: 'IE University', role: 'Assistant Professor', image: 'images/prof-luciano-dyballa_1.png' },
   { name: 'Dongning Ma', affiliation: 'MBZUAI', role: 'Postdoctoral Associate', image: 'images/profile.png' },
-  { name: 'Juwayni Macadato Lucman', affiliation: 'MBZUAI', role: 'Phd Student' },
+  { name: 'Juwayni Macadato Lucman', affiliation: 'MBZUAI', role: 'Phd Student', image: 'images/juwayni.jpeg' },
   { name: 'Mohamed Aziz Benzarti', affiliation: 'MBZUAI', role: 'Research Engineer' , image: 'images/1758875142554.jpg'},
   
   { name: 'Mohamed Elzeftawy', affiliation: 'MBZUAI', role: 'MSc Student', image: 'images/zeftawy.jpeg' },
-  { name: 'Dastan Bekmukhanbetov', affiliation: 'MBZUAI', role: 'MSc Student' },
+  { name: 'Dastan Bekmukhanbetov', affiliation: 'MBZUAI', role: 'MSc Student' , image: 'images/dastan.jpg'},
 ];
 
 const getInitials = (name) =>
