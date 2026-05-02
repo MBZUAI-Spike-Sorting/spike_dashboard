@@ -1,8 +1,30 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import ViewManager from './ViewManager';
 import './RightSideMenu.css';
 
+const DEMO_ALGORITHM_OPTIONS = [
+  {
+    name: 'kilosort4',
+    displayName: 'Kilosort4',
+    available: true,
+    requiresRun: true
+  },
+  {
+    name: 'mountainsort5',
+    displayName: 'MountainSort5',
+    available: true,
+    requiresRun: true
+  },
+  {
+    name: 'rtsort',
+    displayName: 'RTSort',
+    available: true,
+    requiresRun: true
+  }
+];
+
 const RightSideMenu = ({
+  demoMode = false,
   isWidgetBankOpen,
   onWidgetBankToggle,
   widgetStates,
@@ -17,10 +39,22 @@ const RightSideMenu = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Check if parameters button and run button should be shown
-  const selectedAlgo = algorithms?.find(a => a.name === selectedAlgorithm);
-  const showParametersButton = (selectedAlgo?.name === 'torchbci_jims' || selectedAlgo?.name === 'kilosort4') && selectedAlgo?.available;
-  const showRunButton = selectedAlgo?.requiresRun !== false;
+  const displayAlgorithms = useMemo(() => {
+    if (demoMode) return DEMO_ALGORITHM_OPTIONS;
+    return algorithms || [];
+  }, [algorithms, demoMode]);
+
+  const selectedAlgo =
+    displayAlgorithms.find((a) => a.name === selectedAlgorithm) ||
+    displayAlgorithms[0];
+
+  const showParametersButton =
+    !demoMode &&
+    (selectedAlgo?.name === 'torchbci_jims' || selectedAlgo?.name === 'kilosort4') &&
+    selectedAlgo?.available;
+
+  const showRunButton = true;
+  const isRunDisabled = demoMode || !selectedAlgorithm || isRunningAlgorithm;
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
@@ -28,17 +62,15 @@ const RightSideMenu = ({
 
   return (
     <>
-      {/* Tab/Handle on the right edge */}
-      <div 
+      <div
         className={`right-menu-tab ${isOpen ? 'open' : ''}`}
         onClick={handleToggle}
-        title={isOpen ? "Close menu" : "Open menu"}
+        title={isOpen ? 'Close menu' : 'Open menu'}
       >
         <span className="tab-icon">{isOpen ? '›' : '‹'}</span>
         <span className="tab-text">Menu</span>
       </div>
 
-      {/* Slide-out Panel */}
       <div className={`right-side-menu ${isOpen ? 'open' : ''}`}>
         <div className="right-menu-header">
           <h3>Controls</h3>
@@ -48,7 +80,6 @@ const RightSideMenu = ({
         </div>
 
         <div className="right-menu-content">
-          {/* Widgets Section */}
           <div className="menu-section">
             <div className="section-label">Widgets</div>
             <button
@@ -62,7 +93,6 @@ const RightSideMenu = ({
             </button>
           </div>
 
-          {/* Layout Section */}
           <div className="menu-section">
             <div className="section-label">Layout</div>
             <ViewManager
@@ -72,17 +102,16 @@ const RightSideMenu = ({
             />
           </div>
 
-          {/* Algorithm Section */}
           <div className="menu-section">
             <div className="section-label">Algorithm</div>
             <div className="algorithm-controls">
               <select
                 className="menu-select"
-                value={selectedAlgorithm}
+                value={selectedAlgorithm || displayAlgorithms[0]?.name || ''}
                 onChange={(e) => onAlgorithmChange(e.target.value)}
-                disabled={!algorithms || algorithms.length === 0}
+                disabled={!displayAlgorithms || displayAlgorithms.length === 0}
               >
-                {algorithms && algorithms.map((algo) => (
+                {displayAlgorithms.map((algo) => (
                   <option key={algo.name} value={algo.name} disabled={!algo.available}>
                     {algo.displayName}{!algo.available ? ' (unavailable)' : ''}
                   </option>
@@ -96,14 +125,14 @@ const RightSideMenu = ({
                     onClick={onOpenParameters}
                     title="Configure algorithm parameters"
                   >
-                    <svg 
-                      width="16" 
-                      height="16" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
                       strokeLinejoin="round"
                     >
                       <circle cx="12" cy="12" r="3" />
@@ -115,11 +144,26 @@ const RightSideMenu = ({
                 {showRunButton && (
                   <button
                     className="menu-run-btn"
-                    onClick={onRunAlgorithm}
-                    disabled={!selectedAlgorithm || isRunningAlgorithm}
-                    title={isRunningAlgorithm ? "Algorithm is running..." : "Run spike sorting algorithm"}
+                    onClick={demoMode ? undefined : onRunAlgorithm}
+                    disabled={isRunDisabled}
+                    title={
+                      demoMode
+                        ? 'Run is disabled in playground mode'
+                        : isRunningAlgorithm
+                        ? 'Algorithm is running...'
+                        : 'Run spike sorting algorithm'
+                    }
+                    style={
+                      demoMode
+                        ? {
+                            cursor: 'not-allowed',
+                            opacity: 0.5,
+                            filter: 'grayscale(1)'
+                          }
+                        : undefined
+                    }
                   >
-                    {isRunningAlgorithm ? (
+                    {isRunningAlgorithm && !demoMode ? (
                       <>
                         <span className="spinner"></span>
                         Running...
@@ -138,7 +182,6 @@ const RightSideMenu = ({
         </div>
       </div>
 
-      {/* Overlay when menu is open */}
       {isOpen && <div className="right-menu-overlay" onClick={handleToggle} />}
     </>
   );
