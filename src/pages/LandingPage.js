@@ -14,14 +14,14 @@ const LandingPage = () => {
   const { isAuthenticated } = useAuth();
   const canvasRef = useRef(null);
   const teamMembers = [
-  { name: 'Abdulrahman Mahmoud', affiliation: 'MBZUAI', role: 'Assistant Professor of Computer Science', image: 'images/Abdulrahman_inner.png' },
-  { name: 'Elizabeth Churchill', affiliation: 'MBZUAI', role: 'Department Chair and Professor of Human-Computer Interaction' , image: 'images/images (1).png' },
-  { name: 'James Smith', affiliation: 'University of Wisconsin', role: 'Professor Emeritus', image: 'images/James_E_Smith.jpg' },
-  { name: 'Abhishek Bhattachargee', affiliation: 'Princeton', role: 'Professor of Computer Science', image: 'images/citations.jpg' },
-  { name: 'Raghavendra Pradyumna Pothukuchi', affiliation: 'UNC', role: 'Assistant Professor', image: 'images/Pothukuchi.jpg' },
-  { name: 'Luciano Dyballa', affiliation: 'IE University', role: 'Assistant Professor', image: 'images/prof-luciano-dyballa_1.png' },
-  { name: 'Olivier Oullier', affiliation: 'MBZUAI', role: 'Visiting Professor of Practice, Human-Computer Interaction', image: 'images/Olivier_Website-1.jpg' },
-  { name: 'Dongning Ma', affiliation: 'MBZUAI', role: 'Postdoctoral Associate', image: 'images/profile.png' },
+  { name: 'Abdulrahman Mahmoud', affiliation: 'MBZUAI', role: 'Assistant Professor of Computer Science', image: 'images/Abdulrahman_inner.png', link: 'https://ma3mool.github.io/' },
+  { name: 'Elizabeth Churchill', affiliation: 'MBZUAI', role: 'Department Chair and Professor of Human-Computer Interaction' , image: 'images/images (1).png',link: 'https://elizabethchurchill.com/'  },
+  { name: 'James Smith', affiliation: 'University of Wisconsin', role: 'Professor Emeritus', image: 'images/James_E_Smith.jpg',link: 'https://directory.engr.wisc.edu/ece/faculty/smith_james/'  },
+  { name: 'Abhishek Bhattachargee', affiliation: 'Princeton', role: 'Professor of Computer Science', image: 'images/citations.jpg',link: 'https://www.cs.yale.edu/homes/abhishek/' },
+  { name: 'Raghavendra Pradyumna Pothukuchi', affiliation: 'UNC', role: 'Assistant Professor', image: 'images/Pothukuchi.jpg',link: 'https://www.cs.unc.edu/~raghav/'  },
+  { name: 'Luciano Dyballa', affiliation: 'IE University', role: 'Assistant Professor', image: 'images/prof-luciano-dyballa_1.png',link: 'https://www.ie.edu/university/about/faculty/luciano-dyballa/'  },
+  { name: 'Olivier Oullier', affiliation: 'MBZUAI', role: 'Visiting Professor of Practice, Human-Computer Interaction', image: 'images/Olivier_Website-1.jpg',link: 'https://mbzuai.ac.ae/study/faculty/olivier-oullier/'  },
+  { name: 'Dongning Ma', affiliation: 'MBZUAI', role: 'Postdoctoral Associate', image: 'images/profile.png',link: 'https://dongning-ma.github.io/'  },
   { name: 'Juwayni Macadato Lucman', affiliation: 'MBZUAI', role: 'Phd Student', image: 'images/juwayni.jpeg' },
   { name: 'Mohamed Aziz Benzarti', affiliation: 'MBZUAI', role: 'Research Engineer' , image: 'images/1758875142554.jpg'},
   
@@ -471,20 +471,35 @@ const getInitials = (name) =>
     </div>
 
     <div className="team-grid">
-      {teamMembers.map((member, index) => (
-        <div key={index} className="team-card">
-          <div className="team-card-image">
-            <img src={member.image} alt={member.name} className="team-avatar-image" />
+  {teamMembers.map((member, index) => (
+    <div key={index} className="team-card">
+      <div className="team-card-image">
+        {member.image ? (
+          <img src={member.image} alt={member.name} className="team-avatar-image" />
+        ) : (
+          <div className="team-avatar-fallback">
+            {getInitials(member.name)}
           </div>
+        )}
+      </div>
 
-          <div className="team-card-body">
-            <h3>{member.name}</h3>
-            <p className="team-role">{member.role}</p>
-            <p className="team-affiliation">{member.affiliation}</p>
-          </div>
-        </div>
-      ))}
+      <div className="team-card-body">
+        <h3>
+          <a
+            href={member.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="team-name-link"
+          >
+            {member.name}
+          </a>
+        </h3>
+        <p className="team-role">{member.role}</p>
+        <p className="team-affiliation">{member.affiliation}</p>
+      </div>
     </div>
+  ))}
+</div>
   </div>
 </section>
       {/* About / CTA Section */}

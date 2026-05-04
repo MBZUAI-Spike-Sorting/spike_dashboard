@@ -867,3 +867,13 @@
   border-radius: 20px;
   display: block;
 }
+.team-name-link {
+  color: inherit;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.team-name-link:hover {
+  text-decoration: underline;
+  color: #40e0d0;
+}
