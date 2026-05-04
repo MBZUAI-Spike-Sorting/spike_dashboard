@@ -16,11 +16,11 @@ const LandingPage = () => {
   const teamMembers = [
   { name: 'Abdulrahman Mahmoud', affiliation: 'MBZUAI', role: 'Assistant Professor of Computer Science', image: 'images/Abdulrahman_inner.png', link: 'https://ma3mool.github.io/' },
   { name: 'Elizabeth Churchill', affiliation: 'MBZUAI', role: 'Department Chair and Professor of Human-Computer Interaction' , image: 'images/images (1).png',link: 'https://elizabethchurchill.com/'  },
+    { name: 'Olivier Oullier', affiliation: 'MBZUAI', role: 'Visiting Professor of Practice, Human-Computer Interaction', image: 'images/Olivier_Website-1.jpg',link: 'https://mbzuai.ac.ae/study/faculty/olivier-oullier/'  },
   { name: 'James Smith', affiliation: 'University of Wisconsin', role: 'Professor Emeritus', image: 'images/James_E_Smith.jpg',link: 'https://directory.engr.wisc.edu/ece/faculty/smith_james/'  },
   { name: 'Abhishek Bhattachargee', affiliation: 'Princeton', role: 'Professor of Computer Science', image: 'images/citations.jpg',link: 'https://www.cs.yale.edu/homes/abhishek/' },
   { name: 'Raghavendra Pradyumna Pothukuchi', affiliation: 'UNC', role: 'Assistant Professor', image: 'images/Pothukuchi.jpg',link: 'https://www.cs.unc.edu/~raghav/'  },
   { name: 'Luciano Dyballa', affiliation: 'IE University', role: 'Assistant Professor', image: 'images/prof-luciano-dyballa_1.png',link: 'https://www.ie.edu/university/about/faculty/luciano-dyballa/'  },
-  { name: 'Olivier Oullier', affiliation: 'MBZUAI', role: 'Visiting Professor of Practice, Human-Computer Interaction', image: 'images/Olivier_Website-1.jpg',link: 'https://mbzuai.ac.ae/study/faculty/olivier-oullier/'  },
   { name: 'Dongning Ma', affiliation: 'MBZUAI', role: 'Postdoctoral Associate', image: 'images/profile.png',link: 'https://dongning-ma.github.io/'  },
   { name: 'Juwayni Macadato Lucman', affiliation: 'MBZUAI', role: 'Phd Student', image: 'images/juwayni.jpeg' },
   { name: 'Mohamed Aziz Benzarti', affiliation: 'MBZUAI', role: 'Research Engineer' , image: 'images/1758875142554.jpg'},
