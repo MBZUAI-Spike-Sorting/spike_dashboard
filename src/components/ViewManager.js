@@ -15,7 +15,8 @@ const DEFAULT_VIEW = {
     clusterStats: { visible: true, minimized: false, maximized: false, order: 3, position: null, size: null },
     signalView: { visible: true, minimized: false, maximized: false, order: 4, position: null, size: null },
     dimReduction: { visible: true, minimized: false, maximized: false, order: 5, position: null, size: null },
-    waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null }
+    waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
+    amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null }
   }
 };
 
@@ -26,7 +27,18 @@ const EMPTY_WIDGET_STATES = {
   clusterStats: { visible: false, minimized: false, maximized: false, order: 3, position: null, size: null },
   signalView: { visible: false, minimized: false, maximized: false, order: 4, position: null, size: null },
   dimReduction: { visible: false, minimized: false, maximized: false, order: 5, position: null, size: null },
-  waveform: { visible: false, minimized: false, maximized: false, order: 6, position: null, size: null }
+  waveform: { visible: false, minimized: false, maximized: false, order: 6, position: null, size: null },
+  amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null }
+};
+
+const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {
+  return Object.entries(defaults).reduce((acc, [widgetId, defaultState]) => {
+    acc[widgetId] = {
+      ...defaultState,
+      ...(widgetStates[widgetId] || {})
+    };
+    return acc;
+  }, {});
 };
 
 const ViewManager = ({ 
@@ -60,7 +72,10 @@ const ViewManager = ({
         if (!hasDefault) {
           parsed.unshift(DEFAULT_VIEW);
         }
-        loadedViews = parsed;
+        loadedViews = parsed.map((view) => ({
+          ...view,
+          widgetStates: mergeWidgetStateDefaults(view.widgetStates)
+        }));
       } catch (e) {
         console.error('Error loading saved views:', e);
       }
@@ -143,7 +158,10 @@ const ViewManager = ({
       id: `view_${Date.now()}`,
       name: newViewName.trim(),
       isDefault: false,
-      widgetStates: JSON.parse(JSON.stringify(EMPTY_WIDGET_STATES)),
+      widgetStates: mergeWidgetStateDefaults(
+        JSON.parse(JSON.stringify(EMPTY_WIDGET_STATES)),
+        EMPTY_WIDGET_STATES
+      ),
       createdAt: new Date().toISOString()
     };
     

@@ -29,6 +29,7 @@ export { default as MultiPanelView } from './MultiPanelView';
 export { default as VisualizationArea } from './VisualizationArea';
 export { default as SignalViewPanel } from './SignalViewPanel';
 export { default as DimensionalityReductionPanel } from './DimensionalityReductionPanel';
+export { default as AmplitudeProfileWidget } from './AmplitudeProfileWidget';
 
 // Data display components  
 export { default as ClusterListTable } from './ClusterListTable';

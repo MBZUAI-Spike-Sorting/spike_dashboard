@@ -16,6 +16,7 @@ import ClusterStatisticsWindow from '../components/ClusterStatisticsWindow';
 import SignalViewPanel from '../components/SignalViewPanel';
 import DimensionalityReductionPanel from '../components/DimensionalityReductionPanel';
 import WaveformSingleChannelView from '../components/WaveformSingleChannelView';
+import AmplitudeProfileWidget from '../components/AmplitudeProfileWidget';
 
 /**
  * Built-in widget definitions
@@ -101,6 +102,19 @@ const BUILTIN_WIDGETS = [
     component: WaveformSingleChannelView,
     requiredData: ['waveforms'],
     order: 6,
+  },
+  {
+    id: 'amplitudeProfile',
+    name: 'Amplitude Profile',
+    description: 'Amplitude histograms with Gaussian KDE overlays',
+    icon: 'A',
+    category: 'visualization',
+    defaultSize: { width: 620, height: 430 },
+    minWidth: 360,
+    minHeight: 260,
+    component: AmplitudeProfileWidget,
+    requiredData: ['clusters', 'waveforms'],
+    order: 7,
   },
 ];
 

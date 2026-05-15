@@ -142,6 +142,16 @@
   height: calc(100vh - 470px);
 }
 
+.panel-amplitude-profile {
+  top: 390px;
+  left: calc(25vw);
+}
+
+.panel-amplitude-profile .dockable-widget {
+  width: min(620px, calc(100vw - 80px));
+  height: min(430px, calc(100vh - 490px));
+}
+
 /* Waveform View Toggle */
 .waveform-view-toggle {
   display: flex !important;

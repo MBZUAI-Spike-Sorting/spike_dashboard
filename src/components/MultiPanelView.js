@@ -6,6 +6,7 @@ import SignalViewPanel from './SignalViewPanel';
 import DimensionalityReductionPanel from './DimensionalityReductionPanel';
 import WaveformSingleChannelView from './WaveformSingleChannelView';
 import WaveformNeighboringChannelsView from './WaveformNeighboringChannelsView';
+import AmplitudeProfileWidget from './AmplitudeProfileWidget';
 import DockableWidget from './DockableWidget';
 import WidgetBank from './WidgetBank';
 import RightSideMenu from './RightSideMenu';
@@ -18,7 +19,18 @@ const DEFAULT_WIDGET_STATES = {
   clusterStats: { visible: true, minimized: false, maximized: false, order: 3, position: null, size: null },
   signalView: { visible: true, minimized: false, maximized: false, order: 4, position: null, size: null },
   dimReduction: { visible: true, minimized: false, maximized: false, order: 5, position: null, size: null },
-  waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null }
+  waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
+  amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null }
+};
+
+const mergeWidgetStateDefaults = (widgetStates = {}) => {
+  return Object.entries(DEFAULT_WIDGET_STATES).reduce((acc, [widgetId, defaultState]) => {
+    acc[widgetId] = {
+      ...defaultState,
+      ...(widgetStates[widgetId] || {})
+    };
+    return acc;
+  }, {});
 };
 
 const MultiPanelView = forwardRef(({
@@ -65,14 +77,14 @@ const MultiPanelView = forwardRef(({
         const views = JSON.parse(savedViews);
         const currentView = views.find((v) => v.id === savedCurrentView);
         if (currentView && currentView.widgetStates) {
-          return currentView.widgetStates;
+          return mergeWidgetStateDefaults(currentView.widgetStates);
         }
       } catch (e) {
         console.error('Error loading saved widget states:', e);
       }
     }
 
-    return DEFAULT_WIDGET_STATES;
+    return mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES);
   });
 
   const [isInitialized, setIsInitialized] = useState(false);
@@ -156,7 +168,8 @@ const MultiPanelView = forwardRef(({
       clusterStats: 'panel-cluster-stats',
       signalView: 'panel-signal-view',
       dimReduction: 'panel-dim-reduction',
-      waveform: 'panel-waveform'
+      waveform: 'panel-waveform',
+      amplitudeProfile: 'panel-amplitude-profile'
     };
 
     Object.keys(widgetStates).forEach((widgetId) => {
@@ -332,7 +345,8 @@ const MultiPanelView = forwardRef(({
           widgetId === 'clusterStats' ? 'panel-cluster-stats' :
           widgetId === 'signalView' ? 'panel-signal-view' :
           widgetId === 'dimReduction' ? 'panel-dim-reduction' :
-          widgetId === 'waveform' ? 'panel-waveform' : '';
+          widgetId === 'waveform' ? 'panel-waveform' :
+          widgetId === 'amplitudeProfile' ? 'panel-amplitude-profile' : '';
 
         const panel = document.querySelector(`.${panelClass}`);
         const widget = panel?.querySelector('.dockable-widget');
@@ -651,7 +665,8 @@ const MultiPanelView = forwardRef(({
       clusterStats: 'panel-cluster-stats',
       signalView: 'panel-signal-view',
       dimReduction: 'panel-dim-reduction',
-      waveform: 'panel-waveform'
+      waveform: 'panel-waveform',
+      amplitudeProfile: 'panel-amplitude-profile'
     };
 
     Object.keys(widgetStates).forEach((widgetId) => {
@@ -696,7 +711,7 @@ const MultiPanelView = forwardRef(({
       panel.style.top = '';
     });
 
-    const clonedStates = JSON.parse(JSON.stringify(newWidgetStates));
+    const clonedStates = mergeWidgetStateDefaults(JSON.parse(JSON.stringify(newWidgetStates)));
     setWidgetStates(clonedStates);
   }, []);
 
@@ -760,7 +775,8 @@ const MultiPanelView = forwardRef(({
     { id: 'clusterStats', name: 'Cluster Statistics Window', visible: widgetStates.clusterStats.visible },
     { id: 'signalView', name: 'Signal View', visible: widgetStates.signalView.visible },
     { id: 'dimReduction', name: 'Dimensionality Reduction Plot View (PCA)', visible: widgetStates.dimReduction.visible },
-    { id: 'waveform', name: 'Waveform View', visible: widgetStates.waveform.visible }
+    { id: 'waveform', name: 'Waveform View', visible: widgetStates.waveform.visible },
+    { id: 'amplitudeProfile', name: 'Amplitude Profile', visible: widgetStates.amplitudeProfile.visible }
   ];
 
   useImperativeHandle(ref, () => ({
@@ -947,6 +963,27 @@ const MultiPanelView = forwardRef(({
                     : null
                 }
                 onSpikeClick={handleDimReductionSpikeClick}
+              />
+            </DockableWidget>
+          </div>
+        )}
+
+        {widgetStates.amplitudeProfile.visible && (
+          <div className="panel panel-amplitude-profile" style={getPanelStyle('amplitudeProfile')}>
+            <DockableWidget
+              id="amplitudeProfile"
+              title="Amplitude Profile"
+              onClose={handleCloseWidget}
+              onMinimize={handleMinimizeWidget}
+              onMaximize={handleMaximizeWidget}
+              isMinimized={widgetStates.amplitudeProfile.minimized}
+              isMaximized={widgetStates.amplitudeProfile.maximized}
+            >
+              <AmplitudeProfileWidget
+                selectedClusters={selectedClusters}
+                clusterWaveforms={clusterWaveforms}
+                clusterData={clusterData}
+                clusteringResults={clusteringResults}
               />
             </DockableWidget>
           </div>
