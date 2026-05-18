@@ -229,3 +229,53 @@
 .widget-bank-arrow.open {
   transform: rotate(180deg);
 }
+.dashboard-title-link {
+  text-decoration: none;
+  color: inherit;
+  display: inline-block;
+}
+
+.dashboard-title-link:hover {
+  opacity: 0.95;
+  cursor: pointer;
+}
+.dashboard-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.playground-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #14b8a6, #22d3ee);
+  color: #06202a;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(34, 211, 238, 0.25);
+}
+.demo-signin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(64, 224, 208, 0.28);
+  background: linear-gradient(135deg, rgba(10, 16, 40, 0.95), rgba(20, 30, 70, 0.95));
+  color: #36e4da;
+  text-decoration: none;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.demo-signin-button:hover {
+  border-color: rgba(64, 224, 208, 0.45);
+  background: linear-gradient(135deg, rgba(18, 28, 65, 0.98), rgba(28, 42, 92, 0.98));
+  transform: translateY(-1px);
+}

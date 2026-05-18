@@ -50,6 +50,14 @@ const WIDGET_DEFINITIONS = {
     icon: '〰️',
     category: 'visualization',
     defaultSize: { width: 500, height: 400 }
+  },
+  amplitudeProfile: {
+    id: 'amplitudeProfile',
+    name: 'Amplitude Profile',
+    description: 'Amplitude histograms with Gaussian KDE overlays',
+    icon: 'A',
+    category: 'visualization',
+    defaultSize: { width: 620, height: 430 }
   }
 };
 
@@ -248,4 +256,3 @@ const WidgetBank = ({
 // Export widget definitions for use in other components
 export { WIDGET_DEFINITIONS, CATEGORIES };
 export default WidgetBank;
-

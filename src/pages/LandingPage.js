@@ -13,7 +13,29 @@ import './LandingPage.css';
 const LandingPage = () => {
   const { isAuthenticated } = useAuth();
   const canvasRef = useRef(null);
+  const teamMembers = [
+  { name: 'Abdulrahman Mahmoud', affiliation: 'MBZUAI', role: 'Assistant Professor of Computer Science', image: 'images/Abdulrahman_inner.png', link: 'https://ma3mool.github.io/' },
+  { name: 'Elizabeth Churchill', affiliation: 'MBZUAI', role: 'Department Chair and Professor of Human-Computer Interaction' , image: 'images/images (1).png',link: 'https://elizabethchurchill.com/'  },
+    { name: 'Olivier Oullier', affiliation: 'MBZUAI', role: 'Visiting Professor of Practice, Human-Computer Interaction', image: 'images/Olivier_Website-1.jpg',link: 'https://mbzuai.ac.ae/study/faculty/olivier-oullier/'  },
+  { name: 'James Smith', affiliation: 'University of Wisconsin', role: 'Professor Emeritus', image: 'images/James_E_Smith.jpg',link: 'https://directory.engr.wisc.edu/ece/faculty/smith_james/'  },
+  { name: 'Abhishek Bhattachargee', affiliation: 'Princeton', role: 'Professor of Computer Science', image: 'images/citations.jpg',link: 'https://www.cs.yale.edu/homes/abhishek/' },
+  { name: 'Raghavendra Pradyumna Pothukuchi', affiliation: 'UNC', role: 'Assistant Professor', image: 'images/Pothukuchi.jpg',link: 'https://www.cs.unc.edu/~raghav/'  },
+  { name: 'Luciano Dyballa', affiliation: 'IE University', role: 'Assistant Professor', image: 'images/prof-luciano-dyballa_1.png',link: 'https://www.ie.edu/university/about/faculty/luciano-dyballa/'  },
+  { name: 'Dongning Ma', affiliation: 'MBZUAI', role: 'Postdoctoral Associate', image: 'images/profile.png',link: 'https://dongning-ma.github.io/'  },
+  { name: 'Juwayni Macadato Lucman', affiliation: 'MBZUAI', role: 'Phd Student', image: 'images/juwayni.jpeg' },
+  { name: 'Mohamed Aziz Benzarti', affiliation: 'MBZUAI', role: 'Research Engineer' , image: 'images/1758875142554.jpg'},
+  
+  { name: 'Mohamed Elzeftawy', affiliation: 'MBZUAI', role: 'MSc Student', image: 'images/zeftawy.jpeg' },
+  { name: 'Dastan Bekmukhanbetov', affiliation: 'MBZUAI', role: 'MSc Student' , image: 'images/dastan.jpg'},
+];
 
+const getInitials = (name) =>
+  name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
   // Animated neural network background
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -129,11 +151,21 @@ const LandingPage = () => {
           <a href="#features" className="landing-nav-link">Features</a>
           <a href="#workflow" className="landing-nav-link">Workflow</a>
           <a href="#about" className="landing-nav-link">About</a>
+          <a href="#team" className="landing-nav-link">Team</a>
           {isAuthenticated ? (
-            <Link to="/dashboard" className="landing-nav-cta">Go to Dashboard</Link>
-          ) : (
-            <Link to="/login" className="landing-nav-cta">Sign In</Link>
-          )}
+  <Link to="/dashboard" className="landing-nav-cta">
+    Go to Dashboard
+  </Link>
+) : (
+  <div className="landing-nav-actions">
+    <Link to="/demo" className="landing-nav-cta">
+      Try Demo
+    </Link>
+    <Link to="/login" className="landing-nav-cta">
+      Sign In
+    </Link>
+  </div>
+)}
         </div>
       </nav>
 
@@ -152,7 +184,7 @@ const LandingPage = () => {
           </p>
           <div className="landing-hero-actions">
             <Link
-              to={isAuthenticated ? '/dashboard' : '/login'}
+              to={'/demo'}
               className="landing-btn-primary"
             >
               <span>Try It Now</span>
@@ -426,7 +458,50 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+<section id="team" className="team-section">
+  <div className="team-container">
+    <div className="team-header">
+      <span className="team-eyebrow">Our Team</span>
+      <h2>Meet the Team</h2>
+      <p>
+        SpikeScope is being developed through a collaborative effort across
+        institutions, combining expertise in neuroscience, spike sorting,
+        machine learning, and systems engineering.
+      </p>
+    </div>
 
+    <div className="team-grid">
+  {teamMembers.map((member, index) => (
+    <div key={index} className="team-card">
+      <div className="team-card-image">
+        {member.image ? (
+          <img src={member.image} alt={member.name} className="team-avatar-image" />
+        ) : (
+          <div className="team-avatar-fallback">
+            {getInitials(member.name)}
+          </div>
+        )}
+      </div>
+
+      <div className="team-card-body">
+        <h3>
+          <a
+            href={member.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="team-name-link"
+          >
+            {member.name}
+          </a>
+        </h3>
+        <p className="team-role">{member.role}</p>
+        <p className="team-affiliation">{member.affiliation}</p>
+      </div>
+    </div>
+  ))}
+</div>
+  </div>
+</section>
       {/* About / CTA Section */}
       <section id="about" className="landing-about">
         <div className="landing-about-card">

@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import DatasetSelector from './DatasetSelector';
 import UserMenu from './UserMenu';
 import './Header.css';
-
+import { Link } from 'react-router-dom';
 /**
  * Header Component
  * 
@@ -11,6 +11,7 @@ import './Header.css';
  * user menu, and signal type controls.
  */
 const Header = ({
+  demoMode = false,
   datasets,
   currentDataset,
   onDatasetChange,
@@ -24,7 +25,23 @@ const Header = ({
   return (
     <div className="header">
       <div className="header-left">
-        <h1>Spike Visualization Dashboard</h1>
+        <Link to="/" className="dashboard-title-link">
+   <div className="landing-nav-brand">
+          <div className="landing-nav-logo">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#bolt-grad)" />
+              <defs>
+                <linearGradient id="bolt-grad" x1="3" y1="2" x2="21" y2="22">
+                  <stop stopColor="#40e0d0" />
+                  <stop offset="1" stopColor="#0d9488" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <span className="landing-nav-title">SpikeScope</span>
+        </div>
+</Link>
+{demoMode && <span className="playground-badge">Playground</span>}
       </div>
 
       <div className="header-controls">
@@ -65,6 +82,7 @@ const Header = ({
           onDatasetChange={onDatasetChange}
           onDatasetDelete={onDatasetDelete}
         />
+        {!demoMode && (
 
         <button 
           className="upload-button-header" 
@@ -86,8 +104,14 @@ const Header = ({
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
         </button>
-        
-        <UserMenu />
+        )}
+       {demoMode ? (
+  <Link to="/login" className="demo-signin-button" title="Sign in">
+    Sign In
+  </Link>
+) : (
+  <UserMenu />
+)}
       </div>
     </div>
   );

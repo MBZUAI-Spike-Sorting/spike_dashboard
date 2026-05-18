@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SpikeGrid from './SpikeGrid';
 import Timeline from './Timeline';
+import { synthesizeChannelTrace, applyDemoFilter } from '../data/demoDashboardData';
 import './SignalViewPanel.css';
 
-const SignalViewPanel = ({ highlightedSpikes, datasetInfo }) => {
+const SignalViewPanel = ({ demoMode = false, highlightedSpikes, datasetInfo, demoSignalData }) => {
   // State management - exact copy from App.js pattern
   const [selectedChannels, setSelectedChannels] = useState([179, 181, 183]);
   const [channelScrollOffset, setChannelScrollOffset] = useState(0);
@@ -25,8 +26,45 @@ const SignalViewPanel = ({ highlightedSpikes, datasetInfo }) => {
 
   const dataCache = useRef({});
 
+  // Demo synthesis: produce plottable data for any selected channel without
+  // touching the backend.
+  useEffect(() => {
+    if (!demoMode) return;
+    if (selectedChannels.length === 0) {
+      setSpikeData({});
+      return;
+    }
+
+    const synthesized = {};
+    selectedChannels.forEach((channelId) => {
+      const trace = synthesizeChannelTrace(channelId, 4000);
+      const baseData = invertData ? trace.data.map((v) => -v) : trace.data;
+      const filtered = applyDemoFilter(baseData, filterType);
+
+      let renderedData = baseData;
+      if (selectedDataType === 'filtered') renderedData = filtered;
+      else if (selectedDataType === 'spikes' && filterType !== 'none') renderedData = filtered;
+
+      const threshold = spikeThreshold ?? -2.0;
+      const isSpike = renderedData.map((v) =>
+        invertData ? v >= -threshold : v <= threshold
+      );
+
+      synthesized[channelId] = {
+        data: renderedData,
+        filteredData: filtered,
+        isSpike,
+        spikePeaks: trace.spikePeaks,
+        startTime: 0,
+        endTime: renderedData.length
+      };
+    });
+    setSpikeData(synthesized);
+  }, [demoMode, selectedChannels, selectedDataType, filterType, spikeThreshold, invertData]);
+
   // Fetch signal data when parameters change
   useEffect(() => {
+    if (demoMode) return;
     if (selectedChannels.length === 0) return;
 
     const fetchSignalData = async () => {
@@ -260,7 +298,7 @@ const SignalViewPanel = ({ highlightedSpikes, datasetInfo }) => {
             />
             <span>Invert Data</span>
           </label>
-          {selectedDataType === 'spikes' && (
+          {selectedDataType === 'spikes' && !demoMode && (
             <label className="precomputed-checkbox" style={{ opacity: precomputedAvailable ? 1 : 0.5 }}>
               <input
                 type="checkbox"
