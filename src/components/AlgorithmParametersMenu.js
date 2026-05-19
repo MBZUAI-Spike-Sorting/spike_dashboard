@@ -1,13 +1,57 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  CUSTOM_PARAMETER_TYPES,
+  getAlgorithmParameterDefinitions,
+  getDefaultAlgorithmParameters,
+  getPresetsForAlgorithm,
+  loadHyperparameterPresets,
+  normalizeParameterKey,
+  parseParameterValue,
+  saveHyperparameterPresets
+} from '../utils/hyperparameters';
 import './AlgorithmParametersMenu.css';
+
+const DEFAULT_PRESET_ID = '__default_parameters__';
+
+const getAlgorithmLabel = (algorithm) => {
+  if (algorithm === 'kilosort4') return 'Kilosort4';
+  if (algorithm === 'torchbci_jims') return 'TorchBCI JimsAlgorithm';
+  return algorithm || 'Algorithm';
+};
 
 const AlgorithmParametersMenu = ({ isOpen, onClose, parameters, onSave, algorithm }) => {
   const [localParams, setLocalParams] = useState(parameters);
+  const [presetState, setPresetState] = useState(loadHyperparameterPresets);
+  const [selectedPresetId, setSelectedPresetId] = useState('');
+  const [presetName, setPresetName] = useState('');
+  const [customParam, setCustomParam] = useState({
+    name: '',
+    type: CUSTOM_PARAMETER_TYPES.NUMBER,
+    value: ''
+  });
+  const [formError, setFormError] = useState('');
   const menuRef = useRef(null);
+
+  const algorithmPresets = useMemo(
+    () => getPresetsForAlgorithm(presetState, algorithm),
+    [presetState, algorithm]
+  );
+
+  const parameterDefinitions = useMemo(
+    () => getAlgorithmParameterDefinitions(algorithm, localParams || {}),
+    [algorithm, localParams]
+  );
 
   useEffect(() => {
     setLocalParams(parameters);
-  }, [parameters]);
+    setSelectedPresetId('');
+    setPresetName('');
+    setFormError('');
+  }, [algorithm, parameters, isOpen]);
+
+  useEffect(() => {
+    saveHyperparameterPresets(presetState);
+  }, [presetState]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -27,10 +71,10 @@ const AlgorithmParametersMenu = ({ isOpen, onClose, parameters, onSave, algorith
 
   if (!isOpen) return null;
 
-  const handleChange = (paramName, value) => {
-    setLocalParams(prev => ({
+  const handleChange = (definition, value) => {
+    setLocalParams((prev) => ({
       ...prev,
-      [paramName]: value
+      [definition.key]: parseParameterValue(value, definition)
     }));
   };
 
@@ -40,206 +84,280 @@ const AlgorithmParametersMenu = ({ isOpen, onClose, parameters, onSave, algorith
   };
 
   const handleReset = () => {
-    // Reset to default values based on algorithm
-    let defaults;
-    if (algorithm === 'kilosort4') {
-      defaults = {
-        probe_path: 'torchbci/data/NeuroPix1_default.mat',
-        sampling_rate: 30000
-      };
-    } else {
-      // TorchBCI Jims defaults
-      defaults = {
-        window_size: 3,
-        threshold: 36,
-        frame_size: 13,
-        normalize: 'zscore',
-        sort_by: 'value',
-        leniency_channel: 7,
-        leniency_time: 32,
-        similarity_mode: 'cosine',
-        outlier_threshold: 0.8,
-        n_clusters: 8,
-        cluster_feature_size: 7,
-        n_jims_features: 7,
-        pad_value: 0
-      };
+    setLocalParams(getDefaultAlgorithmParameters(algorithm));
+    setSelectedPresetId(DEFAULT_PRESET_ID);
+    setFormError('');
+  };
+
+  const handlePresetSelect = (presetId) => {
+    setSelectedPresetId(presetId);
+    setFormError('');
+
+    if (presetId === DEFAULT_PRESET_ID) {
+      setLocalParams(getDefaultAlgorithmParameters(algorithm));
+      return;
     }
-    setLocalParams(defaults);
+
+    const preset = algorithmPresets.find((item) => item.id === presetId);
+    if (preset) {
+      setLocalParams({ ...preset.parameters });
+      setPresetName(preset.name);
+    }
+  };
+
+  const handleSavePreset = () => {
+    const name = presetName.trim();
+    if (!name) {
+      setFormError('Preset name is required.');
+      return;
+    }
+
+    const existingPreset = algorithmPresets.find(
+      (preset) => preset.name.toLowerCase() === name.toLowerCase()
+    );
+    const presetId = existingPreset?.id || `${algorithm || 'algorithm'}-${Date.now()}`;
+    const nextPreset = {
+      id: presetId,
+      name,
+      algorithm,
+      parameters: { ...localParams },
+      updatedAt: new Date().toISOString()
+    };
+
+    setPresetState((prev) => {
+      const nextAlgorithmPresets = [
+        ...getPresetsForAlgorithm(prev, algorithm).filter((preset) => preset.id !== presetId),
+        nextPreset
+      ].sort((a, b) => a.name.localeCompare(b.name));
+
+      return {
+        ...prev,
+        [algorithm]: nextAlgorithmPresets
+      };
+    });
+
+    setSelectedPresetId(presetId);
+    setFormError('');
+  };
+
+  const handleDeletePreset = () => {
+    if (!selectedPresetId || selectedPresetId === DEFAULT_PRESET_ID) return;
+
+    setPresetState((prev) => ({
+      ...prev,
+      [algorithm]: getPresetsForAlgorithm(prev, algorithm).filter(
+        (preset) => preset.id !== selectedPresetId
+      )
+    }));
+    setSelectedPresetId('');
+    setPresetName('');
+  };
+
+  const handleCustomParamChange = (field, value) => {
+    setCustomParam((prev) => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleAddCustomParam = () => {
+    const key = normalizeParameterKey(customParam.name);
+    if (!key) {
+      setFormError('Custom parameter name is required.');
+      return;
+    }
+
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      setFormError('Parameter names must start with a letter or underscore.');
+      return;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(localParams, key)) {
+      setFormError(`"${key}" already exists.`);
+      return;
+    }
+
+    const definition = {
+      key,
+      type: customParam.type,
+      numberMode: 'float'
+    };
+
+    setLocalParams((prev) => ({
+      ...prev,
+      [key]: parseParameterValue(customParam.value, definition)
+    }));
+    setCustomParam({
+      name: '',
+      type: CUSTOM_PARAMETER_TYPES.NUMBER,
+      value: ''
+    });
+    setFormError('');
+  };
+
+  const handleRemoveCustomParam = (key) => {
+    setLocalParams((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const renderParameterInput = (definition) => {
+    const value = localParams?.[definition.key];
+
+    if (definition.options) {
+      return (
+        <select
+          value={value ?? ''}
+          onChange={(event) => handleChange(definition, event.target.value)}
+        >
+          {definition.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (definition.type === CUSTOM_PARAMETER_TYPES.BOOLEAN) {
+      return (
+        <label className="param-checkbox">
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(event) => handleChange(definition, event.target.checked)}
+          />
+          <span>{value ? 'Enabled' : 'Disabled'}</span>
+        </label>
+      );
+    }
+
+    return (
+      <input
+        type={definition.type === CUSTOM_PARAMETER_TYPES.NUMBER ? 'number' : 'text'}
+        value={value ?? ''}
+        onChange={(event) => handleChange(definition, event.target.value)}
+        min={definition.min}
+        max={definition.max}
+        step={definition.step || (definition.numberMode === 'float' ? 'any' : '1')}
+        placeholder={definition.placeholder}
+      />
+    );
   };
 
   return (
     <div className="algorithm-params-overlay">
       <div className="algorithm-params-menu" ref={menuRef}>
         <div className="params-header">
-          <h3>Algorithm Parameters</h3>
-          <button className="close-button" onClick={onClose}>×</button>
+          <div>
+            <h3>Algorithm Parameters</h3>
+            <p>{getAlgorithmLabel(algorithm)}</p>
+          </div>
+          <button className="close-button" onClick={onClose}>x</button>
         </div>
-        
+
         <div className="params-content">
-          {algorithm === 'kilosort4' ? (
-            // Kilosort4 parameters
-            <>
-              <div className="param-group">
-                <label>Probe Path</label>
-                <input
-                  type="text"
-                  value={localParams.probe_path || ''}
-                  onChange={(e) => handleChange('probe_path', e.target.value)}
-                  placeholder="torchbci/data/NeuroPix1_default.mat"
-                />
-                <small>Path to probe configuration file</small>
+          <div className="param-presets-panel">
+            <div className="param-group">
+              <label>Preset</label>
+              <select
+                value={selectedPresetId}
+                onChange={(event) => handlePresetSelect(event.target.value)}
+              >
+                <option value="">Current parameters</option>
+                <option value={DEFAULT_PRESET_ID}>Default parameters</option>
+                {algorithmPresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="preset-actions">
+              <input
+                type="text"
+                value={presetName}
+                onChange={(event) => setPresetName(event.target.value)}
+                placeholder="Preset name"
+              />
+              <button className="secondary-button" onClick={handleSavePreset}>
+                Save Preset
+              </button>
+              <button
+                className="danger-button"
+                onClick={handleDeletePreset}
+                disabled={!selectedPresetId || selectedPresetId === DEFAULT_PRESET_ID}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+
+          {formError && <div className="param-error">{formError}</div>}
+
+          <div className="params-section-title">Registered Hyperparameters</div>
+          {parameterDefinitions.map((definition) => (
+            <div className="param-group" key={definition.key}>
+              <div className="param-label-row">
+                <label>{definition.label}</label>
+                {definition.custom && (
+                  <button
+                    className="remove-param-button"
+                    onClick={() => handleRemoveCustomParam(definition.key)}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
+              {renderParameterInput(definition)}
+              {definition.description && <small>{definition.description}</small>}
+            </div>
+          ))}
 
-              <div className="param-group">
-                <label>Sampling Rate (Hz)</label>
+          <div className="custom-param-panel">
+            <div className="params-section-title">Add Hyperparameter</div>
+            <div className="custom-param-grid">
+              <input
+                type="text"
+                value={customParam.name}
+                onChange={(event) => handleCustomParamChange('name', event.target.value)}
+                placeholder="parameter_name"
+              />
+              <select
+                value={customParam.type}
+                onChange={(event) => handleCustomParamChange('type', event.target.value)}
+              >
+                <option value={CUSTOM_PARAMETER_TYPES.NUMBER}>Number</option>
+                <option value={CUSTOM_PARAMETER_TYPES.STRING}>Text</option>
+                <option value={CUSTOM_PARAMETER_TYPES.BOOLEAN}>Boolean</option>
+              </select>
+              {customParam.type === CUSTOM_PARAMETER_TYPES.BOOLEAN ? (
+                <label className="param-checkbox custom-param-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(customParam.value)}
+                    onChange={(event) =>
+                      handleCustomParamChange('value', event.target.checked)
+                    }
+                  />
+                  <span>{customParam.value ? 'True' : 'False'}</span>
+                </label>
+              ) : (
                 <input
-                  type="number"
-                  value={localParams.sampling_rate || 30000}
-                  onChange={(e) => handleChange('sampling_rate', parseInt(e.target.value))}
-                  min="1000"
+                  type={customParam.type === CUSTOM_PARAMETER_TYPES.NUMBER ? 'number' : 'text'}
+                  value={customParam.value}
+                  onChange={(event) => handleCustomParamChange('value', event.target.value)}
+                  placeholder="Default value"
                 />
-                <small>Recording sampling rate</small>
-              </div>
-            </>
-          ) : (
-            // TorchBCI Jims parameters
-            <>
-              <div className="param-group">
-                <label>Window Size</label>
-                <input
-                  type="number"
-                  value={localParams.window_size}
-                  onChange={(e) => handleChange('window_size', parseInt(e.target.value))}
-                  min="1"
-                />
-              </div>
-
-          <div className="param-group">
-            <label>Threshold</label>
-            <input
-              type="number"
-              value={localParams.threshold}
-              onChange={(e) => handleChange('threshold', parseInt(e.target.value))}
-              min="1"
-            />
+              )}
+              <button className="secondary-button" onClick={handleAddCustomParam}>
+                Add
+              </button>
+            </div>
           </div>
-
-          <div className="param-group">
-            <label>Frame Size</label>
-            <input
-              type="number"
-              value={localParams.frame_size}
-              onChange={(e) => handleChange('frame_size', parseInt(e.target.value))}
-              min="1"
-            />
-          </div>
-
-          <div className="param-group">
-            <label>Normalize</label>
-            <select
-              value={localParams.normalize}
-              onChange={(e) => handleChange('normalize', e.target.value)}
-            >
-              <option value="zscore">Z-Score</option>
-              <option value="none">None</option>
-            </select>
-          </div>
-
-          <div className="param-group">
-            <label>Sort By</label>
-            <select
-              value={localParams.sort_by}
-              onChange={(e) => handleChange('sort_by', e.target.value)}
-            >
-              <option value="value">Value</option>
-              <option value="time">Time</option>
-            </select>
-          </div>
-
-          <div className="param-group">
-            <label>Leniency Channel</label>
-            <input
-              type="number"
-              value={localParams.leniency_channel}
-              onChange={(e) => handleChange('leniency_channel', parseInt(e.target.value))}
-              min="0"
-            />
-          </div>
-
-          <div className="param-group">
-            <label>Leniency Time</label>
-            <input
-              type="number"
-              value={localParams.leniency_time}
-              onChange={(e) => handleChange('leniency_time', parseInt(e.target.value))}
-              min="0"
-            />
-          </div>
-
-          <div className="param-group">
-            <label>Similarity Mode</label>
-            <select
-              value={localParams.similarity_mode}
-              onChange={(e) => handleChange('similarity_mode', e.target.value)}
-            >
-              <option value="cosine">Cosine</option>
-              <option value="euclidean">Euclidean</option>
-            </select>
-          </div>
-
-          <div className="param-group">
-            <label>Outlier Threshold</label>
-            <input
-              type="number"
-              step="0.1"
-              value={localParams.outlier_threshold}
-              onChange={(e) => handleChange('outlier_threshold', parseFloat(e.target.value))}
-              min="0"
-              max="1"
-            />
-          </div>
-
-          <div className="param-group">
-            <label>Number of Clusters</label>
-            <input
-              type="number"
-              value={localParams.n_clusters}
-              onChange={(e) => handleChange('n_clusters', parseInt(e.target.value))}
-              min="1"
-            />
-          </div>
-
-          <div className="param-group">
-            <label>Cluster Feature Size</label>
-            <input
-              type="number"
-              value={localParams.cluster_feature_size}
-              onChange={(e) => handleChange('cluster_feature_size', parseInt(e.target.value))}
-              min="1"
-            />
-          </div>
-
-          <div className="param-group">
-            <label>JIMS Features</label>
-            <input
-              type="number"
-              value={localParams.n_jims_features}
-              onChange={(e) => handleChange('n_jims_features', parseInt(e.target.value))}
-              min="1"
-            />
-          </div>
-
-              <div className="param-group">
-                <label>Pad Value</label>
-                <input
-                  type="number"
-                  value={localParams.pad_value}
-                  onChange={(e) => handleChange('pad_value', parseInt(e.target.value))}
-                />
-              </div>
-            </>
-          )}
         </div>
 
         <div className="params-footer">

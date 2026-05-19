@@ -4,3 +4,4 @@
 
 export * from './colors';
 export * from './plotlyConfig';
+export * from './hyperparameters';
