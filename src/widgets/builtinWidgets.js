@@ -8,6 +8,7 @@
  */
 
 import { registerWidget } from './registry';
+import { WIDGET_DATA_CONTRACTS } from './dataContracts';
 
 // Import built-in widget components
 import ClusterListTable from '../components/ClusterListTable';
@@ -36,6 +37,7 @@ const BUILTIN_WIDGETS = [
     minHeight: 200,
     component: ClusterListTable,
     requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.clusterList,
     order: 1,
   },
   {
@@ -49,6 +51,7 @@ const BUILTIN_WIDGETS = [
     minHeight: 200,
     component: SpikeListTable,
     requiredData: ['spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.spikeList,
     order: 2,
   },
   {
@@ -62,6 +65,7 @@ const BUILTIN_WIDGETS = [
     minHeight: 200,
     component: ClusterStatisticsWindow,
     requiredData: ['clusters', 'statistics'],
+    dataContract: WIDGET_DATA_CONTRACTS.clusterStats,
     order: 3,
   },
   {
@@ -75,6 +79,7 @@ const BUILTIN_WIDGETS = [
     minHeight: 250,
     component: SignalViewPanel,
     requiredData: ['signal'],
+    dataContract: WIDGET_DATA_CONTRACTS.signalView,
     order: 4,
   },
   {
@@ -88,6 +93,7 @@ const BUILTIN_WIDGETS = [
     minHeight: 300,
     component: DimensionalityReductionPanel,
     requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.dimReduction,
     order: 5,
   },
   {
@@ -101,6 +107,7 @@ const BUILTIN_WIDGETS = [
     minHeight: 300,
     component: WaveformSingleChannelView,
     requiredData: ['waveforms'],
+    dataContract: WIDGET_DATA_CONTRACTS.waveform,
     order: 6,
   },
   {
@@ -114,6 +121,7 @@ const BUILTIN_WIDGETS = [
     minHeight: 260,
     component: AmplitudeProfileWidget,
     requiredData: ['clusters', 'waveforms'],
+    dataContract: WIDGET_DATA_CONTRACTS.amplitudeProfile,
     order: 7,
   },
 ];

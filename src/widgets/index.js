@@ -53,6 +53,19 @@ export {
   BUILTIN_WIDGETS,
 } from './builtinWidgets';
 
+export {
+  DATA_TYPES,
+  DATA_TYPE_LABELS,
+  PIPELINE_VARIABLE_DEFINITIONS,
+  WIDGET_DATA_CONTRACTS,
+  createDashboardPipelineVariables,
+  getWidgetDataContract,
+  getCompatiblePipelineVariables,
+  createDefaultWidgetInputBindings,
+  mergeWidgetInputBindings,
+  validateWidgetBindings,
+} from './dataContracts';
+
 // Export base widget component
 export { default as BaseWidget, LoadingIndicator, ErrorIndicator, EmptyState } from './BaseWidget';
 

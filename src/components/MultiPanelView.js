@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import ClusterListTable from './ClusterListTable';
 import SpikeListTable from './SpikeListTable';
 import ClusterStatisticsWindow from './ClusterStatisticsWindow';
@@ -11,6 +11,10 @@ import DockableWidget from './DockableWidget';
 import WidgetBank from './WidgetBank';
 import RightSideMenu from './RightSideMenu';
 import { STORAGE_KEY, CURRENT_VIEW_KEY } from './ViewManager';
+import {
+  createDashboardPipelineVariables,
+  mergeWidgetInputBindings
+} from '../widgets/dataContracts';
 import './MultiPanelView.css';
 
 const DEFAULT_WIDGET_STATES = {
@@ -22,6 +26,8 @@ const DEFAULT_WIDGET_STATES = {
   waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
   amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null }
 };
+
+const WIDGET_BINDINGS_STORAGE_KEY = 'spike_dashboard_widget_input_bindings';
 
 const PANEL_CLASS_MAP = {
   clusterList: 'panel-cluster-list',
@@ -129,8 +135,56 @@ const MultiPanelView = forwardRef(({
     return mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES);
   });
 
+  const [widgetInputBindings, setWidgetInputBindings] = useState(() => {
+    const savedBindings = localStorage.getItem(WIDGET_BINDINGS_STORAGE_KEY);
+
+    if (savedBindings) {
+      try {
+        return mergeWidgetInputBindings(JSON.parse(savedBindings));
+      } catch (error) {
+        console.error('Error loading widget input bindings:', error);
+      }
+    }
+
+    return mergeWidgetInputBindings();
+  });
+
   const [isInitialized, setIsInitialized] = useState(false);
   const lastSavedPositionsRef = useRef(null);
+
+  const pipelineVariables = useMemo(() => {
+    return createDashboardPipelineVariables({
+      clusters,
+      selectedClusters,
+      spikes,
+      highlightedSpikes,
+      clusterStats,
+      clusterData,
+      clusterWaveforms,
+      clusteringResults,
+      signalData: signalData || demoSignalData,
+      datasetInfo
+    });
+  }, [
+    clusters,
+    selectedClusters,
+    spikes,
+    highlightedSpikes,
+    clusterStats,
+    clusterData,
+    clusterWaveforms,
+    clusteringResults,
+    signalData,
+    demoSignalData,
+    datasetInfo
+  ]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      WIDGET_BINDINGS_STORAGE_KEY,
+      JSON.stringify(widgetInputBindings)
+    );
+  }, [widgetInputBindings]);
 
   useEffect(() => {
     if (!demoMode) return;
@@ -739,6 +793,31 @@ const MultiPanelView = forwardRef(({
     setWidgetStates(clonedStates);
   }, []);
 
+  const handleWidgetBindingChange = useCallback((widgetId, inputId, variableId) => {
+    setWidgetInputBindings((prev) => {
+      const next = {
+        ...prev,
+        [widgetId]: {
+          ...(prev[widgetId] || {}),
+          [inputId]: variableId
+        }
+      };
+
+      return mergeWidgetInputBindings(next);
+    });
+  }, []);
+
+  const getBoundWidgetValue = useCallback((widgetId, inputId, fallbackValue) => {
+    const variableId = widgetInputBindings[widgetId]?.[inputId];
+    const variable = pipelineVariables[variableId];
+
+    if (!variable || !variable.isAvailable || !variable.isFormatValid) {
+      return fallbackValue;
+    }
+
+    return variable.value;
+  }, [pipelineVariables, widgetInputBindings]);
+
   const handleAddWidget = useCallback((widget) => {
     setWidgetStates((prev) => {
       const next = mergeLiveLayoutIntoStates(prev);
@@ -838,6 +917,27 @@ const MultiPanelView = forwardRef(({
     return {};
   };
 
+  const clusterListClusters = getBoundWidgetValue('clusterList', 'clusters', clusters);
+  const spikeListSpikes = getBoundWidgetValue('spikeList', 'spikes', spikes);
+  const spikeListSelectedClusters = getBoundWidgetValue('spikeList', 'selectedClusters', selectedClusters);
+  const statsSelectedClusters = getBoundWidgetValue('clusterStats', 'selectedClusters', selectedClusters);
+  const statsData = getBoundWidgetValue('clusterStats', 'statistics', clusterStats);
+  const signalDatasetInfo = getBoundWidgetValue('signalView', 'datasetInfo', datasetInfo);
+  const signalHighlightedSpikes = getBoundWidgetValue('signalView', 'highlightedSpikes', highlightedSpikes);
+  const signalTrace = getBoundWidgetValue('signalView', 'signal', demoSignalData);
+  const dimReductionSource = getBoundWidgetValue('dimReduction', 'clusterData', clusterData);
+  const dimReductionSelectedClusters = getBoundWidgetValue('dimReduction', 'selectedClusters', selectedClusters);
+  const dimReductionHighlightedSpikes = getBoundWidgetValue('dimReduction', 'highlightedSpikes', highlightedSpikes);
+  const dimReductionClusterData = dimReductionSource?.clusterIds ? dimReductionSource : clusterData;
+  const dimReductionClusteringResults = dimReductionSource?.available !== undefined ? dimReductionSource : clusteringResults;
+  const waveformSelectedClusters = getBoundWidgetValue('waveform', 'selectedClusters', selectedClusters);
+  const waveformData = getBoundWidgetValue('waveform', 'waveforms', clusterWaveforms);
+  const waveformHighlightedSpikes = getBoundWidgetValue('waveform', 'highlightedSpikes', highlightedSpikes);
+  const amplitudeSelectedClusters = getBoundWidgetValue('amplitudeProfile', 'selectedClusters', selectedClusters);
+  const amplitudeWaveforms = getBoundWidgetValue('amplitudeProfile', 'waveforms', clusterWaveforms);
+  const amplitudeClusterData = getBoundWidgetValue('amplitudeProfile', 'clusterData', clusterData);
+  const amplitudeClusteringResults = getBoundWidgetValue('amplitudeProfile', 'clusteringResults', clusteringResults);
+
   return (
     <div
       className={`multi-panel-view ${isDragOver ? 'drag-over' : ''}`}
@@ -880,6 +980,9 @@ const MultiPanelView = forwardRef(({
         onRunAlgorithm={onRunAlgorithm}
         isRunningAlgorithm={isRunningAlgorithm}
         onOpenParameters={onOpenParameters}
+        pipelineVariables={pipelineVariables}
+        widgetInputBindings={widgetInputBindings}
+        onWidgetBindingChange={handleWidgetBindingChange}
       />
 
       <div className="panel-row panel-row-top">
@@ -895,7 +998,7 @@ const MultiPanelView = forwardRef(({
               isMaximized={widgetStates.clusterList.maximized}
             >
               <ClusterListTable
-                clusters={clusters}
+                clusters={clusterListClusters}
                 selectedClusters={selectedClusters}
                 onClusterToggle={handleClusterToggle}
               />
@@ -915,10 +1018,10 @@ const MultiPanelView = forwardRef(({
               isMaximized={widgetStates.spikeList.maximized}
             >
               <SpikeListTable
-                spikes={spikes}
+                spikes={spikeListSpikes}
                 selectedSpike={selectedSpike}
                 onSpikeSelect={handleSpikeSelect}
-                selectedClusters={selectedClusters}
+                selectedClusters={spikeListSelectedClusters}
               />
             </DockableWidget>
           </div>
@@ -936,8 +1039,8 @@ const MultiPanelView = forwardRef(({
               isMaximized={widgetStates.clusterStats.maximized}
             >
               <ClusterStatisticsWindow
-                selectedClusters={selectedClusters}
-                clusterStats={clusterStats}
+                selectedClusters={statsSelectedClusters}
+                clusterStats={statsData}
               />
             </DockableWidget>
           </div>
@@ -956,9 +1059,9 @@ const MultiPanelView = forwardRef(({
             >
               <SignalViewPanel
                 demoMode={demoMode}
-                highlightedSpikes={highlightedSpikes}
-                datasetInfo={datasetInfo}
-                demoSignalData={demoSignalData}
+                highlightedSpikes={signalHighlightedSpikes}
+                datasetInfo={signalDatasetInfo}
+                demoSignalData={signalTrace}
               />
             </DockableWidget>
           </div>
@@ -978,15 +1081,15 @@ const MultiPanelView = forwardRef(({
               isMaximized={widgetStates.dimReduction.maximized}
             >
               <DimensionalityReductionPanel
-                clusterData={clusterData}
-                selectedClusters={selectedClusters}
-                clusteringResults={clusteringResults}
+                clusterData={dimReductionClusterData}
+                selectedClusters={dimReductionSelectedClusters}
+                clusteringResults={dimReductionClusteringResults}
                 selectedAlgorithm={selectedAlgorithm}
                 selectedSpike={
-                  highlightedSpikes.length > 0
+                  dimReductionHighlightedSpikes.length > 0
                     ? {
-                        clusterId: highlightedSpikes[0].clusterId,
-                        pointIndex: highlightedSpikes[0].pointIndex
+                        clusterId: dimReductionHighlightedSpikes[0].clusterId,
+                        pointIndex: dimReductionHighlightedSpikes[0].pointIndex
                       }
                     : null
                 }
@@ -1008,10 +1111,10 @@ const MultiPanelView = forwardRef(({
               isMaximized={widgetStates.amplitudeProfile.maximized}
             >
               <AmplitudeProfileWidget
-                selectedClusters={selectedClusters}
-                clusterWaveforms={clusterWaveforms}
-                clusterData={clusterData}
-                clusteringResults={clusteringResults}
+                selectedClusters={amplitudeSelectedClusters}
+                clusterWaveforms={amplitudeWaveforms}
+                clusterData={amplitudeClusterData}
+                clusteringResults={amplitudeClusteringResults}
               />
             </DockableWidget>
           </div>
@@ -1045,24 +1148,24 @@ const MultiPanelView = forwardRef(({
 
               {waveformViewMode === 'single' ? (
                 <WaveformSingleChannelView
-                  selectedClusters={selectedClusters}
-                  clusterWaveforms={clusterWaveforms}
+                  selectedClusters={waveformSelectedClusters}
+                  clusterWaveforms={waveformData}
                   highlightedSpike={
-                    highlightedSpikes.length > 0
+                    waveformHighlightedSpikes.length > 0
                       ? {
-                          clusterId: highlightedSpikes[0].clusterId,
-                          waveformIdx: highlightedSpikes[0].pointIndex
+                          clusterId: waveformHighlightedSpikes[0].clusterId,
+                          waveformIdx: waveformHighlightedSpikes[0].pointIndex
                         }
                       : null
                   }
                 />
               ) : (
-               <WaveformNeighboringChannelsView
-  selectedClusters={selectedClusters}
-  selectedAlgorithm={selectedAlgorithm}
-  demoMode={demoMode}
-  demoWaveforms={demoWaveforms}
-/>
+                <WaveformNeighboringChannelsView
+                  selectedClusters={waveformSelectedClusters}
+                  selectedAlgorithm={selectedAlgorithm}
+                  demoMode={demoMode}
+                  demoWaveforms={waveformData}
+                />
               )}
             </DockableWidget>
           </div>
