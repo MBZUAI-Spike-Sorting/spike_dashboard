@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import ViewManager from './ViewManager';
+import WidgetDataWiringPanel from './WidgetDataWiringPanel';
 import './RightSideMenu.css';
 
 const DEMO_ALGORITHM_OPTIONS = [
@@ -35,7 +36,10 @@ const RightSideMenu = ({
   onAlgorithmChange,
   onRunAlgorithm,
   isRunningAlgorithm,
-  onOpenParameters
+  onOpenParameters,
+  pipelineVariables,
+  widgetInputBindings,
+  onWidgetBindingChange
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -99,6 +103,16 @@ const RightSideMenu = ({
               currentWidgetStates={widgetStates}
               onViewChange={onViewChange}
               getWidgetPositionsAndSizes={getWidgetPositionsAndSizes}
+            />
+          </div>
+
+          <div className="menu-section">
+            <div className="section-label">Data Wiring</div>
+            <WidgetDataWiringPanel
+              widgetStates={widgetStates}
+              widgetInputBindings={widgetInputBindings}
+              pipelineVariables={pipelineVariables}
+              onBindingChange={onWidgetBindingChange}
             />
           </div>
 

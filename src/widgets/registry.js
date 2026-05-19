@@ -59,6 +59,7 @@ const widgetRegistry = new Map();
  * @property {React.Component} component - The React component to render
  * @property {Object} [defaultProps] - Default props for the component
  * @property {string[]} [requiredData] - Data dependencies (e.g., ['clusters', 'spikes'])
+ * @property {Object} [dataContract] - Typed inputs accepted by this widget
  * @property {boolean} [resizable] - Whether widget is resizable (default: true)
  * @property {boolean} [closable] - Whether widget can be closed (default: true)
  * @property {number} [minWidth] - Minimum width in pixels
