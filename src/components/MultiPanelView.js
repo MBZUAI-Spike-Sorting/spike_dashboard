@@ -90,7 +90,12 @@ const MultiPanelView = forwardRef(({
   algorithms,
   onAlgorithmChange,
   onRunAlgorithm,
+  onStopAlgorithm,
   isRunningAlgorithm,
+  pipelineJob,
+  pipelineStatus,
+  pipelineMessage,
+  pipelineError,
   onOpenParameters,
   demoClusterPlotData = [],
   demoSpikeTable = [],
@@ -978,7 +983,12 @@ const MultiPanelView = forwardRef(({
         selectedAlgorithm={selectedAlgorithm}
         onAlgorithmChange={onAlgorithmChange}
         onRunAlgorithm={onRunAlgorithm}
+        onStopAlgorithm={onStopAlgorithm}
         isRunningAlgorithm={isRunningAlgorithm}
+        pipelineJob={pipelineJob}
+        pipelineStatus={pipelineStatus}
+        pipelineMessage={pipelineMessage}
+        pipelineError={pipelineError}
         onOpenParameters={onOpenParameters}
         pipelineVariables={pipelineVariables}
         widgetInputBindings={widgetInputBindings}

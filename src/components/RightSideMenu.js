@@ -35,7 +35,12 @@ const RightSideMenu = ({
   selectedAlgorithm,
   onAlgorithmChange,
   onRunAlgorithm,
+  onStopAlgorithm,
   isRunningAlgorithm,
+  pipelineJob,
+  pipelineStatus,
+  pipelineMessage,
+  pipelineError,
   onOpenParameters,
   pipelineVariables,
   widgetInputBindings,
@@ -59,6 +64,8 @@ const RightSideMenu = ({
 
   const showRunButton = true;
   const isRunDisabled = demoMode || !selectedAlgorithm || isRunningAlgorithm;
+  const isStopDisabled =
+    demoMode || !isRunningAlgorithm || pipelineStatus === 'cancel_requested';
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
@@ -180,7 +187,7 @@ const RightSideMenu = ({
                     {isRunningAlgorithm && !demoMode ? (
                       <>
                         <span className="spinner"></span>
-                        Running...
+                        {pipelineStatus === 'cancel_requested' ? 'Stopping...' : 'Running...'}
                       </>
                     ) : (
                       <>
@@ -190,7 +197,40 @@ const RightSideMenu = ({
                     )}
                   </button>
                 )}
+
+                {showRunButton && (
+                  <button
+                    className="menu-stop-btn"
+                    onClick={onStopAlgorithm}
+                    disabled={isStopDisabled}
+                    title={
+                      demoMode
+                        ? 'Stop is disabled in playground mode'
+                        : pipelineStatus === 'cancel_requested'
+                        ? 'Stop has already been requested'
+                        : 'Stop the active pipeline'
+                    }
+                  >
+                    Stop
+                  </button>
+                )}
               </div>
+
+              <div className={`pipeline-status ${pipelineStatus || 'idle'}`}>
+                <span className="pipeline-status-dot" />
+                <span>
+                  {pipelineMessage ||
+                    (pipelineJob?.status
+                      ? `Pipeline ${pipelineJob.status}`
+                      : 'Pipeline idle')}
+                </span>
+              </div>
+
+              {pipelineError && (
+                <div className="pipeline-error">
+                  {pipelineError}
+                </div>
+              )}
             </div>
           </div>
         </div>

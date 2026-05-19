@@ -423,6 +423,34 @@ const apiClient = {
       body: JSON.stringify({ algorithm, parameters }),
     });
   },
+
+  /**
+   * Start a spike sorting pipeline job.
+   * @param {string} algorithm - Algorithm name
+   * @param {Object} parameters - Algorithm parameters
+   */
+  async startSpikeSortingPipeline(algorithm, parameters = {}) {
+    return request('/api/spike-sorting/pipeline/run', {
+      method: 'POST',
+      body: JSON.stringify({ algorithm, parameters }),
+    });
+  },
+
+  /**
+   * Get current spike sorting pipeline job status.
+   */
+  async getSpikeSortingPipelineStatus() {
+    return request('/api/spike-sorting/pipeline/status');
+  },
+
+  /**
+   * Request stop for the active spike sorting pipeline job.
+   */
+  async stopSpikeSortingPipeline() {
+    return request('/api/spike-sorting/pipeline/stop', {
+      method: 'POST',
+    });
+  },
   
   /**
    * Get stored clustering results
