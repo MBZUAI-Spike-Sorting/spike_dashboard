@@ -10,6 +10,7 @@ import ConfirmDialog from './components/ConfirmDialog';
 import AlgorithmParametersMenu from './components/AlgorithmParametersMenu';
 import ErrorBoundary from './components/ErrorBoundary';
 import LRUCache from './utils/LRUCache';
+import { getDefaultAlgorithmParameters } from './utils/hyperparameters';
 import apiClient from './api/client';
 import { useAuth } from './context/AuthContext';
 import {
@@ -20,7 +21,6 @@ import {
   DEFAULT_FILTER_TYPE,
   DEFAULT_DATA_TYPE,
   DEFAULT_VIEW,
-  DEFAULT_JIMS_PARAMETERS,
   DEFAULT_DATASET,
   CACHE_SIZE,
   FETCH_DEBOUNCE_MS,
@@ -125,7 +125,9 @@ function App({ demoMode = false }) {
   const [isRunningAlgorithm, setIsRunningAlgorithm] = useState(false);
   const [clusteringResults, setClusteringResults] = useState(null);
   const [showParametersMenu, setShowParametersMenu] = useState(false);
-  const [algorithmParameters, setAlgorithmParameters] = useState(DEFAULT_JIMS_PARAMETERS);
+  const [algorithmParameters, setAlgorithmParameters] = useState(() =>
+    getDefaultAlgorithmParameters('torchbci_jims')
+  );
 
   const dataCache = React.useRef(new LRUCache(CACHE_SIZE));
   const fetchTimeoutRef = React.useRef(null);
@@ -149,6 +151,7 @@ function App({ demoMode = false }) {
       setSelectedView('multipanel');
       setAllAlgorithms(DEMO_ALGORITHMS);
       setSelectedAlgorithm(DEMO_ALGORITHMS[0].name);
+      setAlgorithmParameters(getDefaultAlgorithmParameters(DEMO_ALGORITHMS[0].name));
       setPrecomputedAvailable(false);
       setUsePrecomputedSpikes(false);
       setClusteringResults(buildDemoClusteringResults());
@@ -221,6 +224,7 @@ function App({ demoMode = false }) {
       const firstAvailable = userAlgorithms.find((a) => a.available);
       if (firstAvailable) {
         setSelectedAlgorithm(firstAvailable.name);
+        setAlgorithmParameters(getDefaultAlgorithmParameters(firstAvailable.name));
       }
     } catch (error) {
       console.error('Error fetching algorithms:', error);
@@ -229,6 +233,7 @@ function App({ demoMode = false }) {
 
   const handleAlgorithmChange = (algorithmName) => {
     setSelectedAlgorithm(algorithmName);
+    setAlgorithmParameters(getDefaultAlgorithmParameters(algorithmName));
   };
 
   const fetchClusteringResults = async () => {
