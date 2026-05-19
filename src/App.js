@@ -124,6 +124,9 @@ function App({ demoMode = false }) {
   const [filteredLineColor, setFilteredLineColor] = useState(FILTERED_LINE_COLOR);
 
   const [allAlgorithms, setAllAlgorithms] = useState([]);
+  const [customPipelines, setCustomPipelines] = useState([]);
+  const [isLoadingCustomPipelines, setIsLoadingCustomPipelines] = useState(false);
+  const [customPipelineError, setCustomPipelineError] = useState(null);
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('');
   const [isRunningAlgorithm, setIsRunningAlgorithm] = useState(false);
   const [pipelineJob, setPipelineJob] = useState(null);
@@ -143,7 +146,9 @@ function App({ demoMode = false }) {
   const algorithms = useMemo(() => {
     if (demoMode) return DEMO_ALGORITHMS;
     if (!allAlgorithms || allAlgorithms.length === 0) return [];
-    return allAlgorithms.filter((algo) => hasAlgorithmAccess(algo.name));
+    return allAlgorithms.filter(
+      (algo) => algo.kind === 'custom' || hasAlgorithmAccess(algo.name)
+    );
   }, [allAlgorithms, hasAlgorithmAccess, demoMode]);
 
   useEffect(() => {
@@ -167,6 +172,7 @@ function App({ demoMode = false }) {
 
     const initializeApp = async () => {
       await fetchDatasets();
+      await fetchCustomPipelines();
       await fetchAlgorithms();
       await handleDatasetChange('c46_data_5percent.pt');
     };
@@ -218,15 +224,36 @@ function App({ demoMode = false }) {
     }
   };
 
+  const fetchCustomPipelines = async () => {
+    if (demoMode) return;
+    setIsLoadingCustomPipelines(true);
+
+    try {
+      const data = await apiClient.getCustomPipelines();
+      setCustomPipelines(data.pipelines || []);
+      setCustomPipelineError(null);
+    } catch (error) {
+      console.error('Error fetching custom pipelines:', error);
+      setCustomPipelineError(error.message);
+    } finally {
+      setIsLoadingCustomPipelines(false);
+    }
+  };
+
   const fetchAlgorithms = async () => {
     if (demoMode) return;
     try {
       const data = await apiClient.getAlgorithms();
       setAllAlgorithms(data.algorithms || []);
 
-      const userAlgorithms = (data.algorithms || []).filter((a) =>
-        hasAlgorithmAccess(a.name)
+      const userAlgorithms = (data.algorithms || []).filter(
+        (a) => a.kind === 'custom' || hasAlgorithmAccess(a.name)
       );
+
+      const selectedMeta = userAlgorithms.find((a) => a.name === selectedAlgorithm);
+      if (selectedMeta && selectedMeta.available) {
+        return;
+      }
 
       const firstAvailable = userAlgorithms.find((a) => a.available);
       if (firstAvailable) {
@@ -235,6 +262,40 @@ function App({ demoMode = false }) {
       }
     } catch (error) {
       console.error('Error fetching algorithms:', error);
+    }
+  };
+
+  const handleAddCustomPipeline = async (pipeline) => {
+    if (demoMode) return null;
+    setCustomPipelineError(null);
+
+    try {
+      const response = await apiClient.addCustomPipeline(pipeline);
+      await fetchCustomPipelines();
+      await fetchAlgorithms();
+      return response.pipeline;
+    } catch (error) {
+      console.error('Error adding custom pipeline:', error);
+      setCustomPipelineError(error.message);
+      throw error;
+    }
+  };
+
+  const handleDeleteCustomPipeline = async (pipelineId) => {
+    if (demoMode) return;
+    setCustomPipelineError(null);
+
+    try {
+      await apiClient.deleteCustomPipeline(pipelineId);
+      if (selectedAlgorithm === `custom:${pipelineId}`) {
+        setSelectedAlgorithm('');
+      }
+      await fetchCustomPipelines();
+      await fetchAlgorithms();
+    } catch (error) {
+      console.error('Error deleting custom pipeline:', error);
+      setCustomPipelineError(error.message);
+      throw error;
     }
   };
 
@@ -315,6 +376,17 @@ function App({ demoMode = false }) {
 
     if (!selectedAlgorithm || isRunningAlgorithm) {
       console.warn('Cannot run algorithm: missing requirements');
+      return;
+    }
+
+    const selectedAlgorithmMeta = algorithms.find((algo) => algo.name === selectedAlgorithm);
+    if (
+      !selectedAlgorithmMeta?.available ||
+      selectedAlgorithmMeta.requiresRun === false ||
+      selectedAlgorithmMeta.kind === 'custom'
+    ) {
+      setPipelineStatus('idle');
+      setPipelineMessage('Selected algorithm cannot be run from this backend yet.');
       return;
     }
 
@@ -707,6 +779,11 @@ function App({ demoMode = false }) {
             pipelineMessage={pipelineMessage}
             pipelineError={pipelineError}
             onOpenParameters={handleOpenParameters}
+            customPipelines={customPipelines}
+            isLoadingCustomPipelines={isLoadingCustomPipelines}
+            customPipelineError={customPipelineError}
+            onAddCustomPipeline={handleAddCustomPipeline}
+            onDeleteCustomPipeline={handleDeleteCustomPipeline}
             demoClusterPlotData={demoClusterPlotData}
             demoSpikeTable={demoSpikeTable}
             demoClusterStats={demoClusterStats}

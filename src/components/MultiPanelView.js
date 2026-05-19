@@ -97,6 +97,11 @@ const MultiPanelView = forwardRef(({
   pipelineMessage,
   pipelineError,
   onOpenParameters,
+  customPipelines = [],
+  isLoadingCustomPipelines = false,
+  customPipelineError = null,
+  onAddCustomPipeline,
+  onDeleteCustomPipeline,
   demoClusterPlotData = [],
   demoSpikeTable = [],
   demoClusterStats = [],
@@ -993,6 +998,11 @@ const MultiPanelView = forwardRef(({
         pipelineVariables={pipelineVariables}
         widgetInputBindings={widgetInputBindings}
         onWidgetBindingChange={handleWidgetBindingChange}
+        customPipelines={customPipelines}
+        isLoadingCustomPipelines={isLoadingCustomPipelines}
+        customPipelineError={customPipelineError}
+        onAddCustomPipeline={onAddCustomPipeline}
+        onDeleteCustomPipeline={onDeleteCustomPipeline}
       />
 
       <div className="panel-row panel-row-top">

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import ViewManager from './ViewManager';
 import WidgetDataWiringPanel from './WidgetDataWiringPanel';
+import CustomPipelineManager from './CustomPipelineManager';
 import './RightSideMenu.css';
 
 const DEMO_ALGORITHM_OPTIONS = [
@@ -44,7 +45,12 @@ const RightSideMenu = ({
   onOpenParameters,
   pipelineVariables,
   widgetInputBindings,
-  onWidgetBindingChange
+  onWidgetBindingChange,
+  customPipelines = [],
+  isLoadingCustomPipelines = false,
+  customPipelineError = null,
+  onAddCustomPipeline,
+  onDeleteCustomPipeline
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -63,7 +69,12 @@ const RightSideMenu = ({
     selectedAlgo?.available;
 
   const showRunButton = true;
-  const isRunDisabled = demoMode || !selectedAlgorithm || isRunningAlgorithm;
+  const canRunSelectedAlgorithm =
+    selectedAlgo?.available &&
+    selectedAlgo?.requiresRun !== false &&
+    selectedAlgo?.kind !== 'custom';
+  const isRunDisabled =
+    demoMode || !selectedAlgorithm || isRunningAlgorithm || !canRunSelectedAlgorithm;
   const isStopDisabled =
     demoMode || !isRunningAlgorithm || pipelineStatus === 'cancel_requested';
 
@@ -123,6 +134,19 @@ const RightSideMenu = ({
             />
           </div>
 
+          {!demoMode && (
+            <div className="menu-section">
+              <div className="section-label">Custom Pipelines</div>
+              <CustomPipelineManager
+                pipelines={customPipelines}
+                isLoading={isLoadingCustomPipelines}
+                error={customPipelineError}
+                onAddPipeline={onAddCustomPipeline}
+                onDeletePipeline={onDeleteCustomPipeline}
+              />
+            </div>
+          )}
+
           <div className="menu-section">
             <div className="section-label">Algorithm</div>
             <div className="algorithm-controls">
@@ -133,8 +157,17 @@ const RightSideMenu = ({
                 disabled={!displayAlgorithms || displayAlgorithms.length === 0}
               >
                 {displayAlgorithms.map((algo) => (
-                  <option key={algo.name} value={algo.name} disabled={!algo.available}>
-                    {algo.displayName}{!algo.available ? ' (unavailable)' : ''}
+                  <option
+                    key={algo.name}
+                    value={algo.name}
+                    disabled={!algo.available && algo.kind !== 'custom'}
+                  >
+                    {algo.displayName}
+                    {algo.kind === 'custom'
+                      ? ' (linked)'
+                      : !algo.available
+                      ? ' (unavailable)'
+                      : ''}
                   </option>
                 ))}
               </select>
@@ -172,6 +205,12 @@ const RightSideMenu = ({
                         ? 'Run is disabled in playground mode'
                         : isRunningAlgorithm
                         ? 'Algorithm is running...'
+                        : selectedAlgo?.kind === 'custom'
+                        ? 'Linked custom pipelines are not executable yet'
+                        : selectedAlgo?.requiresRun === false
+                        ? 'Preprocessed algorithms do not need a run'
+                        : !selectedAlgo?.available
+                        ? 'Algorithm is not available on this backend'
                         : 'Run spike sorting algorithm'
                     }
                     style={

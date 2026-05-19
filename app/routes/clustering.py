@@ -313,10 +313,28 @@ def _get_cluster_spike_info(cluster_id, algorithm, clustering_manager):
     return spike_times, spike_channels
 
 
+def _format_custom_pipeline_algorithm(pipeline):
+    """Format a linked custom pipeline as an algorithm list entry."""
+    return {
+        'name': f"custom:{pipeline['id']}",
+        'displayName': pipeline['name'],
+        'description': (
+            f"Linked custom pipeline from {pipeline['repositoryUrl']} "
+            f"({pipeline['entrypoint']})"
+        ),
+        'available': False,
+        'requiresRun': True,
+        'kind': 'custom',
+        'pipeline': pipeline,
+        'executionStatus': pipeline.get('executionStatus', 'linked_not_executable')
+    }
+
+
 @clustering_bp.route('/api/spike-sorting/algorithms', methods=['GET'])
 def list_spike_sorting_algorithms():
     """List all available spike sorting algorithms."""
     clustering_manager = current_app.config['clustering_manager']
+    custom_pipeline_manager = current_app.config.get('custom_pipeline_manager')
     
     algorithms = [
         {
@@ -348,8 +366,50 @@ def list_spike_sorting_algorithms():
             'requiresRun': True
         }
     ]
+
+    if custom_pipeline_manager:
+        algorithms.extend(
+            _format_custom_pipeline_algorithm(pipeline)
+            for pipeline in custom_pipeline_manager.list_pipelines()
+        )
     
     return jsonify({'algorithms': algorithms})
+
+
+@clustering_bp.route('/api/spike-sorting/custom-pipelines', methods=['GET'])
+def list_custom_pipelines():
+    """List linked custom spike sorting pipeline repositories."""
+    custom_pipeline_manager = current_app.config['custom_pipeline_manager']
+    return jsonify({'pipelines': custom_pipeline_manager.list_pipelines()}), 200
+
+
+@clustering_bp.route('/api/spike-sorting/custom-pipelines', methods=['POST'])
+def add_custom_pipeline():
+    """Register a linked custom spike sorting pipeline repository."""
+    try:
+        request_data = request.get_json() or {}
+        custom_pipeline_manager = current_app.config['custom_pipeline_manager']
+        pipeline = custom_pipeline_manager.add_pipeline(request_data)
+        return jsonify({'success': True, 'pipeline': pipeline}), 201
+    except ValueError as e:
+        return validation_error(str(e))
+    except Exception as e:
+        logger.error(f"Error registering custom pipeline: {e}", exc_info=True)
+        return server_error("Failed to register custom pipeline", exception=e)
+
+
+@clustering_bp.route('/api/spike-sorting/custom-pipelines/<pipeline_id>', methods=['DELETE'])
+def delete_custom_pipeline(pipeline_id):
+    """Delete a linked custom spike sorting pipeline repository."""
+    try:
+        custom_pipeline_manager = current_app.config['custom_pipeline_manager']
+        if not custom_pipeline_manager.delete_pipeline(pipeline_id):
+            return not_found_error('Custom pipeline', pipeline_id)
+
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"Error deleting custom pipeline: {e}", exc_info=True)
+        return server_error("Failed to delete custom pipeline", exception=e)
 
 
 @clustering_bp.route('/api/spike-sorting/run', methods=['POST'])
@@ -359,6 +419,12 @@ def run_spike_sorting():
         request_data = request.get_json() or {}
         algorithm = request_data.get('algorithm', 'torchbci_jims')
         params = request_data.get('parameters', {})
+
+        if str(algorithm).startswith('custom:'):
+            return validation_error(
+                'Linked custom pipelines are registered for discovery only. '
+                'Execution will be enabled by the custom pipeline runner.'
+            )
         
         clustering_manager = current_app.config['clustering_manager']
 
@@ -378,6 +444,11 @@ def run_spike_sorting():
 
 def _run_spike_sorting_algorithm(clustering_manager, algorithm, params):
     """Dispatch a spike sorting run to the selected algorithm."""
+    if str(algorithm).startswith('custom:'):
+        raise RuntimeError(
+            'Linked custom pipelines are registered, but no custom pipeline runner is enabled yet'
+        )
+
     if algorithm == 'kilosort4':
         return clustering_manager.run_kilosort4(params)
 
@@ -394,6 +465,12 @@ def start_spike_sorting_pipeline():
         request_data = request.get_json() or {}
         algorithm = request_data.get('algorithm', 'torchbci_jims')
         params = request_data.get('parameters', {})
+
+        if str(algorithm).startswith('custom:'):
+            return validation_error(
+                'Linked custom pipelines are registered for discovery only. '
+                'Execution will be enabled by the custom pipeline runner.'
+            )
 
         if algorithm in ('preprocessed_torchbci', 'preprocessed_kilosort4'):
             return validation_error('Preprocessed algorithms do not need a pipeline run')

@@ -7,6 +7,7 @@ from app.services.filter_processor import FilterProcessor
 from app.services.spike_data_processor import SpikeDataProcessor
 from app.services.clustering_manager import ClusteringManager
 from app.services.pipeline_job_manager import PipelineJobManager
+from app.services.custom_pipeline_manager import CustomPipelineManager
 
 __all__ = [
     'DatasetManager',
@@ -15,5 +16,6 @@ __all__ = [
     'FilterProcessor',
     'SpikeDataProcessor',
     'ClusteringManager',
-    'PipelineJobManager'
+    'PipelineJobManager',
+    'CustomPipelineManager'
 ]
