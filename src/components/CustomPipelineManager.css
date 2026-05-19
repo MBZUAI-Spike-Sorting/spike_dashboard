@@ -1,0 +1,162 @@
+.custom-pipeline-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.custom-pipeline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.custom-pipeline-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.custom-pipeline-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.custom-pipeline-field span {
+  color: rgba(224, 230, 237, 0.62);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.custom-pipeline-field input,
+.custom-pipeline-field textarea {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(64, 224, 208, 0.2);
+  border-radius: 6px;
+  color: #e0e6ed;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  padding: 8px 9px;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.custom-pipeline-field textarea {
+  min-height: 54px;
+  resize: vertical;
+}
+
+.custom-pipeline-field input:focus,
+.custom-pipeline-field textarea:focus {
+  border-color: #40e0d0;
+  box-shadow: 0 0 0 2px rgba(64, 224, 208, 0.12);
+  outline: none;
+}
+
+.custom-pipeline-submit {
+  background: rgba(64, 224, 208, 0.14);
+  border: 1px solid rgba(64, 224, 208, 0.38);
+  border-radius: 6px;
+  color: #40e0d0;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 9px 10px;
+  transition: all 0.2s ease;
+}
+
+.custom-pipeline-submit:hover:not(:disabled) {
+  background: rgba(64, 224, 208, 0.22);
+  border-color: rgba(64, 224, 208, 0.58);
+}
+
+.custom-pipeline-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.custom-pipeline-error {
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  border-radius: 6px;
+  color: #ffb4b4;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  padding: 8px 9px;
+}
+
+.custom-pipeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-pipeline-empty {
+  border: 1px dashed rgba(64, 224, 208, 0.2);
+  border-radius: 6px;
+  color: rgba(224, 230, 237, 0.56);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  padding: 10px;
+  text-align: center;
+}
+
+.custom-pipeline-item {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(64, 224, 208, 0.15);
+  border-radius: 6px;
+  display: flex;
+  gap: 8px;
+  padding: 9px;
+}
+
+.custom-pipeline-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.custom-pipeline-name {
+  color: #e0e6ed;
+  font-size: 0.82rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.custom-pipeline-meta {
+  color: rgba(224, 230, 237, 0.58);
+  font-size: 0.72rem;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.custom-pipeline-url {
+  color: rgba(64, 224, 208, 0.8);
+  display: block;
+  font-size: 0.7rem;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.custom-pipeline-url:hover {
+  color: #40e0d0;
+  text-decoration: underline;
+}
+
+.custom-pipeline-delete {
+  align-self: flex-start;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  border-radius: 5px;
+  color: #ffb4b4;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 6px 7px;
+  transition: all 0.2s ease;
+}
+
+.custom-pipeline-delete:hover {
+  background: rgba(255, 107, 107, 0.18);
+  border-color: rgba(255, 107, 107, 0.45);
+}

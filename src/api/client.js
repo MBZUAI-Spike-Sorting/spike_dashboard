@@ -411,6 +411,34 @@ const apiClient = {
   async getAlgorithms() {
     return request('/api/spike-sorting/algorithms');
   },
+
+  /**
+   * List linked custom spike sorting pipelines.
+   */
+  async getCustomPipelines() {
+    return request('/api/spike-sorting/custom-pipelines');
+  },
+
+  /**
+   * Register a linked custom spike sorting pipeline.
+   * @param {Object} pipeline - Pipeline repository metadata
+   */
+  async addCustomPipeline(pipeline) {
+    return request('/api/spike-sorting/custom-pipelines', {
+      method: 'POST',
+      body: JSON.stringify(pipeline),
+    });
+  },
+
+  /**
+   * Delete a linked custom spike sorting pipeline.
+   * @param {string} pipelineId - Pipeline id
+   */
+  async deleteCustomPipeline(pipelineId) {
+    return request(`/api/spike-sorting/custom-pipelines/${encodeURIComponent(pipelineId)}`, {
+      method: 'DELETE',
+    });
+  },
   
   /**
    * Run spike sorting algorithm

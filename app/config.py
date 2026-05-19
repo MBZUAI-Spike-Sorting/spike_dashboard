@@ -53,6 +53,13 @@ class Config:
     @property
     def MAPPING_DB_PATH(self) -> str:
         return os.path.join(self.DATASETS_FOLDER, 'dataset_labels_mapping.json')
+
+    @property
+    def CUSTOM_PIPELINES_PATH(self) -> str:
+        return os.getenv(
+            'CUSTOM_PIPELINES_PATH',
+            os.path.join(self.DATASETS_FOLDER, 'custom_pipelines.json')
+        )
     
     # File upload settings
     ALLOWED_EXTENSIONS: Set[str] = field(

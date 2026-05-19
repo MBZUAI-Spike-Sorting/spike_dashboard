@@ -21,7 +21,8 @@ from app.services import (
     SpikeTimesManager,
     SpikeDataProcessor,
     ClusteringManager,
-    PipelineJobManager
+    PipelineJobManager,
+    CustomPipelineManager
 )
 from app.services.gpu_backend import create_gpu_backend
 
@@ -102,6 +103,7 @@ def _init_services(app: Flask, config: Config) -> None:
     gpu_backend = create_gpu_backend(config)
     clustering_manager = ClusteringManager(config, dataset_manager, gpu_backend=gpu_backend)
     pipeline_job_manager = PipelineJobManager()
+    custom_pipeline_manager = CustomPipelineManager(config)
     
     # Store in app config for access in routes
     app.config['dataset_manager'] = dataset_manager
@@ -110,6 +112,7 @@ def _init_services(app: Flask, config: Config) -> None:
     app.config['spike_data_processor'] = spike_data_processor
     app.config['clustering_manager'] = clustering_manager
     app.config['pipeline_job_manager'] = pipeline_job_manager
+    app.config['custom_pipeline_manager'] = custom_pipeline_manager
     
     # Migrate existing labels
     mapping_manager.migrate_existing_labels()
