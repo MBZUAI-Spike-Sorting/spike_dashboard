@@ -9,7 +9,7 @@ from flask import Blueprint, request, jsonify, current_app
 
 from app.logger import get_logger
 from app.services.filter_processor import FilterProcessor
-from app.utils.responses import server_error, validation_error, not_found_error
+from app.utils.responses import server_error, validation_error, not_found_error, error_response
 
 logger = get_logger(__name__)
 
@@ -374,6 +374,62 @@ def run_spike_sorting():
     except Exception as e:
         logger.error(f"Error running spike sorting: {e}", exc_info=True)
         return server_error("Failed to run spike sorting", exception=e)
+
+
+def _run_spike_sorting_algorithm(clustering_manager, algorithm, params):
+    """Dispatch a spike sorting run to the selected algorithm."""
+    if algorithm == 'kilosort4':
+        return clustering_manager.run_kilosort4(params)
+
+    if algorithm in ('torchbci_jims', 'jims'):
+        return clustering_manager.run_jims_algorithm(params)
+
+    raise RuntimeError(f'Algorithm "{algorithm}" cannot be run as a pipeline')
+
+
+@clustering_bp.route('/api/spike-sorting/pipeline/run', methods=['POST'])
+def start_spike_sorting_pipeline():
+    """Start spike sorting as a background pipeline job."""
+    try:
+        request_data = request.get_json() or {}
+        algorithm = request_data.get('algorithm', 'torchbci_jims')
+        params = request_data.get('parameters', {})
+
+        if algorithm in ('preprocessed_torchbci', 'preprocessed_kilosort4'):
+            return validation_error('Preprocessed algorithms do not need a pipeline run')
+
+        clustering_manager = current_app.config['clustering_manager']
+        pipeline_job_manager = current_app.config['pipeline_job_manager']
+
+        job = pipeline_job_manager.start_job(
+            algorithm=algorithm,
+            parameters=params,
+            runner=lambda: _run_spike_sorting_algorithm(clustering_manager, algorithm, params),
+            cancel_callback=clustering_manager.clear_results,
+        )
+
+        return jsonify({'success': True, 'job': job}), 202
+    except RuntimeError as e:
+        logger.error(f"Runtime error starting spike sorting pipeline: {e}")
+        return error_response(str(e), status=409, error_code='PIPELINE_ALREADY_RUNNING')
+    except Exception as e:
+        logger.error(f"Error starting spike sorting pipeline: {e}", exc_info=True)
+        return server_error("Failed to start spike sorting pipeline", exception=e)
+
+
+@clustering_bp.route('/api/spike-sorting/pipeline/status', methods=['GET'])
+def get_spike_sorting_pipeline_status():
+    """Get current spike sorting pipeline job status."""
+    pipeline_job_manager = current_app.config['pipeline_job_manager']
+    return jsonify({'success': True, 'job': pipeline_job_manager.get_status()}), 200
+
+
+@clustering_bp.route('/api/spike-sorting/pipeline/stop', methods=['POST'])
+def stop_spike_sorting_pipeline():
+    """Request stop for the active spike sorting pipeline job."""
+    pipeline_job_manager = current_app.config['pipeline_job_manager']
+    job = pipeline_job_manager.request_stop()
+    return jsonify({'success': True, 'job': job}), 200
 
 
 @clustering_bp.route('/api/clustering-results', methods=['GET'])

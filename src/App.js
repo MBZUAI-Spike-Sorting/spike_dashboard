@@ -59,6 +59,9 @@ const DEMO_ALGORITHMS = [
   }
 ];
 
+const PIPELINE_ACTIVE_STATUSES = new Set(['running', 'cancel_requested']);
+const PIPELINE_TERMINAL_STATUSES = new Set(['completed', 'failed', 'canceled']);
+
 const buildDemoClusteringResults = () => {
   const grouped = {};
   demoClusterPlotData.forEach((point) => {
@@ -123,6 +126,10 @@ function App({ demoMode = false }) {
   const [allAlgorithms, setAllAlgorithms] = useState([]);
   const [selectedAlgorithm, setSelectedAlgorithm] = useState('');
   const [isRunningAlgorithm, setIsRunningAlgorithm] = useState(false);
+  const [pipelineJob, setPipelineJob] = useState(null);
+  const [pipelineStatus, setPipelineStatus] = useState('idle');
+  const [pipelineMessage, setPipelineMessage] = useState('');
+  const [pipelineError, setPipelineError] = useState(null);
   const [clusteringResults, setClusteringResults] = useState(null);
   const [showParametersMenu, setShowParametersMenu] = useState(false);
   const [algorithmParameters, setAlgorithmParameters] = useState(() =>
@@ -257,6 +264,50 @@ function App({ demoMode = false }) {
     }
   };
 
+  const updatePipelineState = (job) => {
+    const nextStatus = job?.status || 'idle';
+    setPipelineJob(job || null);
+    setPipelineStatus(nextStatus);
+    setPipelineMessage(job?.message || '');
+    setPipelineError(job?.error || null);
+    setIsRunningAlgorithm(PIPELINE_ACTIVE_STATUSES.has(nextStatus));
+  };
+
+  useEffect(() => {
+    if (demoMode || !PIPELINE_ACTIVE_STATUSES.has(pipelineStatus)) return;
+
+    let isCancelled = false;
+
+    const pollPipelineStatus = async () => {
+      try {
+        const statusResponse = await apiClient.getSpikeSortingPipelineStatus();
+        const job = statusResponse.job;
+        if (isCancelled) return;
+
+        updatePipelineState(job);
+
+        if (PIPELINE_TERMINAL_STATUSES.has(job?.status)) {
+          if (job.status === 'completed') {
+            await fetchClusteringResults();
+          }
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Error polling pipeline status:', error);
+          setPipelineError(error.message);
+        }
+      }
+    };
+
+    const intervalId = setInterval(pollPipelineStatus, 1500);
+    pollPipelineStatus();
+
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [demoMode, pipelineStatus]);
+
   const handleRunAlgorithm = async () => {
     if (demoMode) {
       return;
@@ -268,19 +319,34 @@ function App({ demoMode = false }) {
     }
 
     setIsRunningAlgorithm(true);
+    setPipelineStatus('running');
+    setPipelineMessage('Starting pipeline...');
+    setPipelineError(null);
 
     try {
-      const result = await apiClient.runSpikeSorting(selectedAlgorithm, algorithmParameters);
-
-      if (result.available && result.fullData) {
-        setClusteringResults(result);
-      } else {
-        await fetchClusteringResults();
-      }
+      const response = await apiClient.startSpikeSortingPipeline(selectedAlgorithm, algorithmParameters);
+      updatePipelineState(response.job);
     } catch (error) {
-      console.error('Error running algorithm:', error);
-    } finally {
+      console.error('Error starting pipeline:', error);
+      setPipelineStatus('failed');
+      setPipelineMessage('Failed to start pipeline.');
+      setPipelineError(error.message);
       setIsRunningAlgorithm(false);
+    }
+  };
+
+  const handleStopAlgorithm = async () => {
+    if (demoMode || !isRunningAlgorithm) return;
+
+    setPipelineStatus('cancel_requested');
+    setPipelineMessage('Stop requested...');
+
+    try {
+      const response = await apiClient.stopSpikeSortingPipeline();
+      updatePipelineState(response.job);
+    } catch (error) {
+      console.error('Error stopping pipeline:', error);
+      setPipelineError(error.message);
     }
   };
 
@@ -634,7 +700,12 @@ function App({ demoMode = false }) {
             algorithms={algorithms}
             onAlgorithmChange={handleAlgorithmChange}
             onRunAlgorithm={handleRunAlgorithm}
+            onStopAlgorithm={handleStopAlgorithm}
             isRunningAlgorithm={isRunningAlgorithm}
+            pipelineJob={pipelineJob}
+            pipelineStatus={pipelineStatus}
+            pipelineMessage={pipelineMessage}
+            pipelineError={pipelineError}
             onOpenParameters={handleOpenParameters}
             demoClusterPlotData={demoClusterPlotData}
             demoSpikeTable={demoSpikeTable}
