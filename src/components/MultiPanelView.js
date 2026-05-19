@@ -23,6 +23,16 @@ const DEFAULT_WIDGET_STATES = {
   amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null }
 };
 
+const PANEL_CLASS_MAP = {
+  clusterList: 'panel-cluster-list',
+  spikeList: 'panel-spike-list',
+  clusterStats: 'panel-cluster-stats',
+  signalView: 'panel-signal-view',
+  dimReduction: 'panel-dim-reduction',
+  waveform: 'panel-waveform',
+  amplitudeProfile: 'panel-amplitude-profile'
+};
+
 const mergeWidgetStateDefaults = (widgetStates = {}) => {
   return Object.entries(DEFAULT_WIDGET_STATES).reduce((acc, [widgetId, defaultState]) => {
     acc[widgetId] = {
@@ -31,6 +41,38 @@ const mergeWidgetStateDefaults = (widgetStates = {}) => {
     };
     return acc;
   }, {});
+};
+
+const readWidgetLayoutFromDom = (widgetIds) => {
+  const layout = {};
+
+  widgetIds.forEach((widgetId) => {
+    const panelClass = PANEL_CLASS_MAP[widgetId];
+    if (!panelClass) return;
+
+    const panel = document.querySelector(`.${panelClass}`);
+    const widget = panel?.querySelector('.dockable-widget');
+
+    if (!panel || !widget) return;
+
+    const panelStyle = window.getComputedStyle(panel);
+    const widgetRect = widget.getBoundingClientRect();
+    const left = parseFloat(panelStyle.left);
+    const top = parseFloat(panelStyle.top);
+
+    layout[widgetId] = {
+      position: {
+        left: isNaN(left) ? null : Math.round(left),
+        top: isNaN(top) ? null : Math.round(top)
+      },
+      size: {
+        width: Math.round(widgetRect.width),
+        height: Math.round(widgetRect.height)
+      }
+    };
+  });
+
+  return layout;
 };
 
 const MultiPanelView = forwardRef(({
@@ -162,15 +204,7 @@ const MultiPanelView = forwardRef(({
 
   const getCurrentPositionsAndSizes = useCallback(() => {
     const positionsAndSizes = {};
-    const panelClassMap = {
-      clusterList: 'panel-cluster-list',
-      spikeList: 'panel-spike-list',
-      clusterStats: 'panel-cluster-stats',
-      signalView: 'panel-signal-view',
-      dimReduction: 'panel-dim-reduction',
-      waveform: 'panel-waveform',
-      amplitudeProfile: 'panel-amplitude-profile'
-    };
+    const liveLayout = readWidgetLayoutFromDom(Object.keys(widgetStates));
 
     Object.keys(widgetStates).forEach((widgetId) => {
       if (!widgetStates[widgetId].visible) {
@@ -178,31 +212,32 @@ const MultiPanelView = forwardRef(({
         return;
       }
 
-      const panelClass = panelClassMap[widgetId];
-      const panel = document.querySelector(`.${panelClass}`);
-      const widget = panel?.querySelector('.dockable-widget');
-
-      if (panel && widget) {
-        const panelStyle = window.getComputedStyle(panel);
-        const widgetRect = widget.getBoundingClientRect();
-        const left = parseFloat(panelStyle.left);
-        const top = parseFloat(panelStyle.top);
-
-        positionsAndSizes[widgetId] = {
-          position: {
-            left: isNaN(left) ? null : Math.round(left),
-            top: isNaN(top) ? null : Math.round(top)
-          },
-          size: {
-            width: Math.round(widgetRect.width),
-            height: Math.round(widgetRect.height)
-          }
-        };
-      }
+      positionsAndSizes[widgetId] = liveLayout[widgetId] || {
+        position: widgetStates[widgetId].position || null,
+        size: widgetStates[widgetId].size || null
+      };
     });
 
     return positionsAndSizes;
   }, [widgetStates]);
+
+  const mergeLiveLayoutIntoStates = useCallback((states) => {
+    const liveLayout = readWidgetLayoutFromDom(Object.keys(states));
+
+    return Object.entries(states).reduce((acc, [widgetId, state]) => {
+      const layout = liveLayout[widgetId];
+
+      acc[widgetId] = layout
+        ? {
+            ...state,
+            position: layout.position || state.position,
+            size: layout.size || state.size
+          }
+        : state;
+
+      return acc;
+    }, {});
+  }, []);
 
   const saveCurrentState = useCallback(() => {
     const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY);
@@ -598,46 +633,62 @@ const MultiPanelView = forwardRef(({
   };
 
   const handleToggleWidget = (widgetId) => {
-    setWidgetStates((prev) => ({
-      ...prev,
-      [widgetId]: {
-        ...prev[widgetId],
-        visible: !prev[widgetId].visible,
-        minimized: false
-      }
-    }));
+    setWidgetStates((prev) => {
+      const next = mergeLiveLayoutIntoStates(prev);
+
+      return {
+        ...next,
+        [widgetId]: {
+          ...next[widgetId],
+          visible: !next[widgetId].visible,
+          minimized: false
+        }
+      };
+    });
   };
 
   const handleMinimizeWidget = (widgetId) => {
-    setWidgetStates((prev) => ({
-      ...prev,
-      [widgetId]: {
-        ...prev[widgetId],
-        minimized: !prev[widgetId].minimized,
-        maximized: false
-      }
-    }));
+    setWidgetStates((prev) => {
+      const next = mergeLiveLayoutIntoStates(prev);
+
+      return {
+        ...next,
+        [widgetId]: {
+          ...next[widgetId],
+          minimized: !next[widgetId].minimized,
+          maximized: false
+        }
+      };
+    });
   };
 
   const handleMaximizeWidget = (widgetId) => {
-    setWidgetStates((prev) => ({
-      ...prev,
-      [widgetId]: {
-        ...prev[widgetId],
-        maximized: !prev[widgetId].maximized,
-        minimized: false
-      }
-    }));
+    setWidgetStates((prev) => {
+      const next = mergeLiveLayoutIntoStates(prev);
+
+      return {
+        ...next,
+        [widgetId]: {
+          ...next[widgetId],
+          maximized: !next[widgetId].maximized,
+          minimized: false
+        }
+      };
+    });
   };
 
   const handleCloseWidget = (widgetId) => {
-    setWidgetStates((prev) => ({
-      ...prev,
-      [widgetId]: {
-        ...prev[widgetId],
-        visible: false
-      }
-    }));
+    setWidgetStates((prev) => {
+      const next = mergeLiveLayoutIntoStates(prev);
+
+      return {
+        ...next,
+        [widgetId]: {
+          ...next[widgetId],
+          visible: false
+        }
+      };
+    });
   };
 
   const handleResetLayout = () => {
@@ -658,42 +709,15 @@ const MultiPanelView = forwardRef(({
 
   const getWidgetPositionsAndSizes = useCallback(() => {
     const result = {};
-
-    const panelClassMap = {
-      clusterList: 'panel-cluster-list',
-      spikeList: 'panel-spike-list',
-      clusterStats: 'panel-cluster-stats',
-      signalView: 'panel-signal-view',
-      dimReduction: 'panel-dim-reduction',
-      waveform: 'panel-waveform',
-      amplitudeProfile: 'panel-amplitude-profile'
-    };
+    const liveLayout = readWidgetLayoutFromDom(Object.keys(widgetStates));
 
     Object.keys(widgetStates).forEach((widgetId) => {
       if (!widgetStates[widgetId].visible) return;
 
-      const panelClass = panelClassMap[widgetId];
-      const panel = document.querySelector(`.${panelClass}`);
-      const widget = panel?.querySelector('.dockable-widget');
-
-      if (panel && widget) {
-        const panelStyle = window.getComputedStyle(panel);
-        const widgetRect = widget.getBoundingClientRect();
-
-        const left = parseFloat(panelStyle.left);
-        const top = parseFloat(panelStyle.top);
-
-        result[widgetId] = {
-          position: {
-            left: isNaN(left) ? null : left,
-            top: isNaN(top) ? null : top
-          },
-          size: {
-            width: widgetRect.width,
-            height: widgetRect.height
-          }
-        };
-      }
+      result[widgetId] = liveLayout[widgetId] || {
+        position: widgetStates[widgetId].position || null,
+        size: widgetStates[widgetId].size || null
+      };
     });
 
     return result;
@@ -716,21 +740,25 @@ const MultiPanelView = forwardRef(({
   }, []);
 
   const handleAddWidget = useCallback((widget) => {
-    const position = dropPosition || { top: 100, left: 100 };
+    setWidgetStates((prev) => {
+      const next = mergeLiveLayoutIntoStates(prev);
+      const currentState = next[widget.id] || DEFAULT_WIDGET_STATES[widget.id] || {};
+      const position = dropPosition || currentState.position || { top: 100, left: 100 };
 
-    setWidgetStates((prev) => ({
-      ...prev,
-      [widget.id]: {
-        ...prev[widget.id],
-        visible: true,
-        minimized: false,
-        maximized: false,
-        position
-      }
-    }));
+      return {
+        ...next,
+        [widget.id]: {
+          ...currentState,
+          visible: true,
+          minimized: false,
+          maximized: false,
+          position
+        }
+      };
+    });
 
     setDropPosition(null);
-  }, [dropPosition]);
+  }, [dropPosition, mergeLiveLayoutIntoStates]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
