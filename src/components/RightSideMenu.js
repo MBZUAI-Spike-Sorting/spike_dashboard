@@ -25,6 +25,18 @@ const DEMO_ALGORITHM_OPTIONS = [
   }
 ];
 
+const DEMO_CUSTOM_PIPELINES = [
+  {
+    id: 'demo-linked-pipeline',
+    name: 'Demo linked sorter',
+    repositoryUrl: 'https://github.com/example/spikescope-pipeline',
+    branch: 'main',
+    entrypoint: 'pipeline.py',
+    status: 'linked',
+    executionStatus: 'demo_only'
+  }
+];
+
 const RightSideMenu = ({
   demoMode = false,
   isWidgetBankOpen,
@@ -58,6 +70,8 @@ const RightSideMenu = ({
     if (demoMode) return DEMO_ALGORITHM_OPTIONS;
     return algorithms || [];
   }, [algorithms, demoMode]);
+
+  const displayCustomPipelines = demoMode ? DEMO_CUSTOM_PIPELINES : customPipelines;
 
   const selectedAlgo =
     displayAlgorithms.find((a) => a.name === selectedAlgorithm) ||
@@ -134,18 +148,17 @@ const RightSideMenu = ({
             />
           </div>
 
-          {!demoMode && (
-            <div className="menu-section">
-              <div className="section-label">Custom Pipelines</div>
-              <CustomPipelineManager
-                pipelines={customPipelines}
-                isLoading={isLoadingCustomPipelines}
-                error={customPipelineError}
-                onAddPipeline={onAddCustomPipeline}
-                onDeletePipeline={onDeleteCustomPipeline}
-              />
-            </div>
-          )}
+          <div className="menu-section">
+            <div className="section-label">Custom Pipelines</div>
+            <CustomPipelineManager
+              pipelines={displayCustomPipelines}
+              isLoading={!demoMode && isLoadingCustomPipelines}
+              error={demoMode ? null : customPipelineError}
+              onAddPipeline={demoMode ? undefined : onAddCustomPipeline}
+              onDeletePipeline={demoMode ? undefined : onDeleteCustomPipeline}
+              readOnly={demoMode}
+            />
+          </div>
 
           <div className="menu-section">
             <div className="section-label">Algorithm</div>
