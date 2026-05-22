@@ -28,16 +28,25 @@ class CustomPipelineManager:
         self._pipelines = []
         self._load()
 
-    def list_pipelines(self):
-        """Return all registered custom pipelines."""
-        return sorted(self._pipelines, key=lambda p: p.get("createdAt", ""))
+    def list_pipelines(self, owner_user_id=None, include_all=False):
+        """Return custom pipelines visible to a user."""
+        pipelines = self._pipelines
+        if not include_all:
+            pipelines = [
+                p for p in pipelines
+                if p.get("ownerUserId") == owner_user_id
+            ]
+
+        return sorted(pipelines, key=lambda p: p.get("createdAt", ""))
 
     def get_pipeline(self, pipeline_id):
         """Return a pipeline by id, or None."""
         return next((p for p in self._pipelines if p.get("id") == pipeline_id), None)
 
-    def add_pipeline(self, payload):
+    def add_pipeline(self, payload, owner=None):
         """Validate and store a linked custom pipeline."""
+        owner = owner or {}
+        owner_user_id = owner.get("id")
         name = self._clean_text(payload.get("name", ""), max_length=80)
         repository_url = self._normalize_repository_url(
             payload.get("repositoryUrl") or payload.get("repository_url") or ""
@@ -56,6 +65,7 @@ class CustomPipelineManager:
                 if p.get("repositoryUrl") == repository_url
                 and p.get("branch") == branch
                 and p.get("entrypoint") == entrypoint
+                and p.get("ownerUserId") == owner_user_id
             ),
             None,
         )
@@ -73,6 +83,9 @@ class CustomPipelineManager:
             "sourceType": "github_repository",
             "status": "linked",
             "executionStatus": "linked_not_executable",
+            "ownerUserId": owner_user_id,
+            "ownerUsername": self._clean_text(owner.get("username", ""), max_length=80),
+            "ownerEmail": self._clean_text(owner.get("email", ""), max_length=120),
             "createdAt": now,
             "updatedAt": now,
         }
@@ -81,10 +94,14 @@ class CustomPipelineManager:
         self._save()
         return pipeline
 
-    def delete_pipeline(self, pipeline_id):
-        """Delete a registered pipeline. Returns True when one was removed."""
+    def delete_pipeline(self, pipeline_id, owner_user_id=None, include_all=False):
+        """Delete a visible registered pipeline. Returns True when removed."""
         before_count = len(self._pipelines)
-        self._pipelines = [p for p in self._pipelines if p.get("id") != pipeline_id]
+        self._pipelines = [
+            p for p in self._pipelines
+            if p.get("id") != pipeline_id
+            or (not include_all and p.get("ownerUserId") != owner_user_id)
+        ]
 
         if len(self._pipelines) == before_count:
             return False
