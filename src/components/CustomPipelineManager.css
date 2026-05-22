@@ -85,6 +85,17 @@
   padding: 8px 9px;
 }
 
+.custom-pipeline-readonly {
+  background: rgba(64, 224, 208, 0.1);
+  border: 1px solid rgba(64, 224, 208, 0.22);
+  border-radius: 6px;
+  color: rgba(224, 230, 237, 0.72);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 8px 9px;
+  text-align: center;
+}
+
 .custom-pipeline-list {
   display: flex;
   flex-direction: column;

@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify, current_app
 
 from app.logger import get_logger
 from app.services.filter_processor import FilterProcessor
+from app.utils.auth import algorithm_access_required, get_current_user, login_required
 from app.utils.responses import server_error, validation_error, not_found_error, error_response
 
 logger = get_logger(__name__)
@@ -335,6 +336,7 @@ def list_spike_sorting_algorithms():
     """List all available spike sorting algorithms."""
     clustering_manager = current_app.config['clustering_manager']
     custom_pipeline_manager = current_app.config.get('custom_pipeline_manager')
+    current_user = get_current_user()
     
     algorithms = [
         {
@@ -367,7 +369,7 @@ def list_spike_sorting_algorithms():
         }
     ]
 
-    if custom_pipeline_manager:
+    if current_user and custom_pipeline_manager:
         algorithms.extend(
             _format_custom_pipeline_algorithm(pipeline)
             for pipeline in custom_pipeline_manager.list_pipelines()
@@ -377,6 +379,7 @@ def list_spike_sorting_algorithms():
 
 
 @clustering_bp.route('/api/spike-sorting/custom-pipelines', methods=['GET'])
+@login_required
 def list_custom_pipelines():
     """List linked custom spike sorting pipeline repositories."""
     custom_pipeline_manager = current_app.config['custom_pipeline_manager']
@@ -384,6 +387,7 @@ def list_custom_pipelines():
 
 
 @clustering_bp.route('/api/spike-sorting/custom-pipelines', methods=['POST'])
+@login_required
 def add_custom_pipeline():
     """Register a linked custom spike sorting pipeline repository."""
     try:
@@ -399,6 +403,7 @@ def add_custom_pipeline():
 
 
 @clustering_bp.route('/api/spike-sorting/custom-pipelines/<pipeline_id>', methods=['DELETE'])
+@login_required
 def delete_custom_pipeline(pipeline_id):
     """Delete a linked custom spike sorting pipeline repository."""
     try:
@@ -413,6 +418,8 @@ def delete_custom_pipeline(pipeline_id):
 
 
 @clustering_bp.route('/api/spike-sorting/run', methods=['POST'])
+@login_required
+@algorithm_access_required
 def run_spike_sorting():
     """Run spike sorting algorithm."""
     try:
@@ -459,6 +466,8 @@ def _run_spike_sorting_algorithm(clustering_manager, algorithm, params):
 
 
 @clustering_bp.route('/api/spike-sorting/pipeline/run', methods=['POST'])
+@login_required
+@algorithm_access_required
 def start_spike_sorting_pipeline():
     """Start spike sorting as a background pipeline job."""
     try:
@@ -495,6 +504,7 @@ def start_spike_sorting_pipeline():
 
 
 @clustering_bp.route('/api/spike-sorting/pipeline/status', methods=['GET'])
+@login_required
 def get_spike_sorting_pipeline_status():
     """Get current spike sorting pipeline job status."""
     pipeline_job_manager = current_app.config['pipeline_job_manager']
@@ -502,6 +512,7 @@ def get_spike_sorting_pipeline_status():
 
 
 @clustering_bp.route('/api/spike-sorting/pipeline/stop', methods=['POST'])
+@login_required
 def stop_spike_sorting_pipeline():
     """Request stop for the active spike sorting pipeline job."""
     pipeline_job_manager = current_app.config['pipeline_job_manager']

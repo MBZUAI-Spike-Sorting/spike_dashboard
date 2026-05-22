@@ -14,7 +14,8 @@ const CustomPipelineManager = ({
   isLoading = false,
   error = null,
   onAddPipeline,
-  onDeletePipeline
+  onDeletePipeline,
+  readOnly = false
 }) => {
   const [form, setForm] = useState(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,73 +58,77 @@ const CustomPipelineManager = ({
 
   return (
     <div className="custom-pipeline-manager">
-      <form className="custom-pipeline-form" onSubmit={handleSubmit}>
-        <label className="custom-pipeline-field">
-          <span>Name</span>
-          <input
-            type="text"
-            value={form.name}
-            onChange={handleChange('name')}
-            placeholder="My sorter"
-            maxLength={80}
-            required
-          />
-        </label>
-
-        <label className="custom-pipeline-field">
-          <span>GitHub URL</span>
-          <input
-            type="url"
-            value={form.repositoryUrl}
-            onChange={handleChange('repositoryUrl')}
-            placeholder="https://github.com/org/repo"
-            required
-          />
-        </label>
-
-        <div className="custom-pipeline-row">
+      {readOnly ? (
+        <div className="custom-pipeline-readonly">Demo only</div>
+      ) : (
+        <form className="custom-pipeline-form" onSubmit={handleSubmit}>
           <label className="custom-pipeline-field">
-            <span>Branch</span>
+            <span>Name</span>
             <input
               type="text"
-              value={form.branch}
-              onChange={handleChange('branch')}
-              placeholder="main"
-              maxLength={120}
+              value={form.name}
+              onChange={handleChange('name')}
+              placeholder="My sorter"
+              maxLength={80}
               required
             />
           </label>
 
           <label className="custom-pipeline-field">
-            <span>Entry .py</span>
+            <span>GitHub URL</span>
             <input
-              type="text"
-              value={form.entrypoint}
-              onChange={handleChange('entrypoint')}
-              placeholder="pipeline.py"
+              type="url"
+              value={form.repositoryUrl}
+              onChange={handleChange('repositoryUrl')}
+              placeholder="https://github.com/org/repo"
               required
             />
           </label>
-        </div>
 
-        <label className="custom-pipeline-field">
-          <span>Description</span>
-          <textarea
-            value={form.description}
-            onChange={handleChange('description')}
-            rows={2}
-            maxLength={300}
-          />
-        </label>
+          <div className="custom-pipeline-row">
+            <label className="custom-pipeline-field">
+              <span>Branch</span>
+              <input
+                type="text"
+                value={form.branch}
+                onChange={handleChange('branch')}
+                placeholder="main"
+                maxLength={120}
+                required
+              />
+            </label>
 
-        {(localError || error) && (
-          <div className="custom-pipeline-error">{localError || error}</div>
-        )}
+            <label className="custom-pipeline-field">
+              <span>Entry .py</span>
+              <input
+                type="text"
+                value={form.entrypoint}
+                onChange={handleChange('entrypoint')}
+                placeholder="pipeline.py"
+                required
+              />
+            </label>
+          </div>
 
-        <button className="custom-pipeline-submit" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Linking...' : 'Link Pipeline'}
-        </button>
-      </form>
+          <label className="custom-pipeline-field">
+            <span>Description</span>
+            <textarea
+              value={form.description}
+              onChange={handleChange('description')}
+              rows={2}
+              maxLength={300}
+            />
+          </label>
+
+          {(localError || error) && (
+            <div className="custom-pipeline-error">{localError || error}</div>
+          )}
+
+          <button className="custom-pipeline-submit" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Linking...' : 'Link Pipeline'}
+          </button>
+        </form>
+      )}
 
       <div className="custom-pipeline-list">
         {isLoading && <div className="custom-pipeline-empty">Loading pipelines...</div>}
@@ -149,14 +154,16 @@ const CustomPipelineManager = ({
               </a>
             </div>
 
-            <button
-              className="custom-pipeline-delete"
-              type="button"
-              onClick={() => handleDelete(pipeline.id)}
-              title="Remove linked pipeline"
-            >
-              Remove
-            </button>
+            {!readOnly && (
+              <button
+                className="custom-pipeline-delete"
+                type="button"
+                onClick={() => handleDelete(pipeline.id)}
+                title="Remove linked pipeline"
+              >
+                Remove
+              </button>
+            )}
           </div>
         ))}
       </div>
