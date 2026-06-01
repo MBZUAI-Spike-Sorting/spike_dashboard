@@ -39,7 +39,7 @@ SpikeScope provides a modern dashboard for exploring raw neural signals, running
 | **Frontend** | React 18, React Router, Plotly.js, Recharts, Lucide Icons |
 | **Backend** | Python 3.11, Flask, Flask-SQLAlchemy, NumPy, SciPy, scikit-learn |
 | **Deep Learning** | PyTorch (CUDA / CPU), torchaudio, torchbci |
-| **Auth** | JWT-based authentication with role-based access (User / Admin) |
+| **Auth** | JWT-based authentication with role-based access (Guest / Regular / Pro / Admin) |
 | **Database** | SQLite |
 
 ---
@@ -209,6 +209,8 @@ spike_dashboard/
 ## Extending with Custom Widgets
 
 SpikeScope includes a widget plugin system. See the [Widget Development Guide](docs/WIDGET_DEVELOPMENT_GUIDE.md) for details on building custom visualizations.
+
+For linkable custom spike sorting repositories, see the [Custom Pipeline Tutorial](docs/LINKABLE_CUSTOM_PIPELINE_TUTORIAL.md).
 
 ```javascript
 // Example: register a custom widget

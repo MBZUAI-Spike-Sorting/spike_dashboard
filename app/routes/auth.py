@@ -7,6 +7,7 @@ Provides login, register, logout, and user management endpoints.
 from flask import Blueprint, request, jsonify
 from app.models.database import db
 from app.models.user import User, UserRole
+from app.models.user_profile import UserProfile
 from app.utils.auth import (
     generate_token, 
     login_required, 
@@ -161,10 +162,48 @@ def get_me():
         JSON with current user data
     """
     user = get_current_user()
+    profile = UserProfile.get_or_create(user)
     return success_response({
         'user': user.to_dict(),
+        'profile': profile.to_dict(),
         'allowed_algorithms': user.get_allowed_algorithms()
     })
+
+
+@auth_bp.route('/profile', methods=['GET'])
+@login_required
+def get_profile():
+    """Get current user's profile and preferences."""
+    user = get_current_user()
+    profile = UserProfile.get_or_create(user)
+
+    return success_response({
+        'user': user.to_dict(),
+        'profile': profile.to_dict(),
+        'allowed_algorithms': user.get_allowed_algorithms()
+    })
+
+
+@auth_bp.route('/profile', methods=['PUT'])
+@login_required
+def update_profile():
+    """Update current user's optional profile fields and preferences."""
+    try:
+        data = request.get_json() or {}
+        user = get_current_user()
+        profile = UserProfile.get_or_create(user)
+        profile.update_from_payload(data)
+        db.session.commit()
+
+        return success_response({
+            'user': user.to_dict(),
+            'profile': profile.to_dict(),
+            'allowed_algorithms': user.get_allowed_algorithms()
+        }, message='Profile updated successfully')
+    except Exception as e:
+        logger.error(f'Profile update error: {e}')
+        db.session.rollback()
+        return error_response('Failed to update profile', status=500)
 
 
 @auth_bp.route('/logout', methods=['POST'])
@@ -264,7 +303,7 @@ def update_user_role(user_id):
     Update a user's role (admin only).
     
     Request Body:
-        role: str - 'user' or 'admin'
+        role: str - 'guest', 'user', 'pro', or 'admin'
         
     Returns:
         JSON with updated user data
@@ -273,8 +312,9 @@ def update_user_role(user_id):
         data = request.get_json()
         role_str = data.get('role', '').lower()
         
-        if role_str not in ['user', 'admin']:
-            return validation_error('Role must be "user" or "admin"')
+        valid_roles = [role.value for role in UserRole]
+        if role_str not in valid_roles:
+            return validation_error(f'Role must be one of: {", ".join(valid_roles)}')
         
         user = User.query.get(user_id)
         if not user:
@@ -282,10 +322,10 @@ def update_user_role(user_id):
         
         # Prevent admin from demoting themselves
         current_user = get_current_user()
-        if user.id == current_user.id and role_str == 'user':
+        if user.id == current_user.id and role_str != UserRole.ADMIN.value:
             return error_response('Cannot demote yourself', status=400)
         
-        user.role = UserRole.ADMIN if role_str == 'admin' else UserRole.USER
+        user.role = UserRole(role_str)
         db.session.commit()
         
         logger.info(f'User role updated: {user.username} -> {role_str}')

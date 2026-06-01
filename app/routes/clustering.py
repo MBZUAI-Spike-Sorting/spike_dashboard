@@ -369,7 +369,7 @@ def list_spike_sorting_algorithms():
         }
     ]
 
-    if current_user and custom_pipeline_manager:
+    if current_user and current_user.can_link_custom_pipelines() and custom_pipeline_manager:
         algorithms.extend(
             _format_custom_pipeline_algorithm(pipeline)
             for pipeline in custom_pipeline_manager.list_pipelines(
@@ -402,6 +402,13 @@ def add_custom_pipeline():
     try:
         request_data = request.get_json() or {}
         current_user = get_current_user()
+        if not current_user.can_link_custom_pipelines():
+            return error_response(
+                'Pro or admin access is required to link custom pipelines',
+                status=403,
+                error_code='PRO_REQUIRED'
+            )
+
         custom_pipeline_manager = current_app.config['custom_pipeline_manager']
         pipeline = custom_pipeline_manager.add_pipeline(
             request_data,
@@ -425,6 +432,13 @@ def delete_custom_pipeline(pipeline_id):
     """Delete a linked custom spike sorting pipeline repository."""
     try:
         current_user = get_current_user()
+        if not current_user.can_link_custom_pipelines():
+            return error_response(
+                'Pro or admin access is required to manage custom pipelines',
+                status=403,
+                error_code='PRO_REQUIRED'
+            )
+
         custom_pipeline_manager = current_app.config['custom_pipeline_manager']
         if not custom_pipeline_manager.delete_pipeline(
             pipeline_id,

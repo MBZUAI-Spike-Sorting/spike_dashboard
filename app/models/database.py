@@ -47,10 +47,12 @@ def init_db(app):
     
     # Create all tables
     with app.app_context():
-        db.create_all()
-        
-        # Create default admin user if not exists
         from app.models.user import User, UserRole
+        from app.models.user_profile import UserProfile  # noqa: F401
+
+        db.create_all()
+
+        # Create default admin user if not exists
         admin = User.query.filter_by(username='admin').first()
         if not admin:
             admin = User(

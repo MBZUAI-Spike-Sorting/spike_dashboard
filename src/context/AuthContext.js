@@ -19,6 +19,7 @@ const USER_KEY = 'spike_dashboard_user';
  */
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [token, setToken] = useState(null);
   const [allowedAlgorithms, setAllowedAlgorithms] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,6 +41,7 @@ export function AuthProvider({ children }) {
           if (response.success) {
             setToken(savedToken);
             setUser(response.data.user);
+            setProfile(response.data.profile || null);
             setAllowedAlgorithms(response.data.allowed_algorithms || []);
             setIsAuthenticated(true);
           } else {
@@ -66,6 +68,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(USER_KEY);
     setToken(null);
     setUser(null);
+    setProfile(null);
     setAllowedAlgorithms([]);
     setIsAuthenticated(false);
   }, []);
@@ -78,8 +81,23 @@ export function AuthProvider({ children }) {
     localStorage.setItem(USER_KEY, JSON.stringify(userData));
     setToken(authToken);
     setUser(userData);
+    setProfile(null);
     setAllowedAlgorithms(algorithms || []);
     setIsAuthenticated(true);
+  }, []);
+
+  const applyProfileData = useCallback((data) => {
+    if (!data) return;
+    if (data.user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      setUser(data.user);
+    }
+    if (data.profile) {
+      setProfile(data.profile);
+    }
+    if (data.allowed_algorithms) {
+      setAllowedAlgorithms(data.allowed_algorithms);
+    }
   }, []);
 
   /**
@@ -147,6 +165,28 @@ export function AuthProvider({ children }) {
     return user?.role === 'admin';
   }, [user]);
 
+  const canLinkCustomPipelines = useCallback(() => {
+    return Boolean(user?.capabilities?.can_link_custom_pipelines);
+  }, [user]);
+
+  const refreshProfile = useCallback(async () => {
+    const response = await apiClient.getProfile();
+    if (response.success) {
+      applyProfileData(response.data);
+      return response.data;
+    }
+    throw new Error(response.error || 'Failed to load profile');
+  }, [applyProfileData]);
+
+  const updateProfile = useCallback(async (payload) => {
+    const response = await apiClient.updateProfile(payload);
+    if (response.success) {
+      applyProfileData(response.data);
+      return response.data;
+    }
+    throw new Error(response.error || 'Failed to update profile');
+  }, [applyProfileData]);
+
   /**
    * Get auth header for API requests
    */
@@ -160,6 +200,7 @@ export function AuthProvider({ children }) {
   // Context value
   const value = {
     user,
+    profile,
     token,
     allowedAlgorithms,
     isLoading,
@@ -169,6 +210,9 @@ export function AuthProvider({ children }) {
     logout,
     hasAlgorithmAccess,
     isAdmin,
+    canLinkCustomPipelines,
+    refreshProfile,
+    updateProfile,
     getAuthHeader,
   };
 

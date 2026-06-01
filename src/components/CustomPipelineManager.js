@@ -15,7 +15,8 @@ const CustomPipelineManager = ({
   error = null,
   onAddPipeline,
   onDeletePipeline,
-  readOnly = false
+  readOnly = false,
+  readOnlyLabel = 'Demo only'
 }) => {
   const [form, setForm] = useState(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,7 +60,7 @@ const CustomPipelineManager = ({
   return (
     <div className="custom-pipeline-manager">
       {readOnly ? (
-        <div className="custom-pipeline-readonly">Demo only</div>
+        <div className="custom-pipeline-readonly">{readOnlyLabel}</div>
       ) : (
         <form className="custom-pipeline-form" onSubmit={handleSubmit}>
           <label className="custom-pipeline-field">
