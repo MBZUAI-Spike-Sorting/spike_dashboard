@@ -96,7 +96,7 @@ const buildDemoClusteringResults = () => {
 };
 
 function App({ demoMode = false }) {
-  const { hasAlgorithmAccess } = useAuth();
+  const { hasAlgorithmAccess, canLinkCustomPipelines } = useAuth();
 
   const [selectedChannels, setSelectedChannels] = useState(DEFAULT_CHANNELS);
   const [channelScrollOffset, setChannelScrollOffset] = useState(0);
@@ -784,6 +784,7 @@ function App({ demoMode = false }) {
             customPipelineError={customPipelineError}
             onAddCustomPipeline={handleAddCustomPipeline}
             onDeleteCustomPipeline={handleDeleteCustomPipeline}
+            canManageCustomPipelines={canLinkCustomPipelines()}
             demoClusterPlotData={demoClusterPlotData}
             demoSpikeTable={demoSpikeTable}
             demoClusterStats={demoClusterStats}

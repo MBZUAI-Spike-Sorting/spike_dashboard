@@ -7,6 +7,7 @@ import App from './App';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import LandingPage from './pages/LandingPage';
+import UserPage from './pages/UserPage';
 import './index.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -44,6 +45,14 @@ root.render(
                 <App />
               </ProtectedRoute>
             } 
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <UserPage />
+              </ProtectedRoute>
+            }
           />
           <Route 
   path="/demo/*" 

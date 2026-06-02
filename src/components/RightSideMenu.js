@@ -62,7 +62,8 @@ const RightSideMenu = ({
   isLoadingCustomPipelines = false,
   customPipelineError = null,
   onAddCustomPipeline,
-  onDeleteCustomPipeline
+  onDeleteCustomPipeline,
+  canManageCustomPipelines = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -72,6 +73,8 @@ const RightSideMenu = ({
   }, [algorithms, demoMode]);
 
   const displayCustomPipelines = demoMode ? DEMO_CUSTOM_PIPELINES : customPipelines;
+  const customPipelinesReadOnly = demoMode || !canManageCustomPipelines;
+  const customPipelinesReadOnlyLabel = demoMode ? 'Demo only' : 'Pro access required';
 
   const selectedAlgo =
     displayAlgorithms.find((a) => a.name === selectedAlgorithm) ||
@@ -154,9 +157,10 @@ const RightSideMenu = ({
               pipelines={displayCustomPipelines}
               isLoading={!demoMode && isLoadingCustomPipelines}
               error={demoMode ? null : customPipelineError}
-              onAddPipeline={demoMode ? undefined : onAddCustomPipeline}
-              onDeletePipeline={demoMode ? undefined : onDeleteCustomPipeline}
-              readOnly={demoMode}
+              onAddPipeline={customPipelinesReadOnly ? undefined : onAddCustomPipeline}
+              onDeletePipeline={customPipelinesReadOnly ? undefined : onDeleteCustomPipeline}
+              readOnly={customPipelinesReadOnly}
+              readOnlyLabel={customPipelinesReadOnlyLabel}
             />
           </div>
 

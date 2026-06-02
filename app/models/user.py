@@ -13,7 +13,17 @@ from app.models.database import db
 class UserRole(enum.Enum):
     """User role enumeration."""
     USER = 'user'
+    GUEST = 'guest'
+    PRO = 'pro'
     ADMIN = 'admin'
+
+
+ROLE_LABELS = {
+    UserRole.GUEST: 'Guest',
+    UserRole.USER: 'Regular',
+    UserRole.PRO: 'Pro',
+    UserRole.ADMIN: 'Admin'
+}
 
 
 class User(db.Model):
@@ -73,6 +83,28 @@ class User(db.Model):
     def is_admin(self):
         """Check if user has admin role."""
         return self.role == UserRole.ADMIN
+
+    def is_pro(self):
+        """Check if user has pro or admin access."""
+        return self.role in (UserRole.PRO, UserRole.ADMIN)
+
+    def can_link_custom_pipelines(self):
+        """Check if user can link custom pipeline repositories."""
+        return self.role in (UserRole.PRO, UserRole.ADMIN)
+
+    def can_manage_users(self):
+        """Check if user can manage other users."""
+        return self.role == UserRole.ADMIN
+
+    def get_capabilities(self):
+        """Return capability flags used by the frontend."""
+        return {
+            'can_manage_users': self.can_manage_users(),
+            'can_link_custom_pipelines': self.can_link_custom_pipelines(),
+            'can_run_gpu_algorithms': self.role in (UserRole.PRO, UserRole.ADMIN),
+            'can_run_cpu_algorithms': self.role in (UserRole.USER, UserRole.PRO, UserRole.ADMIN),
+            'can_use_gui': True,
+        }
     
     def to_dict(self):
         """
@@ -87,6 +119,8 @@ class User(db.Model):
             'username': self.username,
             'email': self.email,
             'role': self.role.value,
+            'role_label': ROLE_LABELS.get(self.role, self.role.value.title()),
+            'capabilities': self.get_capabilities(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
             'is_active': self.is_active,
@@ -99,12 +133,19 @@ class User(db.Model):
         Returns:
             list: Algorithm identifiers
         """
-        if self.is_admin():
-            # Admin has access to all algorithms
+        if self.role in (UserRole.ADMIN, UserRole.PRO):
+            # Admin/Pro users can access GPU-backed and advanced algorithms.
             return ['preprocessed_torchbci', 'preprocessed_kilosort4', 'torchbci_jims', 'kilosort4']
-        else:
-            # Regular user has access to preprocessed algorithms
+
+        if self.role == UserRole.USER:
+            # Regular users can run CPU/pre-defined torchBCI workflows.
+            return ['preprocessed_torchbci', 'preprocessed_kilosort4', 'torchbci_jims']
+
+        # Guests can inspect the GUI/preprocessed outputs but cannot compute.
+        if self.role == UserRole.GUEST:
             return ['preprocessed_torchbci', 'preprocessed_kilosort4']
+
+        return ['preprocessed_torchbci', 'preprocessed_kilosort4']
     
     @staticmethod
     def validate_password(password):

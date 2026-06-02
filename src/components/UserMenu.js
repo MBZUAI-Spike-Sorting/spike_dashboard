@@ -1,11 +1,10 @@
 /**
  * UserMenu Component
- * 
- * Displays current user info and provides logout functionality.
+ *
+ * Displays current user info and account actions.
  */
 
 import React, { useState, useCallback } from 'react';
-import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useClickOutside } from '../hooks';
@@ -15,9 +14,14 @@ const UserMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
-  
+
   const handleClose = useCallback(() => setIsOpen(false), []);
   const menuRef = useClickOutside(handleClose, isOpen);
+
+  const handleProfile = () => {
+    setIsOpen(false);
+    navigate('/profile');
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -28,7 +32,7 @@ const UserMenu = () => {
 
   return (
     <div className="user-menu" ref={menuRef}>
-      <button 
+      <button
         className="user-menu-trigger"
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -39,13 +43,13 @@ const UserMenu = () => {
         {isAdmin() && (
           <span className="user-badge admin">Admin</span>
         )}
-        <svg 
+        <svg
           className={`dropdown-arrow ${isOpen ? 'open' : ''}`}
-          width="12" 
-          height="12" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
           strokeWidth="2"
         >
           <polyline points="6 9 12 15 18 9" />
@@ -62,12 +66,20 @@ const UserMenu = () => {
               <span className="user-display-name">{user.username}</span>
               <span className="user-email">{user.email}</span>
               <span className={`user-role ${user.role}`}>
-                {user.role === 'admin' ? '👑 Admin' : '👤 User'}
+                {user.role_label || user.role}
               </span>
             </div>
           </div>
 
           <div className="user-menu-divider" />
+
+          <button className="user-menu-item" onClick={handleProfile}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 21a8 8 0 0 0-16 0" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            Profile & Settings
+          </button>
 
           <button className="user-menu-item logout" onClick={handleLogout}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -82,7 +94,5 @@ const UserMenu = () => {
     </div>
   );
 };
-
-UserMenu.propTypes = {};
 
 export default UserMenu;

@@ -369,10 +369,13 @@ def list_spike_sorting_algorithms():
         }
     ]
 
-    if current_user and custom_pipeline_manager:
+    if current_user and current_user.can_link_custom_pipelines() and custom_pipeline_manager:
         algorithms.extend(
             _format_custom_pipeline_algorithm(pipeline)
-            for pipeline in custom_pipeline_manager.list_pipelines()
+            for pipeline in custom_pipeline_manager.list_pipelines(
+                owner_user_id=current_user.id,
+                include_all=current_user.is_admin()
+            )
         )
     
     return jsonify({'algorithms': algorithms})
@@ -382,8 +385,14 @@ def list_spike_sorting_algorithms():
 @login_required
 def list_custom_pipelines():
     """List linked custom spike sorting pipeline repositories."""
+    current_user = get_current_user()
     custom_pipeline_manager = current_app.config['custom_pipeline_manager']
-    return jsonify({'pipelines': custom_pipeline_manager.list_pipelines()}), 200
+    return jsonify({
+        'pipelines': custom_pipeline_manager.list_pipelines(
+            owner_user_id=current_user.id,
+            include_all=current_user.is_admin()
+        )
+    }), 200
 
 
 @clustering_bp.route('/api/spike-sorting/custom-pipelines', methods=['POST'])
@@ -392,8 +401,23 @@ def add_custom_pipeline():
     """Register a linked custom spike sorting pipeline repository."""
     try:
         request_data = request.get_json() or {}
+        current_user = get_current_user()
+        if not current_user.can_link_custom_pipelines():
+            return error_response(
+                'Pro or admin access is required to link custom pipelines',
+                status=403,
+                error_code='PRO_REQUIRED'
+            )
+
         custom_pipeline_manager = current_app.config['custom_pipeline_manager']
-        pipeline = custom_pipeline_manager.add_pipeline(request_data)
+        pipeline = custom_pipeline_manager.add_pipeline(
+            request_data,
+            owner={
+                'id': current_user.id,
+                'username': current_user.username,
+                'email': current_user.email
+            }
+        )
         return jsonify({'success': True, 'pipeline': pipeline}), 201
     except ValueError as e:
         return validation_error(str(e))
@@ -407,8 +431,20 @@ def add_custom_pipeline():
 def delete_custom_pipeline(pipeline_id):
     """Delete a linked custom spike sorting pipeline repository."""
     try:
+        current_user = get_current_user()
+        if not current_user.can_link_custom_pipelines():
+            return error_response(
+                'Pro or admin access is required to manage custom pipelines',
+                status=403,
+                error_code='PRO_REQUIRED'
+            )
+
         custom_pipeline_manager = current_app.config['custom_pipeline_manager']
-        if not custom_pipeline_manager.delete_pipeline(pipeline_id):
+        if not custom_pipeline_manager.delete_pipeline(
+            pipeline_id,
+            owner_user_id=current_user.id,
+            include_all=current_user.is_admin()
+        ):
             return not_found_error('Custom pipeline', pipeline_id)
 
         return jsonify({'success': True}), 200

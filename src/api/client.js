@@ -116,6 +116,24 @@ const apiClient = {
   async getCurrentUser(token) {
     return request('/api/auth/me', { token });
   },
+
+  /**
+   * Get current user's profile and preferences
+   */
+  async getProfile() {
+    return request('/api/auth/profile');
+  },
+
+  /**
+   * Update current user's profile and preferences
+   * @param {Object} payload - Profile and preference values
+   */
+  async updateProfile(payload) {
+    return request('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
   
   /**
    * Logout current user
@@ -150,7 +168,7 @@ const apiClient = {
   /**
    * Update user role (admin only)
    * @param {number} userId - User ID
-   * @param {string} role - New role ('user' or 'admin')
+   * @param {string} role - New role ('guest', 'user', 'pro', or 'admin')
    */
   async updateUserRole(userId, role) {
     return request(`/api/auth/users/${userId}/role`, {
