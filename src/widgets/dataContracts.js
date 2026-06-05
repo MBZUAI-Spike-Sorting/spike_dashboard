@@ -269,6 +269,24 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         required: false
       }
     ]
+  },
+  clusterComparison: {
+    widgetId: 'clusterComparison',
+    label: 'Cluster Comparison',
+    inputs: [
+      {
+        id: 'algorithmAData',
+        label: 'Algorithm 1 cluster set',
+        accepts: [DATA_TYPES.CLUSTERING_RESULTS],
+        required: false
+      },
+      {
+        id: 'algorithmBData',
+        label: 'Algorithm 2 cluster set',
+        accepts: [DATA_TYPES.CLUSTERING_RESULTS],
+        required: false
+      }
+    ]
   }
 });
 

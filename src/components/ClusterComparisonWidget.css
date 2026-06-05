@@ -1,0 +1,192 @@
+.cluster-comparison-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+  width: 100%;
+  padding: 0.9rem;
+  color: #e6edf7;
+  background: rgba(15, 18, 36, 0.95);
+  overflow: hidden;
+}
+
+.cluster-comparison-toolbar {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(190px, 1fr) minmax(110px, 0.45fr) minmax(190px, 0.8fr);
+  gap: 0.65rem;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.cluster-file-picker,
+.cluster-window-control,
+.cluster-reference-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid rgba(64, 224, 208, 0.22);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cluster-file-picker span,
+.cluster-window-control span,
+.cluster-reference-control > span {
+  color: #40e0d0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cluster-file-picker input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  color: #b9c4d6;
+  font-size: 0.78rem;
+}
+
+.cluster-file-picker strong {
+  display: block;
+  min-width: 0;
+  color: #ffffff;
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-file-picker em {
+  color: #9da8bc;
+  font-size: 0.76rem;
+  font-style: normal;
+}
+
+.cluster-window-control input {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(64, 224, 208, 0.28);
+  border-radius: 4px;
+  color: #f7fbff;
+  background: rgba(11, 14, 28, 0.9);
+}
+
+.cluster-reference-control label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #d9e1ef;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.cluster-reference-control input {
+  accent-color: #40e0d0;
+}
+
+.cluster-comparison-error {
+  flex-shrink: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(255, 95, 95, 0.45);
+  border-radius: 6px;
+  color: #ffb3b3;
+  background: rgba(255, 95, 95, 0.12);
+  font-size: 0.82rem;
+}
+
+.cluster-comparison-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  flex-shrink: 0;
+}
+
+.cluster-comparison-summary div {
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(64, 224, 208, 0.18);
+  border-radius: 6px;
+  background: rgba(64, 224, 208, 0.07);
+}
+
+.cluster-comparison-summary span {
+  display: block;
+  color: #9da8bc;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.cluster-comparison-summary strong {
+  display: block;
+  min-width: 0;
+  margin-top: 0.2rem;
+  color: #ffffff;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cluster-comparison-table-wrap {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid rgba(64, 224, 208, 0.18);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.16);
+  overflow: auto;
+}
+
+.cluster-comparison-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.cluster-comparison-table th,
+.cluster-comparison-table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cluster-comparison-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: #40e0d0;
+  background: #15223e;
+  font-weight: 700;
+}
+
+.cluster-comparison-table tbody tr.matched {
+  background: rgba(64, 224, 208, 0.05);
+}
+
+.cluster-comparison-table tbody tr.unmatched {
+  color: #aeb7c8;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.cluster-comparison-empty {
+  height: 8rem;
+  color: #9da8bc;
+  text-align: center !important;
+}
+
+@media (max-width: 900px) {
+  .cluster-comparison-toolbar,
+  .cluster-comparison-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .cluster-comparison-toolbar,
+  .cluster-comparison-summary {
+    grid-template-columns: 1fr;
+  }
+}

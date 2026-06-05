@@ -4,13 +4,16 @@ Clustering and spike sorting routes.
 Handles cluster data, statistics, waveforms, and spike sorting algorithms.
 """
 
+import io
+import json
+
 import numpy as np
 from flask import Blueprint, request, jsonify, current_app
 
 from app.logger import get_logger
 from app.services.filter_processor import FilterProcessor
 from app.utils.auth import algorithm_access_required, get_current_user, login_required
-from app.utils.responses import server_error, validation_error, not_found_error, error_response
+from app.utils.responses import server_error, validation_error, not_found_error, error_response, success_response
 
 logger = get_logger(__name__)
 
@@ -312,6 +315,283 @@ def _get_cluster_spike_info(cluster_id, algorithm, clustering_manager):
             spike_channels.append(int(spike['channel']))
     
     return spike_times, spike_channels
+
+
+def _to_scalar(value, default=None):
+    """Convert common scipy/MATLAB scalar wrappers to a Python scalar."""
+    if value is None:
+        return default
+
+    array = np.asarray(value)
+    if array.size == 0:
+        return default
+
+    item = array.reshape(-1)[0]
+    if isinstance(item, bytes):
+        return item.decode('utf-8', errors='ignore')
+    if isinstance(item, np.generic):
+        return item.item()
+    return item
+
+
+def _to_number_list(value):
+    """Convert arrays/cells to a flat list of finite float values."""
+    if value is None:
+        return []
+
+    try:
+        array = np.asarray(value)
+    except ValueError:
+        if isinstance(value, (list, tuple)):
+            values = []
+            for item in value:
+                values.extend(_to_number_list(item))
+            return values
+        return []
+
+    if array.dtype == object:
+        values = []
+        for item in array.reshape(-1):
+            values.extend(_to_number_list(item))
+        return values
+
+    try:
+        numeric = np.asarray(value, dtype=float).reshape(-1)
+    except (TypeError, ValueError):
+        return []
+
+    return [float(item) for item in numeric if np.isfinite(item)]
+
+
+def _to_string(value, default=''):
+    scalar = _to_scalar(value, default)
+    return str(scalar or default).strip()
+
+
+def _pick(data, keys, default=None):
+    for key in keys:
+        if key in data:
+            return data[key]
+    return default
+
+
+def _normalize_spike_time_groups(value, expected_count=None):
+    """Return a list of spike-time arrays from MATLAB cells or numeric matrices."""
+    if value is None:
+        return []
+
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return []
+
+        has_nested_values = any(
+            isinstance(item, (list, tuple, np.ndarray))
+            for item in value
+        )
+
+        if has_nested_values:
+            return [_to_number_list(item) for item in value]
+
+        if expected_count and expected_count > 1 and len(value) == expected_count:
+            return [_to_number_list([item]) for item in value]
+
+        return [_to_number_list(value)]
+
+    try:
+        array = np.asarray(value)
+    except ValueError:
+        return []
+
+    if array.dtype == object:
+        return [_to_number_list(item) for item in array.reshape(-1)]
+
+    if array.ndim == 0:
+        return [[float(array.item())]]
+
+    if array.ndim == 1:
+        if expected_count and expected_count > 1 and array.size == expected_count:
+            return [[float(item)] for item in array if np.isfinite(item)]
+        return [_to_number_list(array)]
+
+    if expected_count and array.shape[0] == expected_count:
+        return [_to_number_list(row) for row in array]
+
+    if expected_count and array.shape[1] == expected_count:
+        return [_to_number_list(array[:, index]) for index in range(array.shape[1])]
+
+    return [_to_number_list(row) for row in array]
+
+
+def _normalize_cluster_payload(payload, fallback_name='Uploaded clusters'):
+    """Normalize JSON/MAT cluster comparison data to the frontend contract."""
+    if not isinstance(payload, dict):
+        raise ValueError('Cluster file must contain an object/dictionary')
+
+    algorithm_name = _to_string(
+        _pick(payload, ['algorithmName', 'algorithm_name', 'name'], fallback_name),
+        fallback_name
+    )
+
+    clusters_payload = payload.get('clusters')
+    if isinstance(clusters_payload, dict):
+        clusters_payload = [clusters_payload]
+
+    if isinstance(clusters_payload, list):
+        clusters = []
+        for index, cluster in enumerate(clusters_payload):
+            if not isinstance(cluster, dict):
+                continue
+
+            cluster_id = _pick(cluster, ['id', 'clusterId', 'cluster_id'], index)
+            spike_times = _to_number_list(_pick(cluster, ['spikeTimes', 'spike_times', 'times']))
+
+            if not spike_times:
+                continue
+
+            primary_channel = _pick(cluster, ['primaryChannel', 'primary_channel', 'channel'])
+
+            clusters.append({
+                'id': str(cluster_id),
+                'primaryChannel': _to_scalar(primary_channel, None),
+                'spikeTimes': spike_times
+            })
+
+        if clusters:
+            return {
+                'algorithmName': algorithm_name,
+                'clusters': clusters
+            }
+
+    cluster_ids = _to_number_list(
+        _pick(payload, ['clusterIds', 'cluster_ids', 'ids'])
+    )
+    primary_channels = _to_number_list(
+        _pick(payload, ['primaryChannels', 'primary_channels', 'channels'])
+    )
+    spike_groups = _normalize_spike_time_groups(
+        _pick(payload, ['spikeTimes', 'spike_times', 'times']),
+        expected_count=len(cluster_ids) if cluster_ids else None
+    )
+
+    if not cluster_ids:
+        cluster_ids = list(range(len(spike_groups)))
+
+    clusters = []
+    for index, spike_times in enumerate(spike_groups):
+        if not spike_times:
+            continue
+
+        cluster_id = cluster_ids[index] if index < len(cluster_ids) else index
+        primary_channel = (
+            primary_channels[index]
+            if index < len(primary_channels)
+            else None
+        )
+
+        clusters.append({
+            'id': str(int(cluster_id) if float(cluster_id).is_integer() else cluster_id),
+            'primaryChannel': (
+                int(primary_channel)
+                if primary_channel is not None and float(primary_channel).is_integer()
+                else primary_channel
+            ),
+            'spikeTimes': spike_times
+        })
+
+    if not clusters:
+        raise ValueError('No clusters with spike times were found')
+
+    return {
+        'algorithmName': algorithm_name,
+        'clusters': clusters
+    }
+
+
+def _load_json_cluster_file(file_storage):
+    return json.load(io.TextIOWrapper(file_storage.stream, encoding='utf-8'))
+
+
+def _is_mat_struct(value):
+    return hasattr(value, '_fieldnames')
+
+
+def _contains_mat_struct(value):
+    if _is_mat_struct(value):
+        return True
+
+    if isinstance(value, np.ndarray) and value.dtype == object:
+        return any(_contains_mat_struct(item) for item in value.reshape(-1))
+
+    return False
+
+
+def _mat_struct_to_python(value):
+    if _is_mat_struct(value):
+        return {
+            field: _mat_struct_to_python(getattr(value, field))
+            for field in value._fieldnames
+        }
+
+    if isinstance(value, np.ndarray) and value.dtype == object:
+        converted = [_mat_struct_to_python(item) for item in value.reshape(-1)]
+        return converted[0] if len(converted) == 1 else converted
+
+    return value
+
+
+def _load_mat_cluster_file(file_storage):
+    try:
+        from scipy.io import loadmat
+    except ImportError as exc:
+        raise ValueError('MAT file support requires scipy') from exc
+
+    mat_data = loadmat(
+        io.BytesIO(file_storage.read()),
+        squeeze_me=True,
+        struct_as_record=False
+    )
+
+    return {
+        key: _mat_struct_to_python(value) if _contains_mat_struct(value) else value
+        for key, value in mat_data.items()
+        if not key.startswith('__')
+    }
+
+
+@clustering_bp.route('/api/cluster-comparison/parse-file', methods=['POST'])
+@login_required
+def parse_cluster_comparison_file():
+    """Parse an uploaded JSON or MATLAB .mat cluster comparison file."""
+    try:
+        uploaded_file = request.files.get('file')
+        if not uploaded_file:
+            return validation_error('File is required')
+
+        filename = uploaded_file.filename or ''
+        extension = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+
+        if extension == 'json':
+            payload = _load_json_cluster_file(uploaded_file)
+        elif extension == 'mat':
+            payload = _load_mat_cluster_file(uploaded_file)
+        else:
+            return validation_error('Only .json and .mat cluster files are supported')
+
+        normalized = _normalize_cluster_payload(
+            payload,
+            fallback_name=filename.rsplit('.', 1)[0] or 'Uploaded clusters'
+        )
+
+        return success_response({
+            'dataset': normalized
+        })
+    except ValueError as e:
+        return validation_error(str(e))
+    except NotImplementedError:
+        return validation_error('MAT v7.3 files are not supported. Save the file as MATLAB v7.')
+    except Exception as e:
+        logger.error(f"Error parsing cluster comparison file: {e}", exc_info=True)
+        return server_error('Failed to parse cluster comparison file', exception=e)
 
 
 def _format_custom_pipeline_algorithm(pipeline):

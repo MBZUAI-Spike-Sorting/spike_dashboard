@@ -66,8 +66,6 @@ const UserPage = () => {
   const {
     user,
     profile,
-    isAdmin,
-    canLinkCustomPipelines,
     refreshProfile,
     updateProfile
   } = useAuth();
@@ -76,8 +74,20 @@ const UserPage = () => {
   const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
   const [pipelines, setPipelines] = useState([]);
   const [users, setUsers] = useState([]);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [adminCreateForm, setAdminCreateForm] = useState({
+    email: '',
+    password: '',
+    role: 'user'
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isLoadingPipelines, setIsLoadingPipelines] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [pipelineError, setPipelineError] = useState(null);
@@ -96,6 +106,8 @@ const UserPage = () => {
   }, [user]);
 
   const activeProfile = useMemo(() => profile || {}, [profile]);
+  const isUserAdmin = user?.role === 'admin';
+  const canManagePipelines = Boolean(user?.capabilities?.can_link_custom_pipelines);
 
   useEffect(() => {
     setProfileForm({
@@ -136,7 +148,7 @@ const UserPage = () => {
   }, []);
 
   const loadUsers = useCallback(async () => {
-    if (!isAdmin()) return;
+    if (!isUserAdmin) return;
     setIsLoadingUsers(true);
     setUserError(null);
 
@@ -148,7 +160,7 @@ const UserPage = () => {
     } finally {
       setIsLoadingUsers(false);
     }
-  }, [isAdmin]);
+  }, [isUserAdmin]);
 
   useEffect(() => {
     let isMounted = true;
@@ -188,6 +200,20 @@ const UserPage = () => {
     }));
   };
 
+  const handlePasswordFieldChange = (field) => (event) => {
+    setPasswordForm((prev) => ({
+      ...prev,
+      [field]: event.target.value
+    }));
+  };
+
+  const handleAdminCreateFieldChange = (field) => (event) => {
+    setAdminCreateForm((prev) => ({
+      ...prev,
+      [field]: event.target.value
+    }));
+  };
+
   const handleSaveProfile = async (event) => {
     event.preventDefault();
     setIsSavingProfile(true);
@@ -203,6 +229,63 @@ const UserPage = () => {
       setNotice({ type: 'error', text: error.message || 'Failed to save profile.' });
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (event) => {
+    event.preventDefault();
+    setNotice(null);
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setNotice({ type: 'error', text: 'New passwords do not match.' });
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      await apiClient.changePassword(
+        passwordForm.currentPassword,
+        passwordForm.newPassword
+      );
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setNotice({ type: 'success', text: 'Password updated.' });
+    } catch (error) {
+      setNotice({ type: 'error', text: error.message || 'Failed to change password.' });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleCreateUser = async (event) => {
+    event.preventDefault();
+    setUserError(null);
+
+    setIsCreatingUser(true);
+
+    try {
+      const response = await apiClient.createUser(adminCreateForm);
+      const createdUser = response.data?.user;
+
+      if (createdUser) {
+        setUsers((prev) => [...prev, createdUser]);
+      } else {
+        await loadUsers();
+      }
+
+      setAdminCreateForm({
+        email: '',
+        password: '',
+        role: 'user'
+      });
+    } catch (error) {
+      setUserError(error.message || 'Failed to create user');
+    } finally {
+      setIsCreatingUser(false);
     }
   };
 
@@ -237,6 +320,20 @@ const UserPage = () => {
       }
     } catch (error) {
       setUserError(error.message || 'Failed to update user role');
+    }
+  };
+
+  const handleDeleteUser = async (targetUser) => {
+    setUserError(null);
+
+    const confirmed = window.confirm(`Delete user "${targetUser.username}"?`);
+    if (!confirmed) return;
+
+    try {
+      await apiClient.deleteUser(targetUser.id);
+      setUsers((prev) => prev.filter((listedUser) => listedUser.id !== targetUser.id));
+    } catch (error) {
+      setUserError(error.message || 'Failed to delete user');
     }
   };
 
@@ -430,6 +527,52 @@ const UserPage = () => {
             </div>
           </section>
 
+          <form className="user-page-section user-page-form" onSubmit={handleChangePassword}>
+            <div className="user-page-section-header">
+              <h2>Password</h2>
+              <button type="submit" disabled={isChangingPassword}>
+                {isChangingPassword ? 'Updating...' : 'Update'}
+              </button>
+            </div>
+
+            <div className="profile-fields">
+              <label>
+                <span>Current password</span>
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={handlePasswordFieldChange('currentPassword')}
+                  autoComplete="current-password"
+                  required
+                />
+              </label>
+
+              <label>
+                <span>New password</span>
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={handlePasswordFieldChange('newPassword')}
+                  autoComplete="new-password"
+                  minLength={6}
+                  required
+                />
+              </label>
+
+              <label className="profile-field-wide">
+                <span>Confirm new password</span>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={handlePasswordFieldChange('confirmPassword')}
+                  autoComplete="new-password"
+                  minLength={6}
+                  required
+                />
+              </label>
+            </div>
+          </form>
+
           <section className="user-page-section">
             <div className="user-page-section-header">
               <h2>Saved Pipelines</h2>
@@ -439,9 +582,9 @@ const UserPage = () => {
               pipelines={pipelines}
               isLoading={isLoadingPipelines}
               error={pipelineError}
-              onAddPipeline={canLinkCustomPipelines() ? handleAddPipeline : undefined}
-              onDeletePipeline={canLinkCustomPipelines() ? handleDeletePipeline : undefined}
-              readOnly={!canLinkCustomPipelines()}
+              onAddPipeline={canManagePipelines ? handleAddPipeline : undefined}
+              onDeletePipeline={canManagePipelines ? handleDeletePipeline : undefined}
+              readOnly={!canManagePipelines}
               readOnlyLabel="Pro access required"
             />
           </section>
@@ -461,7 +604,7 @@ const UserPage = () => {
             </div>
           </section>
 
-          {isAdmin() && (
+          {isUserAdmin && (
             <section className="user-page-section user-page-admin">
               <div className="user-page-section-header">
                 <h2>User Roles</h2>
@@ -472,11 +615,54 @@ const UserPage = () => {
 
               {userError && <div className="user-page-inline-error">{userError}</div>}
 
+              <form className="admin-create-user" onSubmit={handleCreateUser}>
+                <label>
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    value={adminCreateForm.email}
+                    onChange={handleAdminCreateFieldChange('email')}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Password</span>
+                  <input
+                    type="password"
+                    value={adminCreateForm.password}
+                    onChange={handleAdminCreateFieldChange('password')}
+                    minLength={6}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Role</span>
+                  <select
+                    value={adminCreateForm.role}
+                    onChange={handleAdminCreateFieldChange('role')}
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button type="submit" disabled={isCreatingUser}>
+                  {isCreatingUser ? 'Adding...' : 'Add User'}
+                </button>
+              </form>
+
               <div className="admin-user-table">
                 <div className="admin-user-row heading">
                   <span>User</span>
                   <span>Email</span>
                   <span>Role</span>
+                  <span>Status</span>
+                  <span>Actions</span>
                 </div>
                 {users.map((listedUser) => (
                   <div className="admin-user-row" key={listedUser.id}>
@@ -492,6 +678,21 @@ const UserPage = () => {
                         </option>
                       ))}
                     </select>
+                    <span className={listedUser.is_locked ? 'user-status locked' : 'user-status active'}>
+                      {listedUser.is_locked
+                        ? `Locked until ${formatDate(listedUser.locked_until)}`
+                        : listedUser.is_active
+                        ? 'Active'
+                        : 'Disabled'}
+                    </span>
+                    <button
+                      className="admin-delete-user"
+                      type="button"
+                      onClick={() => handleDeleteUser(listedUser)}
+                      disabled={listedUser.id === user.id}
+                    >
+                      Delete
+                    </button>
                   </div>
                 ))}
               </div>

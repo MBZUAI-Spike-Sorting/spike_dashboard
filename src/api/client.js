@@ -164,6 +164,17 @@ const apiClient = {
   async listUsers() {
     return request('/api/auth/users');
   },
+
+  /**
+   * Create a user (admin only)
+   * @param {Object} payload - New user data
+   */
+  async createUser(payload) {
+    return request('/api/auth/users', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
   
   /**
    * Update user role (admin only)
@@ -417,6 +428,35 @@ const apiClient = {
       method: 'POST',
       body: JSON.stringify({ clusterId, maxWaveforms, windowSize, algorithm }),
     });
+  },
+
+  /**
+   * Parse a cluster comparison file (.json or .mat).
+   * @param {File} file - Cluster comparison file
+   */
+  async parseClusterComparisonFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = getStoredToken();
+    const response = await fetch(`${API_BASE_URL}/api/cluster-comparison/parse-file`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new ApiError(
+        errorData.error || `Upload failed: ${response.status}`,
+        response.status,
+        errorData.details
+      );
+    }
+
+    return response.json();
   },
   
   // =====================

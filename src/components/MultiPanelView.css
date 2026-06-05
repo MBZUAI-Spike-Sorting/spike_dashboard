@@ -152,6 +152,16 @@
   height: min(430px, calc(100vh - 490px));
 }
 
+.panel-cluster-comparison {
+  top: 410px;
+  left: calc(24vw);
+}
+
+.panel-cluster-comparison .dockable-widget {
+  width: min(820px, calc(100vw - 80px));
+  height: min(500px, calc(100vh - 500px));
+}
+
 /* Waveform View Toggle */
 .waveform-view-toggle {
   display: flex !important;

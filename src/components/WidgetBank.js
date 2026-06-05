@@ -58,6 +58,14 @@ const WIDGET_DEFINITIONS = {
     icon: 'A',
     category: 'visualization',
     defaultSize: { width: 620, height: 430 }
+  },
+  clusterComparison: {
+    id: 'clusterComparison',
+    name: 'Cluster Comparison',
+    description: 'Compare spike-time agreement between two cluster sets',
+    icon: 'C',
+    category: 'analysis',
+    defaultSize: { width: 820, height: 500 }
   }
 };
 

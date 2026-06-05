@@ -7,6 +7,7 @@ import DimensionalityReductionPanel from './DimensionalityReductionPanel';
 import WaveformSingleChannelView from './WaveformSingleChannelView';
 import WaveformNeighboringChannelsView from './WaveformNeighboringChannelsView';
 import AmplitudeProfileWidget from './AmplitudeProfileWidget';
+import ClusterComparisonWidget from './ClusterComparisonWidget';
 import DockableWidget from './DockableWidget';
 import WidgetBank from './WidgetBank';
 import RightSideMenu from './RightSideMenu';
@@ -24,7 +25,8 @@ const DEFAULT_WIDGET_STATES = {
   signalView: { visible: true, minimized: false, maximized: false, order: 4, position: null, size: null },
   dimReduction: { visible: true, minimized: false, maximized: false, order: 5, position: null, size: null },
   waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
-  amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null }
+  amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
+  clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null }
 };
 
 const WIDGET_BINDINGS_STORAGE_KEY = 'spike_dashboard_widget_input_bindings';
@@ -36,7 +38,8 @@ const PANEL_CLASS_MAP = {
   signalView: 'panel-signal-view',
   dimReduction: 'panel-dim-reduction',
   waveform: 'panel-waveform',
-  amplitudeProfile: 'panel-amplitude-profile'
+  amplitudeProfile: 'panel-amplitude-profile',
+  clusterComparison: 'panel-cluster-comparison'
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}) => {
@@ -439,14 +442,7 @@ const MultiPanelView = forwardRef(({
       Object.entries(widgetStates).forEach(([widgetId, state]) => {
         if (!state.visible) return;
 
-        const panelClass =
-          widgetId === 'clusterList' ? 'panel-cluster-list' :
-          widgetId === 'spikeList' ? 'panel-spike-list' :
-          widgetId === 'clusterStats' ? 'panel-cluster-stats' :
-          widgetId === 'signalView' ? 'panel-signal-view' :
-          widgetId === 'dimReduction' ? 'panel-dim-reduction' :
-          widgetId === 'waveform' ? 'panel-waveform' :
-          widgetId === 'amplitudeProfile' ? 'panel-amplitude-profile' : '';
+        const panelClass = PANEL_CLASS_MAP[widgetId] || '';
 
         const panel = document.querySelector(`.${panelClass}`);
         const widget = panel?.querySelector('.dockable-widget');
@@ -894,7 +890,8 @@ const MultiPanelView = forwardRef(({
     { id: 'signalView', name: 'Signal View', visible: widgetStates.signalView.visible },
     { id: 'dimReduction', name: 'Dimensionality Reduction Plot View (PCA)', visible: widgetStates.dimReduction.visible },
     { id: 'waveform', name: 'Waveform View', visible: widgetStates.waveform.visible },
-    { id: 'amplitudeProfile', name: 'Amplitude Profile', visible: widgetStates.amplitudeProfile.visible }
+    { id: 'amplitudeProfile', name: 'Amplitude Profile', visible: widgetStates.amplitudeProfile.visible },
+    { id: 'clusterComparison', name: 'Cluster Comparison', visible: widgetStates.clusterComparison.visible }
   ];
 
   useImperativeHandle(ref, () => ({
@@ -1138,6 +1135,22 @@ const MultiPanelView = forwardRef(({
                 clusterData={amplitudeClusterData}
                 clusteringResults={amplitudeClusteringResults}
               />
+            </DockableWidget>
+          </div>
+        )}
+
+        {widgetStates.clusterComparison.visible && (
+          <div className="panel panel-cluster-comparison" style={getPanelStyle('clusterComparison')}>
+            <DockableWidget
+              id="clusterComparison"
+              title="Cluster Comparison"
+              onClose={handleCloseWidget}
+              onMinimize={handleMinimizeWidget}
+              onMaximize={handleMaximizeWidget}
+              isMinimized={widgetStates.clusterComparison.minimized}
+              isMaximized={widgetStates.clusterComparison.maximized}
+            >
+              <ClusterComparisonWidget />
             </DockableWidget>
           </div>
         )}
