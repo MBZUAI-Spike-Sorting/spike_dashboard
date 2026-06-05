@@ -5,7 +5,7 @@ Defines the User model with authentication and role management.
 """
 
 import enum
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models.database import db
 
@@ -50,6 +50,8 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
+    failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime, nullable=True)
     
     def __repr__(self):
         return f'<User {self.username}>'
@@ -79,6 +81,24 @@ class User(db.Model):
         """Update the last login timestamp."""
         self.last_login = datetime.utcnow()
         db.session.commit()
+
+    def is_locked(self):
+        """Check if the account is temporarily locked."""
+        return bool(self.locked_until and self.locked_until > datetime.utcnow())
+
+    def register_failed_login(self, max_attempts=5, lock_minutes=60):
+        """Record a failed login and lock after too many consecutive failures."""
+        self.failed_login_attempts = (self.failed_login_attempts or 0) + 1
+
+        if self.failed_login_attempts >= max_attempts:
+            self.locked_until = datetime.utcnow() + timedelta(minutes=lock_minutes)
+
+        db.session.commit()
+
+    def clear_failed_logins(self):
+        """Reset failed-login tracking after successful login or admin action."""
+        self.failed_login_attempts = 0
+        self.locked_until = None
     
     def is_admin(self):
         """Check if user has admin role."""
@@ -124,6 +144,9 @@ class User(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
             'is_active': self.is_active,
+            'failed_login_attempts': self.failed_login_attempts or 0,
+            'locked_until': self.locked_until.isoformat() if self.locked_until else None,
+            'is_locked': self.is_locked(),
         }
     
     def get_allowed_algorithms(self):

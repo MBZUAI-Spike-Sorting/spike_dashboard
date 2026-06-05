@@ -18,6 +18,7 @@ import SignalViewPanel from '../components/SignalViewPanel';
 import DimensionalityReductionPanel from '../components/DimensionalityReductionPanel';
 import WaveformSingleChannelView from '../components/WaveformSingleChannelView';
 import AmplitudeProfileWidget from '../components/AmplitudeProfileWidget';
+import ClusterComparisonWidget from '../components/ClusterComparisonWidget';
 
 /**
  * Built-in widget definitions
@@ -123,6 +124,20 @@ const BUILTIN_WIDGETS = [
     requiredData: ['clusters', 'waveforms'],
     dataContract: WIDGET_DATA_CONTRACTS.amplitudeProfile,
     order: 7,
+  },
+  {
+    id: 'clusterComparison',
+    name: 'Cluster Comparison',
+    description: 'Compare spike-time agreement between two cluster sets',
+    icon: 'C',
+    category: 'analysis',
+    defaultSize: { width: 820, height: 500 },
+    minWidth: 520,
+    minHeight: 320,
+    component: ClusterComparisonWidget,
+    requiredData: [],
+    dataContract: WIDGET_DATA_CONTRACTS.clusterComparison,
+    order: 8,
   },
 ];
 

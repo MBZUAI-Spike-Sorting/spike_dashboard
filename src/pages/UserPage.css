@@ -165,7 +165,9 @@
 }
 
 .user-page-section-header button,
-.user-page-form button {
+.user-page-form button,
+.admin-create-user button,
+.admin-delete-user {
   background: rgba(64, 224, 208, 0.15);
   border: 1px solid rgba(64, 224, 208, 0.34);
   border-radius: 6px;
@@ -177,12 +179,15 @@
 }
 
 .user-page-section-header button:hover:not(:disabled),
-.user-page-form button:hover:not(:disabled) {
+.user-page-form button:hover:not(:disabled),
+.admin-create-user button:hover:not(:disabled) {
   background: rgba(64, 224, 208, 0.23);
 }
 
 .user-page-section-header button:disabled,
-.user-page-form button:disabled {
+.user-page-form button:disabled,
+.admin-create-user button:disabled,
+.admin-delete-user:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -260,6 +265,8 @@
 .profile-fields textarea,
 .preference-fields input,
 .preference-fields select,
+.admin-create-user input,
+.admin-create-user select,
 .admin-user-row select {
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(64, 224, 208, 0.18);
@@ -279,6 +286,8 @@
 .profile-fields textarea:focus,
 .preference-fields input:focus,
 .preference-fields select:focus,
+.admin-create-user input:focus,
+.admin-create-user select:focus,
 .admin-user-row select:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(64, 224, 208, 0.12);
@@ -343,6 +352,30 @@
   gap: 8px;
 }
 
+.admin-create-user {
+  align-items: end;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(64, 224, 208, 0.12);
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.7fr) minmax(120px, 0.45fr) auto;
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.admin-create-user label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-create-user span {
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .admin-user-row {
   align-items: center;
   background: rgba(255, 255, 255, 0.045);
@@ -350,7 +383,7 @@
   border-radius: 6px;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(120px, 0.75fr) minmax(180px, 1fr) minmax(120px, 0.45fr);
+  grid-template-columns: minmax(110px, 0.7fr) minmax(170px, 1fr) minmax(120px, 0.45fr) minmax(150px, 0.7fr) minmax(80px, 0.3fr);
   padding: 10px;
 }
 
@@ -368,6 +401,33 @@
   overflow-wrap: anywhere;
 }
 
+.user-status {
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 7px 8px;
+}
+
+.user-status.active {
+  background: rgba(46, 204, 113, 0.12);
+  color: #8df0b3;
+}
+
+.user-status.locked {
+  background: rgba(243, 156, 18, 0.12);
+  color: #ffc46b;
+}
+
+.admin-delete-user {
+  background: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.28);
+  color: #ffb4b4;
+}
+
+.admin-delete-user:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.18);
+}
+
 @media (max-width: 920px) {
   .user-page-grid,
   .profile-fields,
@@ -376,6 +436,7 @@
     grid-template-columns: 1fr;
   }
 
+  .admin-create-user,
   .admin-user-row {
     grid-template-columns: 1fr;
   }

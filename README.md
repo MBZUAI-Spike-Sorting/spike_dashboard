@@ -19,6 +19,7 @@ SpikeScope provides a modern dashboard for exploring raw neural signals, running
 - **Dataset Management** — Upload, switch, and manage multiple neural recording datasets with support for PyTorch tensor (`.pt`), NumPy (`.npy`), and raw binary formats.
 - **Runtime Analytics** — Track and compare algorithm performance metrics to optimize spike sorting pipelines.
 - **Extensible Widgets** — Build custom visualization widgets with a documented plugin API.
+- **Cluster Comparison Uploads** — Load `.json` or MATLAB `.mat` cluster files into the Cluster Comparison widget. See [`docs/CLUSTER_COMPARISON_FILE_FORMAT.md`](docs/CLUSTER_COMPARISON_FILE_FORMAT.md).
 
 ---
 

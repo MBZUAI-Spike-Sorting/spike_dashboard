@@ -6,10 +6,29 @@ Provides SQLAlchemy database setup for the Flask application.
 
 import os
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 # Initialize SQLAlchemy instance
 db = SQLAlchemy()
+
+
+def _ensure_user_columns():
+    """Add columns needed by newer auth features to existing SQLite databases."""
+    inspector = inspect(db.engine)
+    existing_columns = {column['name'] for column in inspector.get_columns('users')}
+    column_definitions = {
+        'failed_login_attempts': 'INTEGER NOT NULL DEFAULT 0',
+        'locked_until': 'DATETIME'
+    }
+
+    for column_name, definition in column_definitions.items():
+        if column_name not in existing_columns:
+            db.session.execute(
+                text(f'ALTER TABLE users ADD COLUMN {column_name} {definition}')
+            )
+
+    db.session.commit()
 
 
 def init_db(app):
@@ -51,6 +70,7 @@ def init_db(app):
         from app.models.user_profile import UserProfile  # noqa: F401
 
         db.create_all()
+        _ensure_user_columns()
 
         # Create default admin user if not exists
         admin = User.query.filter_by(username='admin').first()

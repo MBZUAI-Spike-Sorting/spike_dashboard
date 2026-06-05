@@ -95,6 +95,23 @@ def register():
         return error_response('Registration failed', status=500)
 
 
+def _make_username_from_email(email):
+    """Create a unique username from an email local-part."""
+    base = email.split('@', 1)[0].strip().lower()
+    base = ''.join(char if char.isalnum() or char == '_' else '_' for char in base)
+    base = base.strip('_') or 'user'
+    base = base[:70]
+
+    username = base
+    suffix = 1
+    while User.query.filter_by(username=username).first():
+        suffix_text = f'_{suffix}'
+        username = f'{base[:80 - len(suffix_text)]}{suffix_text}'
+        suffix += 1
+
+    return username
+
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
     """
@@ -129,11 +146,30 @@ def login():
         
         if not user.is_active:
             return error_response('Account is disabled', status=401)
+
+        if user.is_locked():
+            return error_response(
+                'Account temporarily locked after too many failed login attempts',
+                status=423,
+                details={
+                    'locked_until': user.locked_until.isoformat() if user.locked_until else None
+                }
+            )
         
         if not user.check_password(password):
+            user.register_failed_login()
+            if user.is_locked():
+                return error_response(
+                    'Account temporarily locked after too many failed login attempts',
+                    status=423,
+                    details={
+                        'locked_until': user.locked_until.isoformat() if user.locked_until else None
+                    }
+                )
             return error_response('Invalid credentials', status=401)
         
-        # Update last login
+        # Reset failed-login tracking and update last login
+        user.clear_failed_logins()
         user.update_last_login()
         
         # Generate token
@@ -237,7 +273,7 @@ def change_password():
         JSON success response
     """
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         user = get_current_user()
         
         current_password = data.get('current_password', '')
@@ -264,6 +300,70 @@ def change_password():
 
 
 # Admin-only routes
+
+@auth_bp.route('/users', methods=['POST'])
+@admin_required
+def create_user():
+    """
+    Create a user from the admin page.
+
+    Request Body:
+        email: str - Email address
+        password: str - Initial password
+        role: str - Optional role, defaults to 'user'
+        username: str - Optional username
+
+    Returns:
+        JSON with created user data
+    """
+    try:
+        data = request.get_json() or {}
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        role_str = data.get('role', UserRole.USER.value).strip().lower()
+        username = data.get('username', '').strip() or _make_username_from_email(email)
+
+        if not email or '@' not in email:
+            return validation_error('Valid email is required')
+
+        is_valid, error = User.validate_username(username)
+        if not is_valid:
+            return validation_error(error)
+
+        is_valid, error = User.validate_password(password)
+        if not is_valid:
+            return validation_error(error)
+
+        valid_roles = [role.value for role in UserRole]
+        if role_str not in valid_roles:
+            return validation_error(f'Role must be one of: {", ".join(valid_roles)}')
+
+        if User.query.filter_by(username=username).first():
+            return validation_error('Username already exists')
+
+        if User.query.filter_by(email=email).first():
+            return validation_error('Email already registered')
+
+        user = User(
+            username=username,
+            email=email,
+            role=UserRole(role_str)
+        )
+        user.set_password(password)
+
+        db.session.add(user)
+        db.session.commit()
+
+        logger.info(f'Admin created user: {username}')
+
+        return success_response({
+            'user': user.to_dict()
+        }, message='User created successfully')
+    except Exception as e:
+        logger.error(f'Create user error: {e}')
+        db.session.rollback()
+        return error_response('Failed to create user', status=500)
+
 
 @auth_bp.route('/users', methods=['GET'])
 @admin_required
@@ -309,7 +409,7 @@ def update_user_role(user_id):
         JSON with updated user data
     """
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         role_str = data.get('role', '').lower()
         
         valid_roles = [role.value for role in UserRole]
