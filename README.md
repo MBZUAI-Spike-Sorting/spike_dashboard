@@ -20,6 +20,7 @@ SpikeScope provides a modern dashboard for exploring raw neural signals, running
 - **Runtime Analytics** — Track and compare algorithm performance metrics to optimize spike sorting pipelines.
 - **Extensible Widgets** — Build custom visualization widgets with a documented plugin API.
 - **Cluster Comparison Uploads** — Load `.json` or MATLAB `.mat` cluster files into the Cluster Comparison widget. See [`docs/CLUSTER_COMPARISON_FILE_FORMAT.md`](docs/CLUSTER_COMPARISON_FILE_FORMAT.md).
+- **Widget Data I/O Protocol** — Standardized JSON-facing payloads for widget and backend block communication. See [`docs/SPIKESCOPE_WIDGET_DATA_IO.md`](docs/SPIKESCOPE_WIDGET_DATA_IO.md).
 
 ---
 

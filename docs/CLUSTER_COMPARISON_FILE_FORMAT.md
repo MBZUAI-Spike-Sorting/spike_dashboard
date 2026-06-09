@@ -48,3 +48,13 @@ save("kilosort_clusters.mat", ...
 `primary_channels` is optional. Save as MATLAB v7 or earlier; MATLAB v7.3 files are HDF5-backed and are not supported by the lightweight parser.
 
 The parser also accepts camelCase names: `algorithmName`, `clusterIds`, `primaryChannels`, and `spikeTimes`.
+
+## Metrics
+
+For each matched pair:
+
+- `precision`: matching spikes divided by spikes in the comparison cluster.
+- `recall`: matching spikes divided by spikes in the reference cluster.
+- `agreement`: matching spikes divided by the union of matching spikes, reference-only spikes, and comparison-only spikes.
+
+The widget also reports overall precision, recall, and agreement by summing matches and unmatched spikes across all displayed rows.

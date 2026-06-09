@@ -98,7 +98,7 @@
 
 .cluster-comparison-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0.55rem;
   flex-shrink: 0;
 }
@@ -140,7 +140,7 @@
 
 .cluster-comparison-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 980px;
   border-collapse: collapse;
   font-size: 0.82rem;
 }
@@ -160,6 +160,29 @@
   color: #40e0d0;
   background: #15223e;
   font-weight: 700;
+}
+
+.cluster-comparison-sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cluster-comparison-sort-icon {
+  color: #9da8bc;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .cluster-comparison-table tbody tr.matched {

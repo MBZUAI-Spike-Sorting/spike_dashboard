@@ -21,14 +21,22 @@ const normalizeCluster = (cluster, index) => {
 };
 
 const normalizeDataset = (dataset, fallbackName) => {
-  const clusters = Array.isArray(dataset?.clusters)
-    ? dataset.clusters
+  const payload = dataset?.data && typeof dataset.data === 'object' ? dataset.data : dataset;
+  const metadata = dataset?.metadata && typeof dataset.metadata === 'object' ? dataset.metadata : {};
+  const clusters = Array.isArray(payload?.clusters)
+    ? payload.clusters
         .map(normalizeCluster)
         .filter((cluster) => cluster.spikeTimes.length > 0)
     : [];
 
   return {
-    algorithmName: dataset?.algorithmName || dataset?.algorithm_name || fallbackName,
+    algorithmName:
+      payload?.algorithmName ||
+      payload?.algorithm_name ||
+      metadata.algorithmName ||
+      metadata.algorithm_name ||
+      metadata.source ||
+      fallbackName,
     clusters
   };
 };
@@ -72,6 +80,21 @@ const getChannelLabel = (leftCluster, rightCluster) => {
   return channel === null || channel === undefined || channel === '' ? 'Any' : String(channel);
 };
 
+const calculateMetrics = (matchingSpikes, referenceTotal, comparisonTotal) => {
+  const unmatchedReference = Math.max(0, referenceTotal - matchingSpikes);
+  const unmatchedComparison = Math.max(0, comparisonTotal - matchingSpikes);
+  const union = matchingSpikes + unmatchedReference + unmatchedComparison;
+
+  return {
+    matchingSpikes,
+    unmatchedReference,
+    unmatchedComparison,
+    precision: comparisonTotal > 0 ? matchingSpikes / comparisonTotal : 0,
+    recall: referenceTotal > 0 ? matchingSpikes / referenceTotal : 0,
+    agreement: union > 0 ? matchingSpikes / union : 0
+  };
+};
+
 const compareDatasets = ({ algorithmA, algorithmB, reference, windowSamples }) => {
   const referenceDataset = reference === 'b' ? algorithmB : algorithmA;
   const comparisonDataset = reference === 'b' ? algorithmA : algorithmB;
@@ -90,29 +113,35 @@ const compareDatasets = ({ algorithmA, algorithmB, reference, windowSamples }) =
         candidateCluster.spikeTimes,
         windowSamples
       );
-      const referenceCount = referenceCluster.spikeTimes.length || 1;
-      const ratio = matchingSpikes / referenceCount;
+      const metrics = calculateMetrics(
+        matchingSpikes,
+        referenceCluster.spikeTimes.length,
+        candidateCluster.spikeTimes.length
+      );
 
-      if (!best || matchingSpikes > best.matchingSpikes || ratio > best.matchingRatio) {
+      if (
+        !best ||
+        metrics.agreement > best.metrics.agreement ||
+        (
+          metrics.agreement === best.metrics.agreement &&
+          matchingSpikes > best.metrics.matchingSpikes
+        )
+      ) {
         best = {
           cluster: candidateCluster,
-          matchingSpikes,
-          matchingRatio: ratio
+          metrics
         };
       }
     });
 
-    if (best && best.matchingSpikes > 0) {
+    if (best && best.metrics.matchingSpikes > 0) {
       comparisonUsed.add(best.cluster.id);
       rows.push({
         id: `${referenceCluster.id}-${best.cluster.id}`,
         channel: getChannelLabel(referenceCluster, best.cluster),
         referenceCluster,
         comparisonCluster: best.cluster,
-        matchingSpikes: best.matchingSpikes,
-        unmatchedReference: Math.max(0, referenceCluster.spikeTimes.length - best.matchingSpikes),
-        unmatchedComparison: Math.max(0, best.cluster.spikeTimes.length - best.matchingSpikes),
-        matchingRatio: best.matchingRatio,
+        ...best.metrics,
         matched: true
       });
     } else {
@@ -121,10 +150,7 @@ const compareDatasets = ({ algorithmA, algorithmB, reference, windowSamples }) =
         channel: getChannelLabel(referenceCluster, null),
         referenceCluster,
         comparisonCluster: null,
-        matchingSpikes: 0,
-        unmatchedReference: referenceCluster.spikeTimes.length,
-        unmatchedComparison: 0,
-        matchingRatio: 0,
+        ...calculateMetrics(0, referenceCluster.spikeTimes.length, 0),
         matched: false
       });
     }
@@ -138,10 +164,7 @@ const compareDatasets = ({ algorithmA, algorithmB, reference, windowSamples }) =
       channel: getChannelLabel(null, comparisonCluster),
       referenceCluster: null,
       comparisonCluster,
-      matchingSpikes: 0,
-      unmatchedReference: 0,
-      unmatchedComparison: comparisonCluster.spikeTimes.length,
-      matchingRatio: 0,
+      ...calculateMetrics(0, 0, comparisonCluster.spikeTimes.length),
       matched: false
     });
   });
@@ -150,8 +173,28 @@ const compareDatasets = ({ algorithmA, algorithmB, reference, windowSamples }) =
     if (left.channel !== right.channel) {
       return String(left.channel).localeCompare(String(right.channel), undefined, { numeric: true });
     }
-    return right.matchingRatio - left.matchingRatio;
+    return right.agreement - left.agreement;
   });
+};
+
+const formatPercent = (value) => `${(value * 100).toFixed(1)}%`;
+
+const SORT_COLUMNS = [
+  { key: 'channel', label: 'Channel', type: 'string' },
+  { key: 'referenceClusterId', label: 'Reference', type: 'string' },
+  { key: 'comparisonClusterId', label: 'Comparison', type: 'string' },
+  { key: 'matchingSpikes', label: 'Matches', type: 'number' },
+  { key: 'unmatchedReference', label: 'Ref-only', type: 'number' },
+  { key: 'unmatchedComparison', label: 'Comp-only', type: 'number' },
+  { key: 'precision', label: 'Precision', type: 'number' },
+  { key: 'recall', label: 'Recall', type: 'number' },
+  { key: 'agreement', label: 'Agreement', type: 'number' }
+];
+
+const getSortValue = (row, key) => {
+  if (key === 'referenceClusterId') return row.referenceCluster?.id || '';
+  if (key === 'comparisonClusterId') return row.comparisonCluster?.id || '';
+  return row[key];
 };
 
 const ClusterComparisonWidget = ({
@@ -166,6 +209,7 @@ const ClusterComparisonWidget = ({
   );
   const [reference, setReference] = useState('a');
   const [windowSamples, setWindowSamples] = useState(2);
+  const [sortConfig, setSortConfig] = useState({ key: 'agreement', direction: 'desc' });
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -196,17 +240,47 @@ const ClusterComparisonWidget = ({
 
   const summary = useMemo(() => {
     const matchingSpikes = rows.reduce((sum, row) => sum + row.matchingSpikes, 0);
+    const unmatchedReference = rows.reduce((sum, row) => sum + row.unmatchedReference, 0);
+    const unmatchedComparison = rows.reduce((sum, row) => sum + row.unmatchedComparison, 0);
     const matchedRows = rows.filter((row) => row.matched).length;
-    const totalReferenceSpikes =
-      (reference === 'a' ? algorithmA : algorithmB).clusters
-        .reduce((sum, cluster) => sum + cluster.spikeTimes.length, 0);
+    const totals = calculateMetrics(
+      matchingSpikes,
+      matchingSpikes + unmatchedReference,
+      matchingSpikes + unmatchedComparison
+    );
 
     return {
       matchedRows,
-      matchingSpikes,
-      agreement: totalReferenceSpikes > 0 ? matchingSpikes / totalReferenceSpikes : 0
+      ...totals
     };
-  }, [rows, algorithmA, algorithmB, reference]);
+  }, [rows]);
+
+  const sortedRows = useMemo(() => {
+    const column = SORT_COLUMNS.find((item) => item.key === sortConfig.key);
+    if (!column) return rows;
+
+    return [...rows].sort((left, right) => {
+      const leftValue = getSortValue(left, column.key);
+      const rightValue = getSortValue(right, column.key);
+      const direction = sortConfig.direction === 'asc' ? 1 : -1;
+
+      if (column.type === 'number') {
+        return ((Number(leftValue) || 0) - (Number(rightValue) || 0)) * direction;
+      }
+
+      return String(leftValue).localeCompare(String(rightValue), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      }) * direction;
+    });
+  }, [rows, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
 
   const handleFileUpload = (side) => async (event) => {
     const file = event.target.files?.[0];
@@ -314,8 +388,16 @@ const ClusterComparisonWidget = ({
           <strong>{summary.matchedRows}</strong>
         </div>
         <div>
+          <span>Precision</span>
+          <strong>{formatPercent(summary.precision)}</strong>
+        </div>
+        <div>
+          <span>Recall</span>
+          <strong>{formatPercent(summary.recall)}</strong>
+        </div>
+        <div>
           <span>Agreement</span>
-          <strong>{(summary.agreement * 100).toFixed(1)}%</strong>
+          <strong>{formatPercent(summary.agreement)}</strong>
         </div>
       </div>
 
@@ -323,24 +405,46 @@ const ClusterComparisonWidget = ({
         <table className="cluster-comparison-table">
           <thead>
             <tr>
-              <th>Channel</th>
-              <th>{referenceDataset.algorithmName}</th>
-              <th>{comparisonDataset.algorithmName}</th>
-              <th>Matching spikes</th>
-              <th>Unmatched ref.</th>
-              <th>Unmatched comp.</th>
-              <th>Ratio</th>
+              {SORT_COLUMNS.map((column) => (
+                <th
+                  key={column.key}
+                  aria-sort={
+                    sortConfig.key === column.key
+                      ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending')
+                      : 'none'
+                  }
+                >
+                  <button
+                    type="button"
+                    className="cluster-comparison-sort"
+                    onClick={() => handleSort(column.key)}
+                  >
+                    <span>
+                      {column.key === 'referenceClusterId'
+                        ? referenceDataset.algorithmName
+                        : column.key === 'comparisonClusterId'
+                          ? comparisonDataset.algorithmName
+                          : column.label}
+                    </span>
+                    <span className="cluster-comparison-sort-icon">
+                      {sortConfig.key === column.key
+                        ? (sortConfig.direction === 'asc' ? 'Up' : 'Down')
+                        : 'Sort'}
+                    </span>
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan="7" className="cluster-comparison-empty">
+                <td colSpan={SORT_COLUMNS.length} className="cluster-comparison-empty">
                   Load two cluster files to compare.
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
+              sortedRows.map((row) => (
                 <tr key={row.id} className={row.matched ? 'matched' : 'unmatched'}>
                   <td>{row.channel}</td>
                   <td>{row.referenceCluster?.id || '-'}</td>
@@ -348,7 +452,9 @@ const ClusterComparisonWidget = ({
                   <td>{row.matchingSpikes}</td>
                   <td>{row.unmatchedReference}</td>
                   <td>{row.unmatchedComparison}</td>
-                  <td>{(row.matchingRatio * 100).toFixed(1)}%</td>
+                  <td>{formatPercent(row.precision)}</td>
+                  <td>{formatPercent(row.recall)}</td>
+                  <td>{formatPercent(row.agreement)}</td>
                 </tr>
               ))
             )}
