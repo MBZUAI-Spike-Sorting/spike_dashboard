@@ -427,12 +427,19 @@ def _normalize_cluster_payload(payload, fallback_name='Uploaded clusters'):
     if not isinstance(payload, dict):
         raise ValueError('Cluster file must contain an object/dictionary')
 
+    metadata = payload.get('metadata') if isinstance(payload.get('metadata'), dict) else {}
+    payload_data = payload.get('data') if isinstance(payload.get('data'), dict) else payload
+
     algorithm_name = _to_string(
-        _pick(payload, ['algorithmName', 'algorithm_name', 'name'], fallback_name),
+        _pick(
+            payload_data,
+            ['algorithmName', 'algorithm_name', 'name'],
+            _pick(metadata, ['algorithmName', 'algorithm_name', 'source'], fallback_name)
+        ),
         fallback_name
     )
 
-    clusters_payload = payload.get('clusters')
+    clusters_payload = payload_data.get('clusters')
     if isinstance(clusters_payload, dict):
         clusters_payload = [clusters_payload]
 
@@ -463,13 +470,13 @@ def _normalize_cluster_payload(payload, fallback_name='Uploaded clusters'):
             }
 
     cluster_ids = _to_number_list(
-        _pick(payload, ['clusterIds', 'cluster_ids', 'ids'])
+        _pick(payload_data, ['clusterIds', 'cluster_ids', 'ids'])
     )
     primary_channels = _to_number_list(
-        _pick(payload, ['primaryChannels', 'primary_channels', 'channels'])
+        _pick(payload_data, ['primaryChannels', 'primary_channels', 'channels'])
     )
     spike_groups = _normalize_spike_time_groups(
-        _pick(payload, ['spikeTimes', 'spike_times', 'times']),
+        _pick(payload_data, ['spikeTimes', 'spike_times', 'times']),
         expected_count=len(cluster_ids) if cluster_ids else None
     )
 

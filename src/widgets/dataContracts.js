@@ -15,6 +15,7 @@ export const DATA_TYPES = Object.freeze({
   CLUSTER_EMBEDDING: 'cluster_embedding',
   WAVEFORMS: 'waveforms',
   CLUSTERING_RESULTS: 'clustering_results',
+  CLUSTER_COMPARISON_SET: 'cluster_comparison_set',
   SIGNAL_TRACE: 'signal_trace',
   DATASET_INFO: 'dataset_info'
 });
@@ -28,6 +29,7 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.CLUSTER_EMBEDDING]: 'Cluster embedding',
   [DATA_TYPES.WAVEFORMS]: 'Waveforms',
   [DATA_TYPES.CLUSTERING_RESULTS]: 'Clustering results',
+  [DATA_TYPES.CLUSTER_COMPARISON_SET]: 'Cluster comparison set',
   [DATA_TYPES.SIGNAL_TRACE]: 'Signal trace',
   [DATA_TYPES.DATASET_INFO]: 'Dataset info'
 });
@@ -277,13 +279,13 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       {
         id: 'algorithmAData',
         label: 'Algorithm 1 cluster set',
-        accepts: [DATA_TYPES.CLUSTERING_RESULTS],
+        accepts: [DATA_TYPES.CLUSTER_COMPARISON_SET, DATA_TYPES.CLUSTERING_RESULTS],
         required: false
       },
       {
         id: 'algorithmBData',
         label: 'Algorithm 2 cluster set',
-        accepts: [DATA_TYPES.CLUSTERING_RESULTS],
+        accepts: [DATA_TYPES.CLUSTER_COMPARISON_SET, DATA_TYPES.CLUSTERING_RESULTS],
         required: false
       }
     ]
