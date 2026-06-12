@@ -61,46 +61,56 @@
 
 .widget-bank-floating-toggle {
   align-items: center;
-  background: linear-gradient(135deg, rgba(64, 224, 208, 0.18) 0%, rgba(64, 224, 208, 0.08) 100%);
-  border: 1px solid rgba(64, 224, 208, 0.36);
-  border-radius: 6px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+  background: linear-gradient(180deg, rgba(64, 224, 208, 0.2) 0%, rgba(64, 224, 208, 0.1) 100%);
+  border: 1px solid rgba(64, 224, 208, 0.4);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
   color: #40e0d0;
   cursor: pointer;
-  display: inline-flex;
-  font-size: 0.82rem;
-  font-weight: 800;
-  gap: 7px;
-  left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 92px;
+  justify-content: center;
+  left: 0;
   letter-spacing: 0;
-  padding: 9px 12px;
+  padding: 0;
   position: fixed;
-  top: 82px;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-  z-index: 9997;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: all 0.3s ease;
+  width: 28px;
+  z-index: 1000;
 }
 
 .widget-bank-floating-toggle:hover {
-  background: linear-gradient(135deg, rgba(64, 224, 208, 0.28) 0%, rgba(64, 224, 208, 0.14) 100%);
-  border-color: rgba(64, 224, 208, 0.56);
-  transform: translateY(-1px);
+  background: linear-gradient(180deg, rgba(64, 224, 208, 0.3) 0%, rgba(64, 224, 208, 0.15) 100%);
+  border-color: rgba(64, 224, 208, 0.6);
+  width: 32px;
 }
 
 .widget-bank-floating-toggle.active {
-  background: rgba(64, 224, 208, 0.24);
+  background: linear-gradient(180deg, rgba(64, 224, 208, 0.28) 0%, rgba(64, 224, 208, 0.14) 100%);
   border-color: #40e0d0;
+  left: 330px;
 }
 
 .widget-bank-floating-icon {
-  align-items: center;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  display: inline-flex;
-  font-size: 0.9rem;
-  height: 18px;
-  justify-content: center;
+  color: #40e0d0;
+  font-size: 1.2rem;
+  font-weight: 800;
   line-height: 1;
-  width: 18px;
+}
+
+.widget-bank-floating-text {
+  color: rgba(224, 230, 237, 0.8);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  writing-mode: vertical-rl;
 }
 
 @keyframes drop-pulse {
@@ -280,10 +290,6 @@
     overflow-y: auto;
   }
 
-  .widget-bank-floating-toggle {
-    top: 74px;
-  }
-  
   /* Stack widgets vertically on small screens */
   .panel {
     position: relative !important;
@@ -296,6 +302,12 @@
     width: 100% !important;
     min-height: 250px;
     position: relative;
+  }
+}
+
+@media (max-width: 768px) {
+  .widget-bank-floating-toggle.active {
+    left: calc(100vw - 38px);
   }
 }
 
