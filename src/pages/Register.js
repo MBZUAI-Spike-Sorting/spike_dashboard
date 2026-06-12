@@ -4,10 +4,32 @@
  * Provides user registration form with validation.
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+  areRequirementsMet,
+  getPasswordRequirements,
+  getUsernameRequirements
+} from '../utils/authPolicy';
 import './Auth.css';
+
+const RequirementList = ({ requirements, label }) => (
+  <ul className="requirement-list" aria-label={label}>
+    {requirements.map((requirement) => (
+      <li
+        key={requirement.id}
+        className={`requirement-item ${requirement.met ? 'met' : 'unmet'}`}
+      >
+        {requirement.label}
+      </li>
+    ))}
+  </ul>
+);
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -22,6 +44,27 @@ const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const usernameRequirements = useMemo(
+    () => getUsernameRequirements(formData.username),
+    [formData.username]
+  );
+  const passwordRequirements = useMemo(
+    () => getPasswordRequirements(formData.password),
+    [formData.password]
+  );
+  const confirmPasswordRequirements = useMemo(
+    () => [
+      {
+        id: 'passwords-match',
+        label: 'Passwords match',
+        met:
+          formData.confirmPassword.length > 0 &&
+          formData.password === formData.confirmPassword
+      }
+    ],
+    [formData.password, formData.confirmPassword]
+  );
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -29,15 +72,10 @@ const Register = () => {
   };
 
   const validateForm = () => {
-    const { username, email, password, confirmPassword } = formData;
+    const { email, password, confirmPassword } = formData;
 
-    if (username.length < 3) {
-      setError('Username must be at least 3 characters long');
-      return false;
-    }
-
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      setError('Username can only contain letters, numbers, and underscores');
+    if (!areRequirementsMet(usernameRequirements)) {
+      setError('Username does not meet the requirements');
       return false;
     }
 
@@ -46,8 +84,8 @@ const Register = () => {
       return false;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (!areRequirementsMet(passwordRequirements)) {
+      setError('Password does not meet the requirements');
       return false;
     }
 
@@ -110,8 +148,13 @@ const Register = () => {
               required
               autoFocus
               autoComplete="username"
+              minLength={USERNAME_MIN_LENGTH}
+              maxLength={USERNAME_MAX_LENGTH}
             />
-            <span className="form-hint">Letters, numbers, and underscores only</span>
+            <RequirementList
+              requirements={usernameRequirements}
+              label="Username requirements"
+            />
           </div>
 
           <div className="form-group">
@@ -139,8 +182,13 @@ const Register = () => {
               placeholder="Create a password"
               required
               autoComplete="new-password"
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={PASSWORD_MAX_LENGTH}
             />
-            <span className="form-hint">At least 6 characters</span>
+            <RequirementList
+              requirements={passwordRequirements}
+              label="Password requirements"
+            />
           </div>
 
           <div className="form-group">
@@ -154,6 +202,12 @@ const Register = () => {
               placeholder="Confirm your password"
               required
               autoComplete="new-password"
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={PASSWORD_MAX_LENGTH}
+            />
+            <RequirementList
+              requirements={confirmPasswordRequirements}
+              label="Password confirmation requirements"
             />
           </div>
 

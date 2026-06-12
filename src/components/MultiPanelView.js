@@ -967,6 +967,18 @@ const MultiPanelView = forwardRef(({
         </div>
       )}
 
+      <button
+        type="button"
+        className={`widget-bank-floating-toggle ${isWidgetBankOpen ? 'active' : ''}`}
+        onClick={() => setIsWidgetBankOpen((open) => !open)}
+        aria-controls="widget-bank"
+        aria-expanded={isWidgetBankOpen}
+        title={isWidgetBankOpen ? 'Close Widget Bank' : 'Open Widget Bank'}
+      >
+        <span className="widget-bank-floating-icon">+</span>
+        <span>Widgets</span>
+      </button>
+
       <WidgetBank
         isOpen={isWidgetBankOpen}
         onClose={() => setIsWidgetBankOpen(false)}
@@ -977,8 +989,6 @@ const MultiPanelView = forwardRef(({
 
       <RightSideMenu
         demoMode={demoMode}
-        isWidgetBankOpen={isWidgetBankOpen}
-        onWidgetBankToggle={() => setIsWidgetBankOpen(!isWidgetBankOpen)}
         widgetStates={widgetStates}
         onViewChange={handleViewChange}
         getWidgetPositionsAndSizes={getWidgetPositionsAndSizes}

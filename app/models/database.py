@@ -75,15 +75,19 @@ def init_db(app):
         # Create default admin user if not exists
         admin = User.query.filter_by(username='admin').first()
         if not admin:
+            admin_password = os.environ.get('DEFAULT_ADMIN_PASSWORD', 'Admin123!')
             admin = User(
                 username='admin',
                 email='admin@spike-dashboard.local',
                 role=UserRole.ADMIN
             )
-            admin.set_password('admin123')  # Default password - should be changed
+            admin.set_password(admin_password)  # Default password - should be changed
             db.session.add(admin)
             db.session.commit()
-            print('Default admin user created (username: admin, password: admin123)')
+            if 'DEFAULT_ADMIN_PASSWORD' in os.environ:
+                print('Default admin user created (username: admin, password: from DEFAULT_ADMIN_PASSWORD)')
+            else:
+                print('Default admin user created (username: admin, password: Admin123!)')
     
     return db
 

@@ -151,7 +151,7 @@ const WidgetBank = ({
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (bankRef.current && !bankRef.current.contains(e.target) && 
-          !e.target.closest('.widget-bank-toggle')) {
+          !e.target.closest('.widget-bank-floating-toggle')) {
         onClose();
       }
     };
@@ -166,7 +166,7 @@ const WidgetBank = ({
 
   return (
     <div className="widget-bank-overlay">
-      <div className="widget-bank" ref={bankRef}>
+      <div className="widget-bank" id="widget-bank" ref={bankRef}>
         <div className="widget-bank-header">
           <h3>
             <span className="header-icon">🧩</span>

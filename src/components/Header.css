@@ -181,54 +181,6 @@
   display: block;
 }
 
-/* Widget Bank Toggle Button */
-.widget-bank-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm, 0.5rem);
-  padding: 8px 14px;
-  background: linear-gradient(135deg, rgba(64, 224, 208, 0.1) 0%, rgba(64, 224, 208, 0.03) 100%);
-  border: 1px solid var(--color-border, rgba(64, 224, 208, 0.2));
-  border-radius: var(--radius-md, 8px);
-  color: var(--color-text-primary, #e0e6ed);
-  cursor: pointer;
-  font-size: var(--text-sm, 0.875rem);
-  font-weight: 500;
-  transition: all var(--transition-fast, 150ms ease);
-  white-space: nowrap;
-}
-
-.widget-bank-toggle:hover {
-  background: linear-gradient(135deg, rgba(64, 224, 208, 0.2) 0%, rgba(64, 224, 208, 0.08) 100%);
-  border-color: var(--color-border-hover, rgba(64, 224, 208, 0.4));
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(64, 224, 208, 0.15);
-}
-
-.widget-bank-toggle.active {
-  background: linear-gradient(135deg, rgba(64, 224, 208, 0.25) 0%, rgba(64, 224, 208, 0.12) 100%);
-  border-color: var(--color-primary, #40e0d0);
-  color: var(--color-primary, #40e0d0);
-  box-shadow: 0 0 12px rgba(64, 224, 208, 0.15);
-}
-
-.widget-bank-icon {
-  font-size: 1.1rem;
-}
-
-.widget-bank-label {
-  font-weight: 500;
-}
-
-.widget-bank-arrow {
-  font-size: 0.7rem;
-  opacity: 0.7;
-  transition: transform var(--transition-base, 200ms ease);
-}
-
-.widget-bank-arrow.open {
-  transform: rotate(180deg);
-}
 .dashboard-title-link {
   text-decoration: none;
   color: inherit;
