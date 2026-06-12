@@ -151,6 +151,44 @@
   color: var(--color-text-muted, rgba(224, 230, 237, 0.45));
 }
 
+.requirement-list {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+}
+
+.requirement-item {
+  align-items: center;
+  color: var(--color-text-muted, rgba(224, 230, 237, 0.48));
+  display: flex;
+  font-size: 11px;
+  gap: 7px;
+  line-height: 1.35;
+}
+
+.requirement-item::before {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  content: '';
+  flex: 0 0 auto;
+  height: 7px;
+  width: 7px;
+}
+
+.requirement-item.met {
+  color: #8df0b3;
+}
+
+.requirement-item.met::before {
+  background: currentColor;
+}
+
+.requirement-item.unmet {
+  color: rgba(224, 230, 237, 0.48);
+}
+
 /* Button */
 .auth-button {
   display: flex;

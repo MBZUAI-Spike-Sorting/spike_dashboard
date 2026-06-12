@@ -30,7 +30,7 @@ def register():
     Request Body:
         username: str - Unique username
         email: str - Email address
-        password: str - Password (min 6 characters)
+        password: str - Password matching the current password policy
         
     Returns:
         JSON with user data and token on success
@@ -100,13 +100,13 @@ def _make_username_from_email(email):
     base = email.split('@', 1)[0].strip().lower()
     base = ''.join(char if char.isalnum() or char == '_' else '_' for char in base)
     base = base.strip('_') or 'user'
-    base = base[:70]
+    base = base[:User.USERNAME_MAX_LENGTH]
 
     username = base
     suffix = 1
     while User.query.filter_by(username=username).first():
         suffix_text = f'_{suffix}'
-        username = f'{base[:80 - len(suffix_text)]}{suffix_text}'
+        username = f'{base[:User.USERNAME_MAX_LENGTH - len(suffix_text)]}{suffix_text}'
         suffix += 1
 
     return username

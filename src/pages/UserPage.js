@@ -3,6 +3,12 @@ import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
 import CustomPipelineManager from '../components/CustomPipelineManager';
 import { useAuth } from '../context/AuthContext';
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  areRequirementsMet,
+  getPasswordRequirements
+} from '../utils/authPolicy';
 import './UserPage.css';
 
 const EMPTY_PROFILE = {
@@ -62,6 +68,19 @@ const roleLabel = (role) => {
   return ROLE_OPTIONS.find((option) => option.value === role)?.label || role;
 };
 
+const RequirementList = ({ requirements, label }) => (
+  <ul className="requirement-list user-page-requirements" aria-label={label}>
+    {requirements.map((requirement) => (
+      <li
+        key={requirement.id}
+        className={`requirement-item ${requirement.met ? 'met' : 'unmet'}`}
+      >
+        {requirement.label}
+      </li>
+    ))}
+  </ul>
+);
+
 const UserPage = () => {
   const {
     user,
@@ -108,6 +127,26 @@ const UserPage = () => {
   const activeProfile = useMemo(() => profile || {}, [profile]);
   const isUserAdmin = user?.role === 'admin';
   const canManagePipelines = Boolean(user?.capabilities?.can_link_custom_pipelines);
+  const passwordRequirements = useMemo(
+    () => getPasswordRequirements(passwordForm.newPassword),
+    [passwordForm.newPassword]
+  );
+  const passwordConfirmationRequirements = useMemo(
+    () => [
+      {
+        id: 'passwords-match',
+        label: 'Passwords match',
+        met:
+          passwordForm.confirmPassword.length > 0 &&
+          passwordForm.newPassword === passwordForm.confirmPassword
+      }
+    ],
+    [passwordForm.newPassword, passwordForm.confirmPassword]
+  );
+  const adminPasswordRequirements = useMemo(
+    () => getPasswordRequirements(adminCreateForm.password),
+    [adminCreateForm.password]
+  );
 
   useEffect(() => {
     setProfileForm({
@@ -241,6 +280,11 @@ const UserPage = () => {
       return;
     }
 
+    if (!areRequirementsMet(passwordRequirements)) {
+      setNotice({ type: 'error', text: 'New password does not meet the requirements.' });
+      return;
+    }
+
     setIsChangingPassword(true);
 
     try {
@@ -264,6 +308,11 @@ const UserPage = () => {
   const handleCreateUser = async (event) => {
     event.preventDefault();
     setUserError(null);
+
+    if (!areRequirementsMet(adminPasswordRequirements)) {
+      setUserError('Password does not meet the requirements.');
+      return;
+    }
 
     setIsCreatingUser(true);
 
@@ -554,8 +603,13 @@ const UserPage = () => {
                   value={passwordForm.newPassword}
                   onChange={handlePasswordFieldChange('newPassword')}
                   autoComplete="new-password"
-                  minLength={6}
+                  minLength={PASSWORD_MIN_LENGTH}
+                  maxLength={PASSWORD_MAX_LENGTH}
                   required
+                />
+                <RequirementList
+                  requirements={passwordRequirements}
+                  label="New password requirements"
                 />
               </label>
 
@@ -566,8 +620,13 @@ const UserPage = () => {
                   value={passwordForm.confirmPassword}
                   onChange={handlePasswordFieldChange('confirmPassword')}
                   autoComplete="new-password"
-                  minLength={6}
+                  minLength={PASSWORD_MIN_LENGTH}
+                  maxLength={PASSWORD_MAX_LENGTH}
                   required
+                />
+                <RequirementList
+                  requirements={passwordConfirmationRequirements}
+                  label="Password confirmation requirements"
                 />
               </label>
             </div>
@@ -632,8 +691,13 @@ const UserPage = () => {
                     type="password"
                     value={adminCreateForm.password}
                     onChange={handleAdminCreateFieldChange('password')}
-                    minLength={6}
+                    minLength={PASSWORD_MIN_LENGTH}
+                    maxLength={PASSWORD_MAX_LENGTH}
                     required
+                  />
+                  <RequirementList
+                    requirements={adminPasswordRequirements}
+                    label="Initial password requirements"
                   />
                 </label>
 

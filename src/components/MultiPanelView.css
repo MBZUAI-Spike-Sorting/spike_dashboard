@@ -59,6 +59,50 @@
   font-size: 1.2rem;
 }
 
+.widget-bank-floating-toggle {
+  align-items: center;
+  background: linear-gradient(135deg, rgba(64, 224, 208, 0.18) 0%, rgba(64, 224, 208, 0.08) 100%);
+  border: 1px solid rgba(64, 224, 208, 0.36);
+  border-radius: 6px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+  color: #40e0d0;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 800;
+  gap: 7px;
+  left: 14px;
+  letter-spacing: 0;
+  padding: 9px 12px;
+  position: fixed;
+  top: 82px;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  z-index: 9997;
+}
+
+.widget-bank-floating-toggle:hover {
+  background: linear-gradient(135deg, rgba(64, 224, 208, 0.28) 0%, rgba(64, 224, 208, 0.14) 100%);
+  border-color: rgba(64, 224, 208, 0.56);
+  transform: translateY(-1px);
+}
+
+.widget-bank-floating-toggle.active {
+  background: rgba(64, 224, 208, 0.24);
+  border-color: #40e0d0;
+}
+
+.widget-bank-floating-icon {
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  display: inline-flex;
+  font-size: 0.9rem;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  width: 18px;
+}
+
 @keyframes drop-pulse {
   0%, 100% {
     transform: scale(1);
@@ -234,6 +278,10 @@
   .multi-panel-view {
     overflow-x: auto;
     overflow-y: auto;
+  }
+
+  .widget-bank-floating-toggle {
+    top: 74px;
   }
   
   /* Stack widgets vertically on small screens */

@@ -5,6 +5,7 @@ Defines the User model with authentication and role management.
 """
 
 import enum
+import re
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models.database import db
@@ -41,6 +42,12 @@ class User(db.Model):
         is_active: Whether the account is active
     """
     __tablename__ = 'users'
+
+    USERNAME_MIN_LENGTH = 3
+    USERNAME_MAX_LENGTH = 32
+    PASSWORD_MIN_LENGTH = 8
+    PASSWORD_MAX_LENGTH = 128
+    USERNAME_PATTERN = re.compile(r'^[A-Za-z0-9_]+$')
     
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
@@ -181,8 +188,20 @@ class User(db.Model):
         Returns:
             tuple: (is_valid, error_message)
         """
-        if len(password) < 6:
-            return False, 'Password must be at least 6 characters long'
+        password = password or ''
+
+        if len(password) < User.PASSWORD_MIN_LENGTH:
+            return False, f'Password must be at least {User.PASSWORD_MIN_LENGTH} characters long'
+        if len(password) > User.PASSWORD_MAX_LENGTH:
+            return False, f'Password must be no more than {User.PASSWORD_MAX_LENGTH} characters long'
+        if not re.search(r'[A-Z]', password):
+            return False, 'Password must include at least one uppercase letter'
+        if not re.search(r'[a-z]', password):
+            return False, 'Password must include at least one lowercase letter'
+        if not re.search(r'\d', password):
+            return False, 'Password must include at least one number'
+        if not re.search(r'[^A-Za-z0-9\s]', password):
+            return False, 'Password must include at least one symbol'
         return True, None
     
     @staticmethod
@@ -196,10 +215,12 @@ class User(db.Model):
         Returns:
             tuple: (is_valid, error_message)
         """
-        if len(username) < 3:
-            return False, 'Username must be at least 3 characters long'
-        if len(username) > 80:
-            return False, 'Username must be less than 80 characters'
-        if not username.isalnum() and '_' not in username:
+        username = (username or '').strip()
+
+        if len(username) < User.USERNAME_MIN_LENGTH:
+            return False, f'Username must be at least {User.USERNAME_MIN_LENGTH} characters long'
+        if len(username) > User.USERNAME_MAX_LENGTH:
+            return False, f'Username must be no more than {User.USERNAME_MAX_LENGTH} characters long'
+        if not User.USERNAME_PATTERN.fullmatch(username):
             return False, 'Username can only contain letters, numbers, and underscores'
         return True, None

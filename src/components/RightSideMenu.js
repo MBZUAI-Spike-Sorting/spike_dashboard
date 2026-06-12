@@ -39,8 +39,6 @@ const DEMO_CUSTOM_PIPELINES = [
 
 const RightSideMenu = ({
   demoMode = false,
-  isWidgetBankOpen,
-  onWidgetBankToggle,
   widgetStates,
   onViewChange,
   getWidgetPositionsAndSizes,
@@ -119,19 +117,6 @@ const RightSideMenu = ({
         </div>
 
         <div className="right-menu-content">
-          <div className="menu-section">
-            <div className="section-label">Widgets</div>
-            <button
-              className={`menu-widget-btn ${isWidgetBankOpen ? 'active' : ''}`}
-              onClick={onWidgetBankToggle}
-              title="Open Widget Bank"
-            >
-              <span className="btn-icon">🧩</span>
-              <span className="btn-label">Widget Bank</span>
-              <span className={`btn-arrow ${isWidgetBankOpen ? 'open' : ''}`}>▼</span>
-            </button>
-          </div>
-
           <div className="menu-section">
             <div className="section-label">Layout</div>
             <ViewManager
