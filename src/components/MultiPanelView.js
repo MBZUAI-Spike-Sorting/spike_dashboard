@@ -975,8 +975,8 @@ const MultiPanelView = forwardRef(({
         aria-expanded={isWidgetBankOpen}
         title={isWidgetBankOpen ? 'Close Widget Bank' : 'Open Widget Bank'}
       >
-        <span className="widget-bank-floating-icon">+</span>
-        <span>Widgets</span>
+        <span className="widget-bank-floating-icon">{isWidgetBankOpen ? '<' : '>'}</span>
+        <span className="widget-bank-floating-text">Widgets</span>
       </button>
 
       <WidgetBank
