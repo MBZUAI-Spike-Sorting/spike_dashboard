@@ -42,6 +42,9 @@ const RightSideMenu = ({
   widgetStates,
   onViewChange,
   getWidgetPositionsAndSizes,
+  savedViews,
+  savedCurrentViewId,
+  onPersistViews,
   algorithms,
   selectedAlgorithm,
   onAlgorithmChange,
@@ -123,6 +126,9 @@ const RightSideMenu = ({
               currentWidgetStates={widgetStates}
               onViewChange={onViewChange}
               getWidgetPositionsAndSizes={getWidgetPositionsAndSizes}
+              savedViews={savedViews}
+              savedCurrentViewId={savedCurrentViewId}
+              onPersistViews={onPersistViews}
             />
           </div>
 

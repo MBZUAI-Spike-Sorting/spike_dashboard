@@ -29,8 +29,12 @@ class UserProfile(db.Model):
     DEFAULT_PREFERENCES = {
         'defaultView': 'multipanel',
         'defaultDataset': '',
-        'compactTables': False
+        'compactTables': False,
+        'dashboardViews': [],
+        'currentDashboardViewId': 'default'
     }
+    MAX_DASHBOARD_VIEWS = 30
+    MAX_WIDGET_STATES_PER_VIEW = 40
 
     @classmethod
     def get_or_create(cls, user):
@@ -51,10 +55,20 @@ class UserProfile(db.Model):
         except (TypeError, ValueError):
             saved = {}
 
-        return {
+        normalized = {
             **self.DEFAULT_PREFERENCES,
             **{k: saved.get(k) for k in self.DEFAULT_PREFERENCES if k in saved}
         }
+
+        normalized['dashboardViews'] = self._normalize_dashboard_views(
+            normalized.get('dashboardViews')
+        )
+        normalized['currentDashboardViewId'] = self._clean_text(
+            normalized.get('currentDashboardViewId') or 'default',
+            80
+        ) or 'default'
+
+        return normalized
 
     def update_from_payload(self, payload):
         """Update editable profile fields from a request payload."""
@@ -102,8 +116,100 @@ class UserProfile(db.Model):
             normalized['defaultDataset'] = self._clean_text(preferences.get('defaultDataset'), 180)
         if 'compactTables' in preferences:
             normalized['compactTables'] = bool(preferences.get('compactTables'))
+        if 'dashboardViews' in preferences:
+            normalized['dashboardViews'] = self._normalize_dashboard_views(
+                preferences.get('dashboardViews')
+            )
+        if 'currentDashboardViewId' in preferences:
+            current_view_id = self._clean_text(
+                preferences.get('currentDashboardViewId') or 'default',
+                80
+            ) or 'default'
+            saved_view_ids = {
+                view.get('id')
+                for view in normalized.get('dashboardViews', [])
+                if isinstance(view, dict)
+            }
+            normalized['currentDashboardViewId'] = (
+                current_view_id if current_view_id in saved_view_ids else 'default'
+            )
 
         return normalized
 
     def _clean_text(self, value, limit):
         return str(value or '').strip()[:limit]
+
+    def _normalize_dashboard_views(self, views):
+        if not isinstance(views, list):
+            return []
+
+        normalized = []
+        seen_ids = set()
+
+        for view in views[:self.MAX_DASHBOARD_VIEWS]:
+            if not isinstance(view, dict):
+                continue
+
+            view_id = self._clean_text(view.get('id'), 80)
+            if not view_id or view_id in seen_ids:
+                continue
+
+            seen_ids.add(view_id)
+            normalized.append({
+                'id': view_id,
+                'name': self._clean_text(view.get('name') or 'Layout', 120),
+                'isDefault': bool(view.get('isDefault')),
+                'widgetStates': self._normalize_widget_states(view.get('widgetStates')),
+                'createdAt': self._clean_text(view.get('createdAt'), 40),
+                'updatedAt': self._clean_text(view.get('updatedAt'), 40),
+            })
+
+        return normalized
+
+    def _normalize_widget_states(self, widget_states):
+        if not isinstance(widget_states, dict):
+            return {}
+
+        normalized = {}
+        for widget_id, state in list(widget_states.items())[:self.MAX_WIDGET_STATES_PER_VIEW]:
+            clean_widget_id = self._clean_widget_id(widget_id)
+            if not clean_widget_id or not isinstance(state, dict):
+                continue
+
+            order = self._clean_int(state.get('order'), 0, 1000)
+            normalized_state = {
+                'visible': bool(state.get('visible')),
+                'minimized': bool(state.get('minimized')),
+                'maximized': bool(state.get('maximized')),
+                'order': order if order is not None else 0,
+                'position': self._clean_layout_pair(state.get('position'), ('left', 'top')),
+                'size': self._clean_layout_pair(state.get('size'), ('width', 'height')),
+            }
+            normalized[clean_widget_id] = normalized_state
+
+        return normalized
+
+    def _clean_widget_id(self, value):
+        widget_id = self._clean_text(value, 80)
+        if not widget_id:
+            return ''
+        if not all(char.isalnum() or char in ('_', '-') for char in widget_id):
+            return ''
+        return widget_id
+
+    def _clean_layout_pair(self, value, keys):
+        if not isinstance(value, dict):
+            return None
+
+        cleaned = {}
+        for key in keys:
+            cleaned[key] = self._clean_int(value.get(key), -10000, 10000)
+        return cleaned
+
+    def _clean_int(self, value, minimum, maximum):
+        try:
+            cleaned = int(round(float(value)))
+        except (TypeError, ValueError):
+            return None
+
+        return max(minimum, min(maximum, cleaned))
