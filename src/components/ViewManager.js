@@ -3,6 +3,8 @@ import './ViewManager.css';
 
 const STORAGE_KEY = 'spike_dashboard_custom_views';
 const CURRENT_VIEW_KEY = 'spike_dashboard_current_view';
+const PROFILE_VIEWS_KEY = 'dashboardViews';
+const PROFILE_CURRENT_VIEW_KEY = 'currentDashboardViewId';
 
 // Default view configuration - all widgets visible
 const DEFAULT_VIEW = {
@@ -16,7 +18,8 @@ const DEFAULT_VIEW = {
     signalView: { visible: true, minimized: false, maximized: false, order: 4, position: null, size: null },
     dimReduction: { visible: true, minimized: false, maximized: false, order: 5, position: null, size: null },
     waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
-    amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null }
+    amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
+    clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null }
   }
 };
 
@@ -28,7 +31,8 @@ const EMPTY_WIDGET_STATES = {
   signalView: { visible: false, minimized: false, maximized: false, order: 4, position: null, size: null },
   dimReduction: { visible: false, minimized: false, maximized: false, order: 5, position: null, size: null },
   waveform: { visible: false, minimized: false, maximized: false, order: 6, position: null, size: null },
-  amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null }
+  amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
+  clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null }
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {
@@ -41,10 +45,76 @@ const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.wid
   }, {});
 };
 
+const normalizeViews = (candidateViews) => {
+  const sourceViews = Array.isArray(candidateViews) ? candidateViews : [];
+  const viewsWithDefault = sourceViews.some((view) => view?.id === 'default')
+    ? sourceViews
+    : [DEFAULT_VIEW, ...sourceViews];
+
+  return viewsWithDefault
+    .filter((view) => view && typeof view === 'object')
+    .map((view, index) => {
+      const viewId = view.id || `view_${Date.now()}_${index}`;
+
+      return {
+        ...view,
+        id: viewId,
+        name: view.name || 'Layout',
+        isDefault: viewId === 'default' || Boolean(view.isDefault),
+        widgetStates: mergeWidgetStateDefaults(view.widgetStates)
+      };
+    });
+};
+
+const readLocalViewSnapshot = () => {
+  const savedViews = localStorage.getItem(STORAGE_KEY);
+  const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY);
+
+  if (!savedViews) {
+    return {
+      views: [DEFAULT_VIEW],
+      currentViewId: 'default'
+    };
+  }
+
+  try {
+    const views = normalizeViews(JSON.parse(savedViews));
+    return {
+      views,
+      currentViewId: savedCurrentView && views.some((view) => view.id === savedCurrentView)
+        ? savedCurrentView
+        : 'default'
+    };
+  } catch (e) {
+    console.error('Error loading saved views:', e);
+    return {
+      views: [DEFAULT_VIEW],
+      currentViewId: 'default'
+    };
+  }
+};
+
+const buildViewSnapshot = (savedViews, savedCurrentViewId) => {
+  if (Array.isArray(savedViews) && savedViews.length > 0) {
+    const views = normalizeViews(savedViews);
+    return {
+      views,
+      currentViewId: savedCurrentViewId && views.some((view) => view.id === savedCurrentViewId)
+        ? savedCurrentViewId
+        : 'default'
+    };
+  }
+
+  return readLocalViewSnapshot();
+};
+
 const ViewManager = ({ 
   currentWidgetStates, 
   onViewChange, 
-  getWidgetPositionsAndSizes 
+  getWidgetPositionsAndSizes,
+  savedViews,
+  savedCurrentViewId,
+  onPersistViews
 }) => {
   const [views, setViews] = useState([DEFAULT_VIEW]);
   const [currentViewId, setCurrentViewId] = useState('default');
@@ -56,40 +126,22 @@ const ViewManager = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const dropdownRef = useRef(null);
   const inputRef = useRef(null);
+  const lastAppliedAccountSnapshotRef = useRef(null);
+  const lastPersistedSnapshotRef = useRef(null);
 
-  // Load views from localStorage on mount
+  // Load views from account preferences first, then localStorage as a fallback.
   useEffect(() => {
-    const savedViews = localStorage.getItem(STORAGE_KEY);
-    const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY);
+    const snapshot = buildViewSnapshot(savedViews, savedCurrentViewId);
+    const snapshotKey = JSON.stringify(snapshot);
+    const hasAccountSavedViews = Array.isArray(savedViews) && savedViews.length > 0;
     
-    let loadedViews = [DEFAULT_VIEW];
-    let loadedCurrentViewId = 'default';
-    
-    if (savedViews) {
-      try {
-        const parsed = JSON.parse(savedViews);
-        const hasDefault = parsed.some(v => v.id === 'default');
-        if (!hasDefault) {
-          parsed.unshift(DEFAULT_VIEW);
-        }
-        loadedViews = parsed.map((view) => ({
-          ...view,
-          widgetStates: mergeWidgetStateDefaults(view.widgetStates)
-        }));
-      } catch (e) {
-        console.error('Error loading saved views:', e);
-      }
-    }
-    
-    if (savedCurrentView && loadedViews.some(v => v.id === savedCurrentView)) {
-      loadedCurrentViewId = savedCurrentView;
-    }
-    
-    setViews(loadedViews);
-    setCurrentViewId(loadedCurrentViewId);
+    lastAppliedAccountSnapshotRef.current = snapshotKey;
+    lastPersistedSnapshotRef.current = hasAccountSavedViews ? snapshotKey : null;
+    setViews(snapshot.views);
+    setCurrentViewId(snapshot.currentViewId);
     
     // Apply the loaded view
-    const viewToApply = loadedViews.find(v => v.id === loadedCurrentViewId);
+    const viewToApply = snapshot.views.find(v => v.id === snapshot.currentViewId);
     if (viewToApply && onViewChange) {
       setTimeout(() => {
         onViewChange(viewToApply.widgetStates);
@@ -100,19 +152,52 @@ const ViewManager = ({
     }
   }, []);
 
-  // Save views to localStorage when changed
+  // Apply account-saved views if they arrive after the component has mounted.
   useEffect(() => {
-    if (isInitialized) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
+    if (!isInitialized || !Array.isArray(savedViews) || savedViews.length === 0) {
+      return;
     }
-  }, [views, isInitialized]);
 
-  // Save current view ID to localStorage
-  useEffect(() => {
-    if (isInitialized) {
-      localStorage.setItem(CURRENT_VIEW_KEY, currentViewId);
+    const snapshot = buildViewSnapshot(savedViews, savedCurrentViewId);
+    const snapshotKey = JSON.stringify(snapshot);
+
+    if (lastAppliedAccountSnapshotRef.current === snapshotKey) {
+      return;
     }
-  }, [currentViewId, isInitialized]);
+
+    lastAppliedAccountSnapshotRef.current = snapshotKey;
+    lastPersistedSnapshotRef.current = snapshotKey;
+    setViews(snapshot.views);
+    setCurrentViewId(snapshot.currentViewId);
+
+    const viewToApply = snapshot.views.find(v => v.id === snapshot.currentViewId);
+    if (viewToApply && onViewChange) {
+      onViewChange(viewToApply.widgetStates);
+    }
+  }, [savedViews, savedCurrentViewId, isInitialized, onViewChange]);
+
+  // Save views locally and, for logged-in users, to account preferences.
+  useEffect(() => {
+    if (!isInitialized) {
+      return;
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
+    localStorage.setItem(CURRENT_VIEW_KEY, currentViewId);
+
+    if (!onPersistViews) {
+      return;
+    }
+
+    const snapshotKey = JSON.stringify({ views, currentViewId });
+    if (lastPersistedSnapshotRef.current === snapshotKey) {
+      return;
+    }
+
+    lastPersistedSnapshotRef.current = snapshotKey;
+    lastAppliedAccountSnapshotRef.current = snapshotKey;
+    onPersistViews(views, currentViewId);
+  }, [views, currentViewId, isInitialized, onPersistViews]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -335,5 +420,12 @@ const ViewManager = ({
   );
 };
 
-export { DEFAULT_VIEW, STORAGE_KEY, CURRENT_VIEW_KEY, EMPTY_WIDGET_STATES };
+export {
+  DEFAULT_VIEW,
+  STORAGE_KEY,
+  CURRENT_VIEW_KEY,
+  PROFILE_VIEWS_KEY,
+  PROFILE_CURRENT_VIEW_KEY,
+  EMPTY_WIDGET_STATES
+};
 export default ViewManager;

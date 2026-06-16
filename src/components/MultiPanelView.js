@@ -11,11 +11,17 @@ import ClusterComparisonWidget from './ClusterComparisonWidget';
 import DockableWidget from './DockableWidget';
 import WidgetBank from './WidgetBank';
 import RightSideMenu from './RightSideMenu';
-import { STORAGE_KEY, CURRENT_VIEW_KEY } from './ViewManager';
+import {
+  STORAGE_KEY,
+  CURRENT_VIEW_KEY,
+  PROFILE_VIEWS_KEY,
+  PROFILE_CURRENT_VIEW_KEY
+} from './ViewManager';
 import {
   createDashboardPipelineVariables,
   mergeWidgetInputBindings
 } from '../widgets/dataContracts';
+import { useAuth } from '../context/AuthContext';
 import './MultiPanelView.css';
 
 const DEFAULT_WIDGET_STATES = {
@@ -50,6 +56,21 @@ const mergeWidgetStateDefaults = (widgetStates = {}) => {
     };
     return acc;
   }, {});
+};
+
+const getWidgetStatesFromViewSnapshot = (views, currentViewId) => {
+  if (!Array.isArray(views) || views.length === 0) {
+    return null;
+  }
+
+  const validViews = views.filter((view) => view && typeof view === 'object');
+  const currentView = validViews.find((view) => view.id === currentViewId);
+  const fallbackView = validViews.find((view) => view.id === 'default') || validViews[0];
+  const viewToUse = currentView || fallbackView;
+
+  return viewToUse?.widgetStates
+    ? mergeWidgetStateDefaults(viewToUse.widgetStates)
+    : null;
 };
 
 const readWidgetLayoutFromDom = (widgetIds) => {
@@ -112,6 +133,8 @@ const MultiPanelView = forwardRef(({
   demoWaveforms = {},
   demoSignalData = null
 }, ref) => {
+  const { profile, isAuthenticated, updateProfile } = useAuth();
+  const profilePreferences = profile?.preferences || {};
   const [clusters, setClusters] = useState([]);
   const [selectedClusters, setSelectedClusters] = useState([]);
   const [spikes, setSpikes] = useState([]);
@@ -131,6 +154,15 @@ const MultiPanelView = forwardRef(({
   const containerRef = useRef(null);
 
   const [widgetStates, setWidgetStates] = useState(() => {
+    const accountWidgetStates = getWidgetStatesFromViewSnapshot(
+      profilePreferences[PROFILE_VIEWS_KEY],
+      profilePreferences[PROFILE_CURRENT_VIEW_KEY]
+    );
+
+    if (accountWidgetStates) {
+      return accountWidgetStates;
+    }
+
     const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY);
     const savedViews = localStorage.getItem(STORAGE_KEY);
 
@@ -165,6 +197,91 @@ const MultiPanelView = forwardRef(({
 
   const [isInitialized, setIsInitialized] = useState(false);
   const lastSavedPositionsRef = useRef(null);
+  const profilePreferencesRef = useRef(profilePreferences);
+  const accountViewSaveTimeoutRef = useRef(null);
+  const lastPersistedAccountViewsRef = useRef(null);
+  const lastAppliedAccountViewsRef = useRef(null);
+
+  useEffect(() => {
+    profilePreferencesRef.current = profile?.preferences || {};
+  }, [profile?.preferences]);
+
+  const persistViewsToAccount = useCallback((views, currentViewId) => {
+    if (demoMode || !isAuthenticated || !Array.isArray(views)) {
+      return;
+    }
+
+    const normalizedCurrentViewId = currentViewId || 'default';
+    const snapshotKey = JSON.stringify({
+      views,
+      currentViewId: normalizedCurrentViewId
+    });
+
+    if (lastPersistedAccountViewsRef.current === snapshotKey) {
+      return;
+    }
+
+    lastPersistedAccountViewsRef.current = snapshotKey;
+
+    if (accountViewSaveTimeoutRef.current) {
+      clearTimeout(accountViewSaveTimeoutRef.current);
+    }
+
+    accountViewSaveTimeoutRef.current = setTimeout(() => {
+      updateProfile({
+        preferences: {
+          ...(profilePreferencesRef.current || {}),
+          [PROFILE_VIEWS_KEY]: views,
+          [PROFILE_CURRENT_VIEW_KEY]: normalizedCurrentViewId
+        }
+      }).catch((error) => {
+        console.error('Error saving dashboard layout preferences:', error);
+        lastPersistedAccountViewsRef.current = null;
+      });
+    }, 600);
+  }, [demoMode, isAuthenticated, updateProfile]);
+
+  useEffect(() => {
+    return () => {
+      if (accountViewSaveTimeoutRef.current) {
+        clearTimeout(accountViewSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (demoMode) {
+      return;
+    }
+
+    const savedViews = profilePreferences[PROFILE_VIEWS_KEY];
+    if (!Array.isArray(savedViews) || savedViews.length === 0) {
+      return;
+    }
+
+    const savedCurrentViewId = profilePreferences[PROFILE_CURRENT_VIEW_KEY] || 'default';
+    const snapshotKey = JSON.stringify({
+      views: savedViews,
+      currentViewId: savedCurrentViewId
+    });
+
+    if (lastAppliedAccountViewsRef.current === snapshotKey) {
+      return;
+    }
+
+    const accountWidgetStates = getWidgetStatesFromViewSnapshot(
+      savedViews,
+      savedCurrentViewId
+    );
+
+    if (!accountWidgetStates) {
+      return;
+    }
+
+    lastAppliedAccountViewsRef.current = snapshotKey;
+    lastPersistedAccountViewsRef.current = snapshotKey;
+    setWidgetStates(accountWidgetStates);
+  }, [demoMode, profilePreferences]);
 
   const pipelineVariables = useMemo(() => {
     return createDashboardPipelineVariables({
@@ -309,7 +426,7 @@ const MultiPanelView = forwardRef(({
 
   const saveCurrentState = useCallback(() => {
     const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY);
-    if (!savedCurrentView || savedCurrentView === 'default') return;
+    if (!savedCurrentView) return;
 
     try {
       const savedViews = localStorage.getItem(STORAGE_KEY);
@@ -342,10 +459,11 @@ const MultiPanelView = forwardRef(({
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
+      persistViewsToAccount(views, savedCurrentView);
     } catch (e) {
       console.error('Error auto-saving view:', e);
     }
-  }, [widgetStates, getCurrentPositionsAndSizes]);
+  }, [widgetStates, getCurrentPositionsAndSizes, persistViewsToAccount]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -992,6 +1110,9 @@ const MultiPanelView = forwardRef(({
         widgetStates={widgetStates}
         onViewChange={handleViewChange}
         getWidgetPositionsAndSizes={getWidgetPositionsAndSizes}
+        savedViews={profilePreferences[PROFILE_VIEWS_KEY]}
+        savedCurrentViewId={profilePreferences[PROFILE_CURRENT_VIEW_KEY]}
+        onPersistViews={persistViewsToAccount}
         algorithms={algorithms}
         selectedAlgorithm={selectedAlgorithm}
         onAlgorithmChange={onAlgorithmChange}
