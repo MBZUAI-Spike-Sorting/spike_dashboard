@@ -6,6 +6,10 @@ const CURRENT_VIEW_KEY = 'spike_dashboard_current_view';
 const PROFILE_VIEWS_KEY = 'dashboardViews';
 const PROFILE_CURRENT_VIEW_KEY = 'currentDashboardViewId';
 
+const getScopedStorageKey = (key, scope) => {
+  return scope ? `${key}:${scope}` : key;
+};
+
 // Default view configuration - all widgets visible
 const DEFAULT_VIEW = {
   id: 'default',
@@ -66,9 +70,9 @@ const normalizeViews = (candidateViews) => {
     });
 };
 
-const readLocalViewSnapshot = () => {
-  const savedViews = localStorage.getItem(STORAGE_KEY);
-  const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY);
+const readLocalViewSnapshot = (storageScope) => {
+  const savedViews = localStorage.getItem(getScopedStorageKey(STORAGE_KEY, storageScope));
+  const savedCurrentView = localStorage.getItem(getScopedStorageKey(CURRENT_VIEW_KEY, storageScope));
 
   if (!savedViews) {
     return {
@@ -94,7 +98,7 @@ const readLocalViewSnapshot = () => {
   }
 };
 
-const buildViewSnapshot = (savedViews, savedCurrentViewId) => {
+const buildViewSnapshot = (savedViews, savedCurrentViewId, storageScope) => {
   if (Array.isArray(savedViews) && savedViews.length > 0) {
     const views = normalizeViews(savedViews);
     return {
@@ -105,7 +109,7 @@ const buildViewSnapshot = (savedViews, savedCurrentViewId) => {
     };
   }
 
-  return readLocalViewSnapshot();
+  return readLocalViewSnapshot(storageScope);
 };
 
 const ViewManager = ({ 
@@ -114,7 +118,8 @@ const ViewManager = ({
   getWidgetPositionsAndSizes,
   savedViews,
   savedCurrentViewId,
-  onPersistViews
+  onPersistViews,
+  layoutStorageScope
 }) => {
   const [views, setViews] = useState([DEFAULT_VIEW]);
   const [currentViewId, setCurrentViewId] = useState('default');
@@ -131,7 +136,8 @@ const ViewManager = ({
 
   // Load views from account preferences first, then localStorage as a fallback.
   useEffect(() => {
-    const snapshot = buildViewSnapshot(savedViews, savedCurrentViewId);
+    let applyViewTimer = null;
+    const snapshot = buildViewSnapshot(savedViews, savedCurrentViewId, layoutStorageScope);
     const snapshotKey = JSON.stringify(snapshot);
     const hasAccountSavedViews = Array.isArray(savedViews) && savedViews.length > 0;
     
@@ -143,14 +149,20 @@ const ViewManager = ({
     // Apply the loaded view
     const viewToApply = snapshot.views.find(v => v.id === snapshot.currentViewId);
     if (viewToApply && onViewChange) {
-      setTimeout(() => {
+      applyViewTimer = setTimeout(() => {
         onViewChange(viewToApply.widgetStates);
         setIsInitialized(true);
       }, 100);
     } else {
       setIsInitialized(true);
     }
-  }, []);
+
+    return () => {
+      if (applyViewTimer) {
+        clearTimeout(applyViewTimer);
+      }
+    };
+  }, [layoutStorageScope]);
 
   // Apply account-saved views if they arrive after the component has mounted.
   useEffect(() => {
@@ -158,7 +170,7 @@ const ViewManager = ({
       return;
     }
 
-    const snapshot = buildViewSnapshot(savedViews, savedCurrentViewId);
+    const snapshot = buildViewSnapshot(savedViews, savedCurrentViewId, layoutStorageScope);
     const snapshotKey = JSON.stringify(snapshot);
 
     if (lastAppliedAccountSnapshotRef.current === snapshotKey) {
@@ -174,7 +186,7 @@ const ViewManager = ({
     if (viewToApply && onViewChange) {
       onViewChange(viewToApply.widgetStates);
     }
-  }, [savedViews, savedCurrentViewId, isInitialized, onViewChange]);
+  }, [savedViews, savedCurrentViewId, isInitialized, onViewChange, layoutStorageScope]);
 
   // Save views locally and, for logged-in users, to account preferences.
   useEffect(() => {
@@ -182,8 +194,14 @@ const ViewManager = ({
       return;
     }
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
-    localStorage.setItem(CURRENT_VIEW_KEY, currentViewId);
+    localStorage.setItem(
+      getScopedStorageKey(STORAGE_KEY, layoutStorageScope),
+      JSON.stringify(views)
+    );
+    localStorage.setItem(
+      getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope),
+      currentViewId
+    );
 
     if (!onPersistViews) {
       return;
@@ -197,7 +215,7 @@ const ViewManager = ({
     lastPersistedSnapshotRef.current = snapshotKey;
     lastAppliedAccountSnapshotRef.current = snapshotKey;
     onPersistViews(views, currentViewId);
-  }, [views, currentViewId, isInitialized, onPersistViews]);
+  }, [views, currentViewId, isInitialized, onPersistViews, layoutStorageScope]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -426,6 +444,7 @@ export {
   CURRENT_VIEW_KEY,
   PROFILE_VIEWS_KEY,
   PROFILE_CURRENT_VIEW_KEY,
-  EMPTY_WIDGET_STATES
+  EMPTY_WIDGET_STATES,
+  getScopedStorageKey
 };
 export default ViewManager;

@@ -15,7 +15,8 @@ import {
   STORAGE_KEY,
   CURRENT_VIEW_KEY,
   PROFILE_VIEWS_KEY,
-  PROFILE_CURRENT_VIEW_KEY
+  PROFILE_CURRENT_VIEW_KEY,
+  getScopedStorageKey
 } from './ViewManager';
 import {
   createDashboardPipelineVariables,
@@ -133,8 +134,16 @@ const MultiPanelView = forwardRef(({
   demoWaveforms = {},
   demoSignalData = null
 }, ref) => {
-  const { profile, isAuthenticated, updateProfile } = useAuth();
-  const profilePreferences = profile?.preferences || {};
+  const { user, profile, isAuthenticated, updateProfile } = useAuth();
+  const profilePreferences = useMemo(() => profile?.preferences || {}, [profile?.preferences]);
+  const layoutStorageScope = useMemo(() => {
+    if (demoMode) return 'demo';
+
+    const accountKey = user?.id ?? user?.username ?? user?.email;
+    return accountKey ? `user_${accountKey}` : 'guest';
+  }, [demoMode, user?.email, user?.id, user?.username]);
+  const layoutViewsStorageKey = getScopedStorageKey(STORAGE_KEY, layoutStorageScope);
+  const layoutCurrentViewStorageKey = getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope);
   const [clusters, setClusters] = useState([]);
   const [selectedClusters, setSelectedClusters] = useState([]);
   const [spikes, setSpikes] = useState([]);
@@ -163,8 +172,8 @@ const MultiPanelView = forwardRef(({
       return accountWidgetStates;
     }
 
-    const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY);
-    const savedViews = localStorage.getItem(STORAGE_KEY);
+    const savedCurrentView = localStorage.getItem(layoutCurrentViewStorageKey);
+    const savedViews = localStorage.getItem(layoutViewsStorageKey);
 
     if (savedCurrentView && savedViews) {
       try {
@@ -283,6 +292,50 @@ const MultiPanelView = forwardRef(({
     setWidgetStates(accountWidgetStates);
   }, [demoMode, profilePreferences]);
 
+  useEffect(() => {
+    if (!isInitialized) {
+      return;
+    }
+
+    lastAppliedAccountViewsRef.current = null;
+    lastPersistedAccountViewsRef.current = null;
+    lastSavedPositionsRef.current = null;
+
+    const accountWidgetStates = getWidgetStatesFromViewSnapshot(
+      profilePreferences[PROFILE_VIEWS_KEY],
+      profilePreferences[PROFILE_CURRENT_VIEW_KEY]
+    );
+
+    if (accountWidgetStates) {
+      setWidgetStates(accountWidgetStates);
+      return;
+    }
+
+    const savedCurrentView = localStorage.getItem(layoutCurrentViewStorageKey);
+    const savedViews = localStorage.getItem(layoutViewsStorageKey);
+
+    if (savedCurrentView && savedViews) {
+      try {
+        const views = JSON.parse(savedViews);
+        const currentView = views.find((v) => v.id === savedCurrentView);
+        if (currentView && currentView.widgetStates) {
+          setWidgetStates(mergeWidgetStateDefaults(currentView.widgetStates));
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading scoped widget states:', error);
+      }
+    }
+
+    setWidgetStates(mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES));
+    lastSavedPositionsRef.current = null;
+  }, [
+    isInitialized,
+    layoutCurrentViewStorageKey,
+    layoutViewsStorageKey,
+    layoutStorageScope
+  ]);
+
   const pipelineVariables = useMemo(() => {
     return createDashboardPipelineVariables({
       clusters,
@@ -397,6 +450,14 @@ const MultiPanelView = forwardRef(({
         return;
       }
 
+      if (widgetStates[widgetId].minimized) {
+        positionsAndSizes[widgetId] = {
+          position: widgetStates[widgetId].position || null,
+          size: widgetStates[widgetId].size || null
+        };
+        return;
+      }
+
       positionsAndSizes[widgetId] = liveLayout[widgetId] || {
         position: widgetStates[widgetId].position || null,
         size: widgetStates[widgetId].size || null
@@ -412,6 +473,11 @@ const MultiPanelView = forwardRef(({
     return Object.entries(states).reduce((acc, [widgetId, state]) => {
       const layout = liveLayout[widgetId];
 
+      if (state?.minimized) {
+        acc[widgetId] = state;
+        return acc;
+      }
+
       acc[widgetId] = layout
         ? {
             ...state,
@@ -425,11 +491,11 @@ const MultiPanelView = forwardRef(({
   }, []);
 
   const saveCurrentState = useCallback(() => {
-    const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY);
+    const savedCurrentView = localStorage.getItem(layoutCurrentViewStorageKey);
     if (!savedCurrentView) return;
 
     try {
-      const savedViews = localStorage.getItem(STORAGE_KEY);
+      const savedViews = localStorage.getItem(layoutViewsStorageKey);
       if (!savedViews) return;
 
       const views = JSON.parse(savedViews);
@@ -458,12 +524,18 @@ const MultiPanelView = forwardRef(({
         updatedAt: new Date().toISOString()
       };
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
+      localStorage.setItem(layoutViewsStorageKey, JSON.stringify(views));
       persistViewsToAccount(views, savedCurrentView);
     } catch (e) {
       console.error('Error auto-saving view:', e);
     }
-  }, [widgetStates, getCurrentPositionsAndSizes, persistViewsToAccount]);
+  }, [
+    widgetStates,
+    getCurrentPositionsAndSizes,
+    persistViewsToAccount,
+    layoutCurrentViewStorageKey,
+    layoutViewsStorageKey
+  ]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -893,6 +965,14 @@ const MultiPanelView = forwardRef(({
     Object.keys(widgetStates).forEach((widgetId) => {
       if (!widgetStates[widgetId].visible) return;
 
+      if (widgetStates[widgetId].minimized) {
+        result[widgetId] = {
+          position: widgetStates[widgetId].position || null,
+          size: widgetStates[widgetId].size || null
+        };
+        return;
+      }
+
       result[widgetId] = liveLayout[widgetId] || {
         position: widgetStates[widgetId].position || null,
         size: widgetStates[widgetId].size || null
@@ -1113,6 +1193,7 @@ const MultiPanelView = forwardRef(({
         savedViews={profilePreferences[PROFILE_VIEWS_KEY]}
         savedCurrentViewId={profilePreferences[PROFILE_CURRENT_VIEW_KEY]}
         onPersistViews={persistViewsToAccount}
+        layoutStorageScope={layoutStorageScope}
         algorithms={algorithms}
         selectedAlgorithm={selectedAlgorithm}
         onAlgorithmChange={onAlgorithmChange}

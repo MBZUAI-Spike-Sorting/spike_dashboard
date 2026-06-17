@@ -27,13 +27,13 @@
 .dockable-widget.dragging {
   opacity: 0.85;
   cursor: move;
-  z-index: var(--z-modal, 1000);
+  z-index: 120;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 .dockable-widget.resizing {
   opacity: 0.9;
-  z-index: 999;
+  z-index: 120;
   user-select: none;
 }
 
@@ -50,7 +50,7 @@
   bottom: 0 !important;
   width: 100% !important;
   height: calc(100vh - 56px) !important;
-  z-index: 999;
+  z-index: 120;
   margin: 0 !important;
   border-radius: 0;
 }

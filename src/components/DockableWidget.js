@@ -2,6 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import './DockableWidget.css';
 
+const WIDGET_BASE_Z_INDEX = 10;
+const WIDGET_ACTIVE_Z_INDEX_MIN = 20;
+const WIDGET_ACTIVE_Z_INDEX_RANGE = 60;
+const WIDGET_TRANSIENT_Z_INDEX = 120;
+
 /**
  * DockableWidget Component
  * 
@@ -22,7 +27,7 @@ const DockableWidget = ({
   resizable = true,
   draggable = true
 }) => {
-  const [zIndex, setZIndex] = useState(1);
+  const [zIndex, setZIndex] = useState(WIDGET_BASE_Z_INDEX);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const contentRef = useRef(null);
@@ -101,7 +106,7 @@ const DockableWidget = ({
 
     isDraggingRef.current = true;
     setIsDragging(true);
-    setZIndex(1000); // Bring to front while dragging
+    setZIndex(WIDGET_TRANSIENT_Z_INDEX);
 
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
@@ -131,7 +136,7 @@ const DockableWidget = ({
   const handleDragEnd = () => {
     isDraggingRef.current = false;
     setIsDragging(false);
-    setZIndex(1); // Reset z-index
+    setZIndex(WIDGET_BASE_Z_INDEX);
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('mouseup', handleDragEnd);
   };
@@ -139,7 +144,7 @@ const DockableWidget = ({
   // Bring widget to front on click
   const handleWidgetClick = () => {
     if (!isMaximized) {
-      setZIndex(prev => Math.max(prev, Date.now() % 1000));
+      setZIndex(WIDGET_ACTIVE_Z_INDEX_MIN + (Date.now() % WIDGET_ACTIVE_Z_INDEX_RANGE));
     }
   };
 
@@ -328,7 +333,11 @@ const DockableWidget = ({
       ref={widgetRef}
       className={`dockable-widget ${className} ${isMinimized ? 'minimized' : ''} ${isMaximized ? 'maximized' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
       data-widget-id={id}
-      style={{ zIndex }}
+      style={{
+        zIndex: isMaximized || isDragging || isResizing
+          ? WIDGET_TRANSIENT_Z_INDEX
+          : zIndex
+      }}
       onClick={handleWidgetClick}
     >
       {showControls && (

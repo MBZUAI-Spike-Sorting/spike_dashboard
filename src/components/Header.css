@@ -15,7 +15,7 @@
   gap: var(--space-md, 1rem);
   overflow: visible;
   position: relative;
-  z-index: var(--z-dropdown, 100);
+  z-index: 3000;
   min-height: 56px;
 }
 
