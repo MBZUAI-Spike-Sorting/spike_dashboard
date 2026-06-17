@@ -45,6 +45,7 @@ const RightSideMenu = ({
   savedViews,
   savedCurrentViewId,
   onPersistViews,
+  layoutStorageScope,
   algorithms,
   selectedAlgorithm,
   onAlgorithmChange,
@@ -129,6 +130,7 @@ const RightSideMenu = ({
               savedViews={savedViews}
               savedCurrentViewId={savedCurrentViewId}
               onPersistViews={onPersistViews}
+              layoutStorageScope={layoutStorageScope}
             />
           </div>
 
