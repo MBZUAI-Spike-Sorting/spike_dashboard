@@ -19,6 +19,7 @@ import DimensionalityReductionPanel from '../components/DimensionalityReductionP
 import WaveformSingleChannelView from '../components/WaveformSingleChannelView';
 import AmplitudeProfileWidget from '../components/AmplitudeProfileWidget';
 import ClusterComparisonWidget from '../components/ClusterComparisonWidget';
+import CuratorWidget from '../components/CuratorWidget';
 
 /**
  * Built-in widget definitions
@@ -138,6 +139,20 @@ const BUILTIN_WIDGETS = [
     requiredData: [],
     dataContract: WIDGET_DATA_CONTRACTS.clusterComparison,
     order: 8,
+  },
+  {
+    id: 'curator',
+    name: 'Curator',
+    description: 'Review one cluster set and drive linked analysis widgets',
+    icon: 'R',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 480 },
+    minWidth: 480,
+    minHeight: 300,
+    component: CuratorWidget,
+    requiredData: [],
+    dataContract: WIDGET_DATA_CONTRACTS.curator,
+    order: 9,
   },
 ];
 

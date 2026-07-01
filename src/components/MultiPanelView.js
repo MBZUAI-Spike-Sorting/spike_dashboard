@@ -8,6 +8,7 @@ import WaveformSingleChannelView from './WaveformSingleChannelView';
 import WaveformNeighboringChannelsView from './WaveformNeighboringChannelsView';
 import AmplitudeProfileWidget from './AmplitudeProfileWidget';
 import ClusterComparisonWidget from './ClusterComparisonWidget';
+import CuratorWidget from './CuratorWidget';
 import DockableWidget from './DockableWidget';
 import WidgetBank from './WidgetBank';
 import RightSideMenu from './RightSideMenu';
@@ -33,7 +34,8 @@ const DEFAULT_WIDGET_STATES = {
   dimReduction: { visible: true, minimized: false, maximized: false, order: 5, position: null, size: null },
   waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
   amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
-  clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null }
+  clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null },
+  curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null }
 };
 
 const WIDGET_BINDINGS_STORAGE_KEY = 'spike_dashboard_widget_input_bindings';
@@ -46,7 +48,8 @@ const PANEL_CLASS_MAP = {
   dimReduction: 'panel-dim-reduction',
   waveform: 'panel-waveform',
   amplitudeProfile: 'panel-amplitude-profile',
-  clusterComparison: 'panel-cluster-comparison'
+  clusterComparison: 'panel-cluster-comparison',
+  curator: 'panel-curator'
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}) => {
@@ -68,6 +71,10 @@ const getWidgetStatesFromViewSnapshot = (views, currentViewId) => {
   const currentView = validViews.find((view) => view.id === currentViewId);
   const fallbackView = validViews.find((view) => view.id === 'default') || validViews[0];
   const viewToUse = currentView || fallbackView;
+
+  if (viewToUse?.id === 'default') {
+    return mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES);
+  }
 
   return viewToUse?.widgetStates
     ? mergeWidgetStateDefaults(viewToUse.widgetStates)
@@ -179,6 +186,9 @@ const MultiPanelView = forwardRef(({
       try {
         const views = JSON.parse(savedViews);
         const currentView = views.find((v) => v.id === savedCurrentView);
+        if (currentView?.id === 'default') {
+          return mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES);
+        }
         if (currentView && currentView.widgetStates) {
           return mergeWidgetStateDefaults(currentView.widgetStates);
         }
@@ -206,6 +216,12 @@ const MultiPanelView = forwardRef(({
 
   const [isInitialized, setIsInitialized] = useState(false);
   const lastSavedPositionsRef = useRef(null);
+  const activeViewIdRef = useRef(
+    profilePreferences[PROFILE_CURRENT_VIEW_KEY] ||
+    localStorage.getItem(layoutCurrentViewStorageKey) ||
+    'default'
+  );
+  const isApplyingViewRef = useRef(false);
   const profilePreferencesRef = useRef(profilePreferences);
   const accountViewSaveTimeoutRef = useRef(null);
   const lastPersistedAccountViewsRef = useRef(null);
@@ -289,7 +305,13 @@ const MultiPanelView = forwardRef(({
 
     lastAppliedAccountViewsRef.current = snapshotKey;
     lastPersistedAccountViewsRef.current = snapshotKey;
+    activeViewIdRef.current = savedCurrentViewId;
+    isApplyingViewRef.current = true;
     setWidgetStates(accountWidgetStates);
+    setTimeout(() => {
+      isApplyingViewRef.current = false;
+      lastSavedPositionsRef.current = null;
+    }, 250);
   }, [demoMode, profilePreferences]);
 
   useEffect(() => {
@@ -307,7 +329,13 @@ const MultiPanelView = forwardRef(({
     );
 
     if (accountWidgetStates) {
+      activeViewIdRef.current = profilePreferences[PROFILE_CURRENT_VIEW_KEY] || 'default';
+      isApplyingViewRef.current = true;
       setWidgetStates(accountWidgetStates);
+      setTimeout(() => {
+        isApplyingViewRef.current = false;
+        lastSavedPositionsRef.current = null;
+      }, 250);
       return;
     }
 
@@ -318,8 +346,24 @@ const MultiPanelView = forwardRef(({
       try {
         const views = JSON.parse(savedViews);
         const currentView = views.find((v) => v.id === savedCurrentView);
+        if (currentView?.id === 'default') {
+          activeViewIdRef.current = 'default';
+          isApplyingViewRef.current = true;
+          setWidgetStates(mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES));
+          setTimeout(() => {
+            isApplyingViewRef.current = false;
+            lastSavedPositionsRef.current = null;
+          }, 250);
+          return;
+        }
         if (currentView && currentView.widgetStates) {
+          activeViewIdRef.current = savedCurrentView;
+          isApplyingViewRef.current = true;
           setWidgetStates(mergeWidgetStateDefaults(currentView.widgetStates));
+          setTimeout(() => {
+            isApplyingViewRef.current = false;
+            lastSavedPositionsRef.current = null;
+          }, 250);
           return;
         }
       } catch (error) {
@@ -327,7 +371,13 @@ const MultiPanelView = forwardRef(({
       }
     }
 
+    activeViewIdRef.current = 'default';
+    isApplyingViewRef.current = true;
     setWidgetStates(mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES));
+    setTimeout(() => {
+      isApplyingViewRef.current = false;
+      lastSavedPositionsRef.current = null;
+    }, 250);
     lastSavedPositionsRef.current = null;
   }, [
     isInitialized,
@@ -491,8 +541,12 @@ const MultiPanelView = forwardRef(({
   }, []);
 
   const saveCurrentState = useCallback(() => {
-    const savedCurrentView = localStorage.getItem(layoutCurrentViewStorageKey);
-    if (!savedCurrentView) return;
+    if (isApplyingViewRef.current) {
+      return;
+    }
+
+    const savedCurrentView = activeViewIdRef.current || localStorage.getItem(layoutCurrentViewStorageKey);
+    if (!savedCurrentView || savedCurrentView === 'default') return;
 
     try {
       const savedViews = localStorage.getItem(layoutViewsStorageKey);
@@ -514,9 +568,12 @@ const MultiPanelView = forwardRef(({
         };
       });
 
-      const newPositionsStr = JSON.stringify(positionsAndSizes);
-      if (lastSavedPositionsRef.current === newPositionsStr) return;
-      lastSavedPositionsRef.current = newPositionsStr;
+      const newStateSnapshot = JSON.stringify({
+        viewId: savedCurrentView,
+        widgetStates: updatedWidgetStates
+      });
+      if (lastSavedPositionsRef.current === newStateSnapshot) return;
+      lastSavedPositionsRef.current = newStateSnapshot;
 
       views[viewIndex] = {
         ...views[viewIndex],
@@ -943,7 +1000,9 @@ const MultiPanelView = forwardRef(({
   };
 
   const handleResetLayout = () => {
-    setWidgetStates(DEFAULT_WIDGET_STATES);
+    activeViewIdRef.current = 'default';
+    isApplyingViewRef.current = true;
+    setWidgetStates(mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES));
 
     document.querySelectorAll('.dockable-widget').forEach((widget) => {
       widget.style.width = '';
@@ -956,6 +1015,11 @@ const MultiPanelView = forwardRef(({
       panel.style.left = '';
       panel.style.top = '';
     });
+
+    setTimeout(() => {
+      isApplyingViewRef.current = false;
+      lastSavedPositionsRef.current = null;
+    }, 250);
   };
 
   const getWidgetPositionsAndSizes = useCallback(() => {
@@ -982,7 +1046,13 @@ const MultiPanelView = forwardRef(({
     return result;
   }, [widgetStates]);
 
-  const handleViewChange = useCallback((newWidgetStates) => {
+  const handleViewChange = useCallback((newWidgetStates, viewId) => {
+    if (viewId) {
+      activeViewIdRef.current = viewId;
+    }
+
+    isApplyingViewRef.current = true;
+
     document.querySelectorAll('.dockable-widget').forEach((widget) => {
       widget.style.width = '';
       widget.style.height = '';
@@ -996,6 +1066,11 @@ const MultiPanelView = forwardRef(({
 
     const clonedStates = mergeWidgetStateDefaults(JSON.parse(JSON.stringify(newWidgetStates)));
     setWidgetStates(clonedStates);
+
+    setTimeout(() => {
+      isApplyingViewRef.current = false;
+      lastSavedPositionsRef.current = null;
+    }, 250);
   }, []);
 
   const handleWidgetBindingChange = useCallback((widgetId, inputId, variableId) => {
@@ -1089,7 +1164,8 @@ const MultiPanelView = forwardRef(({
     { id: 'dimReduction', name: 'Dimensionality Reduction Plot View (PCA)', visible: widgetStates.dimReduction.visible },
     { id: 'waveform', name: 'Waveform View', visible: widgetStates.waveform.visible },
     { id: 'amplitudeProfile', name: 'Amplitude Profile', visible: widgetStates.amplitudeProfile.visible },
-    { id: 'clusterComparison', name: 'Cluster Comparison', visible: widgetStates.clusterComparison.visible }
+    { id: 'clusterComparison', name: 'Cluster Comparison', visible: widgetStates.clusterComparison.visible },
+    { id: 'curator', name: 'Curator', visible: widgetStates.curator.visible }
   ];
 
   useImperativeHandle(ref, () => ({
@@ -1143,6 +1219,29 @@ const MultiPanelView = forwardRef(({
   const amplitudeWaveforms = getBoundWidgetValue('amplitudeProfile', 'waveforms', clusterWaveforms);
   const amplitudeClusterData = getBoundWidgetValue('amplitudeProfile', 'clusterData', clusterData);
   const amplitudeClusteringResults = getBoundWidgetValue('amplitudeProfile', 'clusteringResults', clusteringResults);
+  const curatorClusterSet = getBoundWidgetValue('curator', 'clusterSetData', null);
+  const curatorSignalData = getBoundWidgetValue('curator', 'signalData', signalData || demoSignalData);
+
+  const handleCuratorClusterSelect = useCallback((cluster) => {
+    const numericClusterId = Number(cluster.id);
+    const clusterId = Number.isFinite(numericClusterId) ? numericClusterId : cluster.id;
+    const spikeTimes = Array.isArray(cluster.spikeTimes) ? cluster.spikeTimes : [];
+    const firstSpikeTime = spikeTimes.find((time) => Number.isFinite(Number(time)));
+
+    setSelectedClusters([clusterId]);
+    setHighlightedSpikes(
+      spikeTimes.slice(0, 25).map((time, pointIndex) => ({
+        clusterId,
+        pointIndex,
+        time
+      }))
+    );
+
+    if (Number.isFinite(Number(firstSpikeTime))) {
+      const start = Math.max(0, Number(firstSpikeTime) - 500);
+      setTimeRange({ start, end: start + 1000 });
+    }
+  }, []);
 
   return (
     <div
@@ -1363,6 +1462,26 @@ const MultiPanelView = forwardRef(({
               isMaximized={widgetStates.clusterComparison.maximized}
             >
               <ClusterComparisonWidget />
+            </DockableWidget>
+          </div>
+        )}
+
+        {widgetStates.curator.visible && (
+          <div className="panel panel-curator" style={getPanelStyle('curator')}>
+            <DockableWidget
+              id="curator"
+              title="Curator"
+              onClose={handleCloseWidget}
+              onMinimize={handleMinimizeWidget}
+              onMaximize={handleMaximizeWidget}
+              isMinimized={widgetStates.curator.minimized}
+              isMaximized={widgetStates.curator.maximized}
+            >
+              <CuratorWidget
+                clusterSetData={curatorClusterSet}
+                signalData={curatorSignalData}
+                onClusterSelect={handleCuratorClusterSelect}
+              />
             </DockableWidget>
           </div>
         )}

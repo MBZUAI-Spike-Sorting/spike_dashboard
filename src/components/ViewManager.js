@@ -23,7 +23,8 @@ const DEFAULT_VIEW = {
     dimReduction: { visible: true, minimized: false, maximized: false, order: 5, position: null, size: null },
     waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
     amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
-    clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null }
+    clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null },
+    curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null }
   }
 };
 
@@ -36,7 +37,8 @@ const EMPTY_WIDGET_STATES = {
   dimReduction: { visible: false, minimized: false, maximized: false, order: 5, position: null, size: null },
   waveform: { visible: false, minimized: false, maximized: false, order: 6, position: null, size: null },
   amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
-  clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null }
+  clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null },
+  curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null }
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {
@@ -59,6 +61,14 @@ const normalizeViews = (candidateViews) => {
     .filter((view) => view && typeof view === 'object')
     .map((view, index) => {
       const viewId = view.id || `view_${Date.now()}_${index}`;
+
+      if (viewId === 'default') {
+        return {
+          ...DEFAULT_VIEW,
+          name: view.name || DEFAULT_VIEW.name,
+          widgetStates: mergeWidgetStateDefaults(DEFAULT_VIEW.widgetStates)
+        };
+      }
 
       return {
         ...view,
@@ -150,7 +160,7 @@ const ViewManager = ({
     const viewToApply = snapshot.views.find(v => v.id === snapshot.currentViewId);
     if (viewToApply && onViewChange) {
       applyViewTimer = setTimeout(() => {
-        onViewChange(viewToApply.widgetStates);
+        onViewChange(viewToApply.widgetStates, viewToApply.id);
         setIsInitialized(true);
       }, 100);
     } else {
@@ -184,9 +194,58 @@ const ViewManager = ({
 
     const viewToApply = snapshot.views.find(v => v.id === snapshot.currentViewId);
     if (viewToApply && onViewChange) {
-      onViewChange(viewToApply.widgetStates);
+      onViewChange(viewToApply.widgetStates, viewToApply.id);
     }
   }, [savedViews, savedCurrentViewId, isInitialized, onViewChange, layoutStorageScope]);
+
+  // Keep the active custom view synchronized with live widget changes.
+  useEffect(() => {
+    if (!isInitialized || currentViewId === 'default' || !currentWidgetStates) {
+      return;
+    }
+
+    const positionsAndSizes = typeof getWidgetPositionsAndSizes === 'function'
+      ? getWidgetPositionsAndSizes()
+      : {};
+    const normalizedWidgetStates = mergeWidgetStateDefaults(currentWidgetStates);
+    const widgetStatesWithLayout = Object.entries(normalizedWidgetStates).reduce(
+      (acc, [widgetId, state]) => {
+        const layout = positionsAndSizes[widgetId] || {};
+
+        acc[widgetId] = {
+          ...state,
+          position: state.visible ? (layout.position || state.position || null) : null,
+          size: state.visible ? (layout.size || state.size || null) : null
+        };
+
+        return acc;
+      },
+      {}
+    );
+
+    setViews((previousViews) => {
+      const viewIndex = previousViews.findIndex(
+        (view) => view.id === currentViewId && !view.isDefault
+      );
+
+      if (viewIndex === -1) {
+        return previousViews;
+      }
+
+      const activeView = previousViews[viewIndex];
+      if (JSON.stringify(activeView.widgetStates) === JSON.stringify(widgetStatesWithLayout)) {
+        return previousViews;
+      }
+
+      const nextViews = [...previousViews];
+      nextViews[viewIndex] = {
+        ...activeView,
+        widgetStates: widgetStatesWithLayout,
+        updatedAt: new Date().toISOString()
+      };
+      return nextViews;
+    });
+  }, [currentWidgetStates, currentViewId, getWidgetPositionsAndSizes, isInitialized]);
 
   // Save views locally and, for logged-in users, to account preferences.
   useEffect(() => {
@@ -248,7 +307,10 @@ const ViewManager = ({
     const view = views.find(v => v.id === viewId);
     if (view) {
       setCurrentViewId(viewId);
-      onViewChange(view.widgetStates);
+      const widgetStatesToApply = viewId === 'default'
+        ? mergeWidgetStateDefaults(DEFAULT_VIEW.widgetStates)
+        : mergeWidgetStateDefaults(view.widgetStates);
+      onViewChange(widgetStatesToApply, view.id);
       setIsDropdownOpen(false);
     }
   };
@@ -270,7 +332,7 @@ const ViewManager = ({
     
     setViews(prev => [...prev, newView]);
     setCurrentViewId(newView.id);
-    onViewChange(newView.widgetStates);
+    onViewChange(newView.widgetStates, newView.id);
     setNewViewName('');
     setIsCreatingNew(false);
     setIsDropdownOpen(false);
@@ -285,7 +347,7 @@ const ViewManager = ({
     
     if (currentViewId === viewId) {
       setCurrentViewId('default');
-      onViewChange(DEFAULT_VIEW.widgetStates);
+      onViewChange(mergeWidgetStateDefaults(DEFAULT_VIEW.widgetStates), 'default');
     }
   };
 
