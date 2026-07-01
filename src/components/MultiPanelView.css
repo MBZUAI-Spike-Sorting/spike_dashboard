@@ -216,6 +216,16 @@
   height: min(500px, calc(100vh - 500px));
 }
 
+.panel-curator {
+  top: 430px;
+  left: calc(22vw);
+}
+
+.panel-curator .dockable-widget {
+  width: min(760px, calc(100vw - 80px));
+  height: min(480px, calc(100vh - 500px));
+}
+
 /* Waveform View Toggle */
 .waveform-view-toggle {
   display: flex !important;

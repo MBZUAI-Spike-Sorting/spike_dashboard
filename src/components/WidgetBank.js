@@ -66,6 +66,14 @@ const WIDGET_DEFINITIONS = {
     icon: 'C',
     category: 'analysis',
     defaultSize: { width: 820, height: 500 }
+  },
+  curator: {
+    id: 'curator',
+    name: 'Curator',
+    description: 'Review one cluster set and drive linked analysis widgets',
+    icon: 'R',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 480 }
   }
 };
 

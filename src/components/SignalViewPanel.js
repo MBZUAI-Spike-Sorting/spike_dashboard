@@ -26,6 +26,21 @@ const SignalViewPanel = ({ demoMode = false, highlightedSpikes, datasetInfo, dem
 
   const dataCache = useRef({});
 
+  useEffect(() => {
+    const firstSpike = Array.isArray(highlightedSpikes) ? highlightedSpikes[0] : null;
+    const spikeTime = Number(firstSpike?.time);
+
+    if (!Number.isFinite(spikeTime)) {
+      return;
+    }
+
+    const nextStart = Math.max(0, Math.floor(spikeTime - windowSize / 2));
+    setTimeRange({
+      start: nextStart,
+      end: nextStart + windowSize
+    });
+  }, [highlightedSpikes, windowSize]);
+
   // Demo synthesis: produce plottable data for any selected channel without
   // touching the backend.
   useEffect(() => {

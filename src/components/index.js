@@ -31,6 +31,7 @@ export { default as SignalViewPanel } from './SignalViewPanel';
 export { default as DimensionalityReductionPanel } from './DimensionalityReductionPanel';
 export { default as AmplitudeProfileWidget } from './AmplitudeProfileWidget';
 export { default as ClusterComparisonWidget } from './ClusterComparisonWidget';
+export { default as CuratorWidget } from './CuratorWidget';
 
 // Data display components  
 export { default as ClusterListTable } from './ClusterListTable';

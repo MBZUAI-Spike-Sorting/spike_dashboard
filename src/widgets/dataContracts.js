@@ -289,6 +289,30 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         required: false
       }
     ]
+  },
+  curator: {
+    widgetId: 'curator',
+    label: 'Curator',
+    inputs: [
+      {
+        id: 'clusterSetData',
+        label: 'Cluster set',
+        accepts: [DATA_TYPES.CLUSTER_COMPARISON_SET, DATA_TYPES.CLUSTERING_RESULTS],
+        required: false
+      },
+      {
+        id: 'signalData',
+        label: 'Signal data',
+        accepts: [DATA_TYPES.SIGNAL_TRACE],
+        required: false
+      },
+      {
+        id: 'selectedClusters',
+        label: 'Selected clusters',
+        accepts: [DATA_TYPES.CLUSTER_IDS],
+        required: false
+      }
+    ]
   }
 });
 
