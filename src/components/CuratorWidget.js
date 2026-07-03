@@ -16,10 +16,21 @@ const KNOWN_CLUSTER_FIELDS = new Set([
   'channel'
 ]);
 
+const PRIMARY_CHANNEL_FIELDS = ['primaryChannel', 'primary_channel', 'channel'];
+
 const toNumber = (value) => {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
 };
+
+const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+
+const isMissingPrimaryChannel = (value) => (
+  value === null ||
+  value === undefined ||
+  value === '' ||
+  (Array.isArray(value) && value.length === 0)
+);
 
 const isPlainObject = (value) => (
   value !== null &&
@@ -50,6 +61,16 @@ const isDisplayableMetadataValue = (value) => {
   return Array.isArray(value) && value.length <= 6;
 };
 
+const getRawPrimaryChannel = (source) => {
+  for (const field of PRIMARY_CHANNEL_FIELDS) {
+    if (hasOwn(source, field)) {
+      return source[field];
+    }
+  }
+
+  return null;
+};
+
 const normalizeCluster = (cluster, index) => {
   const source = isPlainObject(cluster) ? cluster : {};
   const spikeTimes = normalizeSpikeTimes(
@@ -64,14 +85,11 @@ const normalizeCluster = (cluster, index) => {
     index
   );
 
-  const rawPrimaryChannel = (
-    source.primaryChannel ??
-    source.primary_channel ??
-    source.channel ??
-    null
-  );
+  const rawPrimaryChannel = getRawPrimaryChannel(source);
   const numericPrimaryChannel = toNumber(rawPrimaryChannel);
-  const primaryChannel = numericPrimaryChannel !== null
+  const primaryChannel = isMissingPrimaryChannel(rawPrimaryChannel)
+    ? null
+    : numericPrimaryChannel !== null
     ? numericPrimaryChannel
     : rawPrimaryChannel;
 
@@ -92,6 +110,35 @@ const normalizeCluster = (cluster, index) => {
   };
 };
 
+const normalizePrimaryChannelsForDataset = (clusters, sourceName, metadata = {}) => {
+  const hasExplicitPrimaryChannels = (
+    metadata.primaryChannelsProvided === true ||
+    metadata.primary_channels_provided === true ||
+    metadata.hasPrimaryChannels === true ||
+    metadata.has_primary_channels === true
+  );
+
+  if (hasExplicitPrimaryChannels || clusters.length <= 1) {
+    return clusters;
+  }
+
+  const sourceLooksLikeMatlab = /\.mat$/i.test(sourceName || '');
+  const allProvidedZeros = clusters.every((cluster) => (
+    cluster.primaryChannelSource === 'provided' &&
+    Number(cluster.primaryChannel) === 0
+  ));
+
+  if (!sourceLooksLikeMatlab || !allProvidedZeros) {
+    return clusters;
+  }
+
+  return clusters.map((cluster) => ({
+    ...cluster,
+    primaryChannel: null,
+    primaryChannelSource: null
+  }));
+};
+
 const normalizeDataset = (dataset, fallbackName = 'Cluster file') => {
   const payload = dataset?.data ?? dataset ?? {};
   const metadata = payload.metadata ?? dataset?.metadata ?? {};
@@ -99,11 +146,12 @@ const normalizeDataset = (dataset, fallbackName = 'Cluster file') => {
   const clusters = Array.isArray(clustersSource)
     ? clustersSource.map(normalizeCluster)
     : [];
+  const name = metadata.algorithmName || metadata.name || dataset?.name || fallbackName;
 
   return {
-    name: metadata.algorithmName || metadata.name || dataset?.name || fallbackName,
+    name,
     metadata,
-    clusters
+    clusters: normalizePrimaryChannelsForDataset(clusters, name, metadata)
   };
 };
 
@@ -172,11 +220,7 @@ const predictPrimaryChannels = (clusters, signalData) => {
 
   let predictedCount = 0;
   const nextClusters = clusters.map((cluster) => {
-    if (
-      cluster.primaryChannel !== null &&
-      cluster.primaryChannel !== undefined &&
-      cluster.primaryChannel !== ''
-    ) {
+    if (!isMissingPrimaryChannel(cluster.primaryChannel)) {
       return cluster;
     }
 
@@ -288,7 +332,7 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect }) => {
     const clusters = dataset.clusters || [];
     const totalSpikes = clusters.reduce((total, cluster) => total + cluster.spikeCount, 0);
     const missingPrimary = clusters.filter(
-      (cluster) => cluster.primaryChannel === null || cluster.primaryChannel === undefined || cluster.primaryChannel === ''
+      (cluster) => isMissingPrimaryChannel(cluster.primaryChannel)
     ).length;
 
     return {

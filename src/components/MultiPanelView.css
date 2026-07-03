@@ -217,13 +217,17 @@
 }
 
 .panel-curator {
-  top: 430px;
-  left: calc(22vw);
+  top: 110px;
+  left: clamp(72px, 18vw, 260px);
 }
 
 .panel-curator .dockable-widget {
-  width: min(760px, calc(100vw - 80px));
-  height: min(480px, calc(100vh - 500px));
+  width: min(920px, calc(100vw - 120px));
+  height: min(560px, calc(100vh - 170px));
+  min-width: min(620px, calc(100vw - 96px));
+  min-height: min(360px, calc(100vh - 140px));
+  max-width: calc(100vw - 56px);
+  max-height: calc(100vh - 96px);
 }
 
 /* Waveform View Toggle */

@@ -1,24 +1,28 @@
 .curator-widget {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   height: 100%;
   min-height: 0;
+  padding: 0.75rem;
   color: #e0e6ed;
   overflow: hidden;
 }
 
 .curator-toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
   gap: 0.75rem;
   align-items: end;
 }
 
 .curator-file-control {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  min-width: 0;
 }
 
 .curator-file-control label {
@@ -30,6 +34,7 @@
 }
 
 .curator-file-control input {
+  box-sizing: border-box;
   width: 100%;
   color: #cbd5e1;
   background: rgba(15, 23, 42, 0.8);
@@ -39,6 +44,9 @@
 }
 
 .curator-action-button {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   min-height: 42px;
   padding: 0 1rem;
   border: 1px solid rgba(64, 224, 208, 0.55);
@@ -77,6 +85,7 @@
 }
 
 .curator-summary-card {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -102,8 +111,9 @@
 }
 
 .curator-table-shell {
+  box-sizing: border-box;
   flex: 1;
-  min-height: 0;
+  min-height: 140px;
   overflow: auto;
   border: 1px solid rgba(125, 223, 216, 0.25);
   border-radius: 6px;

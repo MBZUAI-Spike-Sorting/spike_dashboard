@@ -225,7 +225,6 @@ const MultiPanelView = forwardRef(({
   const profilePreferencesRef = useRef(profilePreferences);
   const accountViewSaveTimeoutRef = useRef(null);
   const lastPersistedAccountViewsRef = useRef(null);
-  const lastAppliedAccountViewsRef = useRef(null);
 
   useEffect(() => {
     profilePreferencesRef.current = profile?.preferences || {};
@@ -275,51 +274,10 @@ const MultiPanelView = forwardRef(({
   }, []);
 
   useEffect(() => {
-    if (demoMode) {
-      return;
-    }
-
-    const savedViews = profilePreferences[PROFILE_VIEWS_KEY];
-    if (!Array.isArray(savedViews) || savedViews.length === 0) {
-      return;
-    }
-
-    const savedCurrentViewId = profilePreferences[PROFILE_CURRENT_VIEW_KEY] || 'default';
-    const snapshotKey = JSON.stringify({
-      views: savedViews,
-      currentViewId: savedCurrentViewId
-    });
-
-    if (lastAppliedAccountViewsRef.current === snapshotKey) {
-      return;
-    }
-
-    const accountWidgetStates = getWidgetStatesFromViewSnapshot(
-      savedViews,
-      savedCurrentViewId
-    );
-
-    if (!accountWidgetStates) {
-      return;
-    }
-
-    lastAppliedAccountViewsRef.current = snapshotKey;
-    lastPersistedAccountViewsRef.current = snapshotKey;
-    activeViewIdRef.current = savedCurrentViewId;
-    isApplyingViewRef.current = true;
-    setWidgetStates(accountWidgetStates);
-    setTimeout(() => {
-      isApplyingViewRef.current = false;
-      lastSavedPositionsRef.current = null;
-    }, 250);
-  }, [demoMode, profilePreferences]);
-
-  useEffect(() => {
     if (!isInitialized) {
       return;
     }
 
-    lastAppliedAccountViewsRef.current = null;
     lastPersistedAccountViewsRef.current = null;
     lastSavedPositionsRef.current = null;
 
@@ -540,92 +498,44 @@ const MultiPanelView = forwardRef(({
     }, {});
   }, []);
 
-  const saveCurrentState = useCallback(() => {
+  const syncLiveLayoutIntoState = useCallback(() => {
     if (isApplyingViewRef.current) {
       return;
     }
 
-    const savedCurrentView = activeViewIdRef.current || localStorage.getItem(layoutCurrentViewStorageKey);
-    if (!savedCurrentView || savedCurrentView === 'default') return;
+    setWidgetStates((currentStates) => {
+      const nextStates = mergeLiveLayoutIntoStates(currentStates);
+      const stateSnapshot = JSON.stringify(nextStates);
 
-    try {
-      const savedViews = localStorage.getItem(layoutViewsStorageKey);
-      if (!savedViews) return;
+      if (lastSavedPositionsRef.current === stateSnapshot) {
+        return currentStates;
+      }
 
-      const views = JSON.parse(savedViews);
-      const viewIndex = views.findIndex((v) => v.id === savedCurrentView);
-
-      if (viewIndex === -1) return;
-
-      const positionsAndSizes = getCurrentPositionsAndSizes();
-
-      const updatedWidgetStates = {};
-      Object.keys(widgetStates).forEach((key) => {
-        updatedWidgetStates[key] = {
-          ...widgetStates[key],
-          position: positionsAndSizes[key]?.position || null,
-          size: positionsAndSizes[key]?.size || null
-        };
-      });
-
-      const newStateSnapshot = JSON.stringify({
-        viewId: savedCurrentView,
-        widgetStates: updatedWidgetStates
-      });
-      if (lastSavedPositionsRef.current === newStateSnapshot) return;
-      lastSavedPositionsRef.current = newStateSnapshot;
-
-      views[viewIndex] = {
-        ...views[viewIndex],
-        widgetStates: updatedWidgetStates,
-        updatedAt: new Date().toISOString()
-      };
-
-      localStorage.setItem(layoutViewsStorageKey, JSON.stringify(views));
-      persistViewsToAccount(views, savedCurrentView);
-    } catch (e) {
-      console.error('Error auto-saving view:', e);
-    }
-  }, [
-    widgetStates,
-    getCurrentPositionsAndSizes,
-    persistViewsToAccount,
-    layoutCurrentViewStorageKey,
-    layoutViewsStorageKey
-  ]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    saveCurrentState();
-  }, [widgetStates, isInitialized, saveCurrentState]);
+      lastSavedPositionsRef.current = stateSnapshot;
+      return nextStates;
+    });
+  }, [mergeLiveLayoutIntoStates]);
 
   useEffect(() => {
     if (!isInitialized) return;
 
     const intervalId = setInterval(() => {
-      saveCurrentState();
-    }, 2000);
+      syncLiveLayoutIntoState();
+    }, 3000);
 
     const handleMouseUp = () => {
-      setTimeout(saveCurrentState, 100);
+      setTimeout(syncLiveLayoutIntoState, 100);
     };
 
     document.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('resize', handleMouseUp);
 
     return () => {
       clearInterval(intervalId);
       document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('resize', handleMouseUp);
     };
-  }, [isInitialized, saveCurrentState]);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      saveCurrentState();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [saveCurrentState]);
+  }, [isInitialized, syncLiveLayoutIntoState]);
 
   useEffect(() => {
     if (demoMode) return;
