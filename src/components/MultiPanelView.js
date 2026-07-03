@@ -113,6 +113,10 @@ const readWidgetLayoutFromDom = (widgetIds) => {
   return layout;
 };
 
+const isSameLayoutValue = (first, second) => {
+  return JSON.stringify(first || null) === JSON.stringify(second || null);
+};
+
 const MultiPanelView = forwardRef(({
   demoMode = false,
   selectedDataset,
@@ -215,7 +219,6 @@ const MultiPanelView = forwardRef(({
   });
 
   const [isInitialized, setIsInitialized] = useState(false);
-  const lastSavedPositionsRef = useRef(null);
   const activeViewIdRef = useRef(
     profilePreferences[PROFILE_CURRENT_VIEW_KEY] ||
     localStorage.getItem(layoutCurrentViewStorageKey) ||
@@ -279,7 +282,6 @@ const MultiPanelView = forwardRef(({
     }
 
     lastPersistedAccountViewsRef.current = null;
-    lastSavedPositionsRef.current = null;
 
     const accountWidgetStates = getWidgetStatesFromViewSnapshot(
       profilePreferences[PROFILE_VIEWS_KEY],
@@ -292,7 +294,6 @@ const MultiPanelView = forwardRef(({
       setWidgetStates(accountWidgetStates);
       setTimeout(() => {
         isApplyingViewRef.current = false;
-        lastSavedPositionsRef.current = null;
       }, 250);
       return;
     }
@@ -310,7 +311,6 @@ const MultiPanelView = forwardRef(({
           setWidgetStates(mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES));
           setTimeout(() => {
             isApplyingViewRef.current = false;
-            lastSavedPositionsRef.current = null;
           }, 250);
           return;
         }
@@ -320,7 +320,6 @@ const MultiPanelView = forwardRef(({
           setWidgetStates(mergeWidgetStateDefaults(currentView.widgetStates));
           setTimeout(() => {
             isApplyingViewRef.current = false;
-            lastSavedPositionsRef.current = null;
           }, 250);
           return;
         }
@@ -334,9 +333,7 @@ const MultiPanelView = forwardRef(({
     setWidgetStates(mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES));
     setTimeout(() => {
       isApplyingViewRef.current = false;
-      lastSavedPositionsRef.current = null;
     }, 250);
-    lastSavedPositionsRef.current = null;
   }, [
     isInitialized,
     layoutCurrentViewStorageKey,
@@ -475,67 +472,40 @@ const MultiPanelView = forwardRef(({
     return positionsAndSizes;
   }, [widgetStates]);
 
-  const mergeLiveLayoutIntoStates = useCallback((states) => {
-    const liveLayout = readWidgetLayoutFromDom(Object.keys(states));
-
-    return Object.entries(states).reduce((acc, [widgetId, state]) => {
-      const layout = liveLayout[widgetId];
-
-      if (state?.minimized) {
-        acc[widgetId] = state;
-        return acc;
-      }
-
-      acc[widgetId] = layout
-        ? {
-            ...state,
-            position: layout.position || state.position,
-            size: layout.size || state.size
-          }
-        : state;
-
-      return acc;
-    }, {});
-  }, []);
-
-  const syncLiveLayoutIntoState = useCallback(() => {
-    if (isApplyingViewRef.current) {
+  const handleWidgetLayoutChange = useCallback((widgetId, layout) => {
+    if (isApplyingViewRef.current || !layout) {
       return;
     }
 
-    setWidgetStates((currentStates) => {
-      const nextStates = mergeLiveLayoutIntoStates(currentStates);
-      const stateSnapshot = JSON.stringify(nextStates);
+    setWidgetStates((prev) => {
+      const current = prev[widgetId];
 
-      if (lastSavedPositionsRef.current === stateSnapshot) {
-        return currentStates;
+      if (!current) {
+        return prev;
       }
 
-      lastSavedPositionsRef.current = stateSnapshot;
-      return nextStates;
+      const nextPosition = layout.position || current.position || null;
+      const nextSize = current.minimized
+        ? current.size || null
+        : layout.size || current.size || null;
+
+      if (
+        isSameLayoutValue(current.position, nextPosition) &&
+        isSameLayoutValue(current.size, nextSize)
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [widgetId]: {
+          ...current,
+          position: nextPosition,
+          size: nextSize
+        }
+      };
     });
-  }, [mergeLiveLayoutIntoStates]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-
-    const intervalId = setInterval(() => {
-      syncLiveLayoutIntoState();
-    }, 3000);
-
-    const handleMouseUp = () => {
-      setTimeout(syncLiveLayoutIntoState, 100);
-    };
-
-    document.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('resize', handleMouseUp);
-
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('resize', handleMouseUp);
-    };
-  }, [isInitialized, syncLiveLayoutIntoState]);
+  }, []);
 
   useEffect(() => {
     if (demoMode) return;
@@ -852,13 +822,11 @@ const MultiPanelView = forwardRef(({
 
   const handleToggleWidget = (widgetId) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-
       return {
-        ...next,
+        ...prev,
         [widgetId]: {
-          ...next[widgetId],
-          visible: !next[widgetId].visible,
+          ...prev[widgetId],
+          visible: !prev[widgetId].visible,
           minimized: false
         }
       };
@@ -867,13 +835,11 @@ const MultiPanelView = forwardRef(({
 
   const handleMinimizeWidget = (widgetId) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-
       return {
-        ...next,
+        ...prev,
         [widgetId]: {
-          ...next[widgetId],
-          minimized: !next[widgetId].minimized,
+          ...prev[widgetId],
+          minimized: !prev[widgetId].minimized,
           maximized: false
         }
       };
@@ -882,13 +848,11 @@ const MultiPanelView = forwardRef(({
 
   const handleMaximizeWidget = (widgetId) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-
       return {
-        ...next,
+        ...prev,
         [widgetId]: {
-          ...next[widgetId],
-          maximized: !next[widgetId].maximized,
+          ...prev[widgetId],
+          maximized: !prev[widgetId].maximized,
           minimized: false
         }
       };
@@ -897,12 +861,10 @@ const MultiPanelView = forwardRef(({
 
   const handleCloseWidget = (widgetId) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-
       return {
-        ...next,
+        ...prev,
         [widgetId]: {
-          ...next[widgetId],
+          ...prev[widgetId],
           visible: false
         }
       };
@@ -928,7 +890,6 @@ const MultiPanelView = forwardRef(({
 
     setTimeout(() => {
       isApplyingViewRef.current = false;
-      lastSavedPositionsRef.current = null;
     }, 250);
   };
 
@@ -979,7 +940,6 @@ const MultiPanelView = forwardRef(({
 
     setTimeout(() => {
       isApplyingViewRef.current = false;
-      lastSavedPositionsRef.current = null;
     }, 250);
   }, []);
 
@@ -1010,12 +970,11 @@ const MultiPanelView = forwardRef(({
 
   const handleAddWidget = useCallback((widget) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-      const currentState = next[widget.id] || DEFAULT_WIDGET_STATES[widget.id] || {};
+      const currentState = prev[widget.id] || DEFAULT_WIDGET_STATES[widget.id] || {};
       const position = dropPosition || currentState.position || { top: 100, left: 100 };
 
       return {
-        ...next,
+        ...prev,
         [widget.id]: {
           ...currentState,
           visible: true,
@@ -1027,7 +986,7 @@ const MultiPanelView = forwardRef(({
     });
 
     setDropPosition(null);
-  }, [dropPosition, mergeLiveLayoutIntoStates]);
+  }, [dropPosition]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -1234,6 +1193,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.clusterList.minimized}
               isMaximized={widgetStates.clusterList.maximized}
             >
@@ -1254,6 +1214,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.spikeList.minimized}
               isMaximized={widgetStates.spikeList.maximized}
             >
@@ -1275,6 +1236,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.clusterStats.minimized}
               isMaximized={widgetStates.clusterStats.maximized}
             >
@@ -1294,6 +1256,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.signalView.minimized}
               isMaximized={widgetStates.signalView.maximized}
             >
@@ -1317,6 +1280,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.dimReduction.minimized}
               isMaximized={widgetStates.dimReduction.maximized}
             >
@@ -1347,6 +1311,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.amplitudeProfile.minimized}
               isMaximized={widgetStates.amplitudeProfile.maximized}
             >
@@ -1368,6 +1333,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.clusterComparison.minimized}
               isMaximized={widgetStates.clusterComparison.maximized}
             >
@@ -1384,6 +1350,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.curator.minimized}
               isMaximized={widgetStates.curator.maximized}
             >
@@ -1404,6 +1371,7 @@ const MultiPanelView = forwardRef(({
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.waveform.minimized}
               isMaximized={widgetStates.waveform.maximized}
             >

@@ -20,6 +20,7 @@ const DockableWidget = ({
   onClose,
   onMinimize,
   onMaximize,
+  onLayoutChange,
   isMinimized = false,
   isMaximized = false,
   showControls = true,
@@ -62,6 +63,51 @@ const DockableWidget = ({
   const handleClose = (e) => {
     e.stopPropagation();
     if (onClose) onClose(id);
+  };
+
+  const getLayoutSnapshot = () => {
+    const widget = widgetRef.current;
+    if (!widget) return null;
+
+    const parent = widget.parentElement;
+    if (!parent) return null;
+
+    const parentRect = parent.getBoundingClientRect();
+    const containerRect = parent.parentElement?.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(parent);
+
+    let left = parseFloat(computedStyle.left);
+    let top = parseFloat(computedStyle.top);
+
+    if (computedStyle.left === 'auto' || Number.isNaN(left)) {
+      left = containerRect ? parentRect.left - containerRect.left : 0;
+    }
+
+    if (computedStyle.top === 'auto' || Number.isNaN(top)) {
+      top = containerRect ? parentRect.top - containerRect.top : 0;
+    }
+
+    const rect = widget.getBoundingClientRect();
+
+    return {
+      position: {
+        left: Math.round(left),
+        top: Math.round(top)
+      },
+      size: {
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      }
+    };
+  };
+
+  const notifyLayoutChange = () => {
+    if (!onLayoutChange) return;
+
+    const layout = getLayoutSnapshot();
+    if (layout) {
+      onLayoutChange(id, layout);
+    }
   };
 
   // Handle drag to move
@@ -139,6 +185,7 @@ const DockableWidget = ({
     setZIndex(WIDGET_BASE_Z_INDEX);
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('mouseup', handleDragEnd);
+    notifyLayoutChange();
   };
 
   // Bring widget to front on click
@@ -324,6 +371,8 @@ const DockableWidget = ({
       widget.style.willChange = 'auto';
     }
 
+    notifyLayoutChange();
+
     // Trigger resize event for content
     window.dispatchEvent(new Event('resize'));
   };
@@ -410,6 +459,8 @@ DockableWidget.propTypes = {
   onMinimize: PropTypes.func,
   /** Callback when maximize button is clicked */
   onMaximize: PropTypes.func,
+  /** Callback when the widget is moved or resized */
+  onLayoutChange: PropTypes.func,
   /** Whether widget is currently minimized */
   isMinimized: PropTypes.bool,
   /** Whether widget is currently maximized */
@@ -429,6 +480,7 @@ DockableWidget.defaultProps = {
   onClose: null,
   onMinimize: null,
   onMaximize: null,
+  onLayoutChange: null,
   isMinimized: false,
   isMaximized: false,
   showControls: true,
