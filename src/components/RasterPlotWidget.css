@@ -1,0 +1,121 @@
+.raster-plot-widget {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: #e0e6ed;
+  background: rgba(8, 13, 31, 0.78);
+}
+
+.raster-toolbar {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(125, 223, 216, 0.22);
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.raster-group-toggle,
+.raster-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.raster-group-toggle button,
+.raster-actions button {
+  min-height: 30px;
+  padding: 0 0.65rem;
+  border: 1px solid rgba(125, 223, 216, 0.28);
+  border-radius: 5px;
+  color: #dbeafe;
+  background: rgba(30, 41, 59, 0.78);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.raster-group-toggle button.active {
+  border-color: rgba(64, 224, 208, 0.75);
+  color: #0f172a;
+  background: #5eead4;
+}
+
+.raster-actions button:hover,
+.raster-group-toggle button:hover {
+  border-color: rgba(125, 223, 216, 0.62);
+}
+
+.raster-summary {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.raster-canvas-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.raster-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.raster-tooltip {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  gap: 0.18rem;
+  width: 168px;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(125, 223, 216, 0.35);
+  border-radius: 6px;
+  color: #dbeafe;
+  background: rgba(2, 6, 23, 0.92);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+.raster-tooltip strong {
+  color: #7ddfd8;
+  font-size: 0.8rem;
+}
+
+.raster-empty {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 760px) {
+  .raster-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .raster-group-toggle,
+  .raster-actions,
+  .raster-summary {
+    justify-content: stretch;
+  }
+
+  .raster-group-toggle button,
+  .raster-actions button {
+    flex: 1;
+  }
+}

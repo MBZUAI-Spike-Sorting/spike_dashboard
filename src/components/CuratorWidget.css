@@ -78,6 +78,12 @@
   color: #fca5a5;
 }
 
+.curator-message-success {
+  border-color: rgba(74, 222, 128, 0.32);
+  background: rgba(20, 83, 45, 0.28);
+  color: #bbf7d0;
+}
+
 .curator-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -230,6 +230,20 @@
   max-height: calc(100vh - 96px);
 }
 
+.panel-raster-plot {
+  top: 430px;
+  left: clamp(72px, 16vw, 240px);
+}
+
+.panel-raster-plot .dockable-widget {
+  width: min(760px, calc(100vw - 120px));
+  height: min(420px, calc(100vh - 500px));
+  min-width: min(420px, calc(100vw - 96px));
+  min-height: 260px;
+  max-width: calc(100vw - 56px);
+  max-height: calc(100vh - 96px);
+}
+
 /* Waveform View Toggle */
 .waveform-view-toggle {
   display: flex !important;

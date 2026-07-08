@@ -103,7 +103,9 @@ const normalizeCluster = (cluster, index) => {
   return {
     id,
     primaryChannel,
-    primaryChannelSource: primaryChannel === null || primaryChannel === undefined ? null : 'provided',
+    primaryChannelSource:
+      source.primaryChannelSource ||
+      (primaryChannel === null || primaryChannel === undefined ? null : 'provided'),
     spikeTimes,
     spikeCount: spikeTimes.length,
     metadata
@@ -183,14 +185,53 @@ const getMetadataPreview = (metadata) => {
     .join(' | ');
 };
 
+const getSeriesValues = (series) => {
+  if (Array.isArray(series)) {
+    return series;
+  }
+
+  if (!isPlainObject(series)) {
+    return null;
+  }
+
+  if (Array.isArray(series.data)) {
+    return series.data;
+  }
+
+  if (Array.isArray(series.values)) {
+    return series.values;
+  }
+
+  if (Array.isArray(series.filteredData)) {
+    return series.filteredData;
+  }
+
+  return null;
+};
+
 const getSignalChannelEntries = (signalData) => {
+  if (!signalData) {
+    return [];
+  }
+
+  if (Array.isArray(signalData?.traces)) {
+    return signalData.traces
+      .map((trace, index) => ({
+        channelId: trace?.channel ?? trace?.channelId ?? index,
+        values: getSeriesValues(trace),
+        startTime: toNumber(trace?.startTime ?? signalData?.startTime ?? 0)
+      }))
+      .filter((entry) => Array.isArray(entry.values));
+  }
+
   const source = signalData?.data ?? signalData?.channels ?? signalData;
 
   if (Array.isArray(source)) {
     return source
       .map((series, index) => ({
-        channelId: index,
-        values: Array.isArray(series) ? series : (Array.isArray(series?.data) ? series.data : null)
+        channelId: series?.channel ?? series?.channelId ?? index,
+        values: getSeriesValues(series),
+        startTime: toNumber(series?.startTime ?? signalData?.startTime ?? 0)
       }))
       .filter((entry) => Array.isArray(entry.values));
   }
@@ -198,8 +239,9 @@ const getSignalChannelEntries = (signalData) => {
   if (isPlainObject(source)) {
     return Object.entries(source)
       .map(([channelId, series]) => ({
-        channelId,
-        values: Array.isArray(series) ? series : (Array.isArray(series?.data) ? series.data : null)
+        channelId: series?.channel ?? series?.channelId ?? channelId,
+        values: getSeriesValues(series),
+        startTime: toNumber(series?.startTime ?? signalData?.startTime ?? 0)
       }))
       .filter((entry) => Array.isArray(entry.values));
   }
@@ -226,17 +268,26 @@ const predictPrimaryChannels = (clusters, signalData) => {
 
     let bestChannel = null;
 
-    channels.forEach(({ channelId, values }) => {
+    channels.forEach(({ channelId, values, startTime }) => {
       let total = 0;
       let count = 0;
 
       cluster.spikeTimes.forEach((time) => {
         const sampleIndex = Math.round(Number(time));
-        if (!Number.isFinite(sampleIndex) || sampleIndex < 0 || sampleIndex >= values.length) {
+        const relativeIndex = Number.isFinite(startTime)
+          ? sampleIndex - startTime
+          : sampleIndex;
+
+        if (
+          !Number.isFinite(sampleIndex) ||
+          !Number.isFinite(relativeIndex) ||
+          relativeIndex < 0 ||
+          relativeIndex >= values.length
+        ) {
           return;
         }
 
-        const value = Number(values[sampleIndex]);
+        const value = Number(values[relativeIndex]);
         if (!Number.isFinite(value)) {
           return;
         }
@@ -278,6 +329,41 @@ const predictPrimaryChannels = (clusters, signalData) => {
   };
 };
 
+const getMissingPrimaryCount = (clusters = []) => (
+  clusters.filter((cluster) => isMissingPrimaryChannel(cluster.primaryChannel)).length
+);
+
+const formatPredictionMessage = ({
+  signalPredictedCount = 0,
+  datasetPredictedCount = 0,
+  datasetName = '',
+  remainingMissing = 0
+}) => {
+  const parts = [];
+
+  if (signalPredictedCount > 0) {
+    parts.push(
+      `Predicted ${signalPredictedCount.toLocaleString()} primary channel${signalPredictedCount === 1 ? '' : 's'} from the current signal data`
+    );
+  }
+
+  if (datasetPredictedCount > 0) {
+    parts.push(
+      `Predicted ${datasetPredictedCount.toLocaleString()} primary channel${datasetPredictedCount === 1 ? '' : 's'} from the loaded dataset${datasetName ? ` (${datasetName})` : ''}`
+    );
+  }
+
+  if (!parts.length) {
+    return '';
+  }
+
+  if (remainingMissing > 0) {
+    parts.push(`${remainingMissing.toLocaleString()} cluster${remainingMissing === 1 ? '' : 's'} still missing a primary channel`);
+  }
+
+  return `${parts.join('. ')}.`;
+};
+
 const SORT_COLUMNS = [
   { key: 'id', label: 'Cluster' },
   { key: 'primaryChannel', label: 'Primary channel' },
@@ -310,11 +396,12 @@ const compareValues = (left, right, direction) => {
   return String(left ?? '').localeCompare(String(right ?? '')) * multiplier;
 };
 
-const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect }) => {
+const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetChange }) => {
   const [dataset, setDataset] = useState(() => normalizeDataset(null, 'No file loaded'));
   const [selectedClusterId, setSelectedClusterId] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: 'spikeCount', direction: 'desc' });
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
 
@@ -326,7 +413,14 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect }) => {
     setDataset(normalizeDataset(clusterSetData, 'Wired cluster set'));
     setSelectedClusterId(null);
     setError('');
+    setNotice('');
   }, [clusterSetData]);
+
+  useEffect(() => {
+    if (typeof onDatasetChange === 'function') {
+      onDatasetChange(dataset);
+    }
+  }, [dataset, onDatasetChange]);
 
   const summary = useMemo(() => {
     const clusters = dataset.clusters || [];
@@ -367,6 +461,7 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect }) => {
 
     setIsUploading(true);
     setError('');
+    setNotice('');
 
     try {
       const response = await apiClient.parseClusterComparisonFile(file);
@@ -380,26 +475,82 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect }) => {
     }
   };
 
-  const handlePredictPrimaryChannels = () => {
+  const handlePredictPrimaryChannels = async () => {
     setIsPredicting(true);
     setError('');
+    setNotice('');
 
     try {
-      const result = predictPrimaryChannels(dataset.clusters, signalData);
+      const signalResult = predictPrimaryChannels(dataset.clusters, signalData);
+      let nextClusters = signalResult.hasSignal ? signalResult.clusters : dataset.clusters;
+      let signalPredictedCount = signalResult.predictedCount || 0;
+      let datasetPredictedCount = 0;
+      let predictionDataset = null;
+      let backendAttempted = false;
+      let backendErrorMessage = '';
 
-      if (!result.hasSignal) {
-        setError('Signal data is required to predict primary channels.');
-        return;
+      if (getMissingPrimaryCount(nextClusters) > 0) {
+        backendAttempted = true;
+
+        try {
+          const response = await apiClient.predictPrimaryChannels(nextClusters);
+          const predictedClusters = response.data?.clusters || [];
+          datasetPredictedCount = response.data?.predictedCount || 0;
+          predictionDataset = response.data?.dataset || null;
+
+          if (predictedClusters.length) {
+            nextClusters = predictedClusters.map(normalizeCluster);
+          }
+        } catch (backendError) {
+          backendErrorMessage = backendError?.message || 'Unable to use the loaded dataset for fallback prediction.';
+
+          if (!signalPredictedCount) {
+            throw backendError;
+          }
+        }
       }
+
+      const remainingMissing = getMissingPrimaryCount(nextClusters);
+      const totalPredicted = signalPredictedCount + datasetPredictedCount;
 
       setDataset((current) => ({
         ...current,
-        clusters: result.clusters
+        clusters: nextClusters,
+        metadata: {
+          ...(current.metadata || {}),
+          predictionDataset: predictionDataset || current.metadata?.predictionDataset
+        }
       }));
 
-      if (!result.predictedCount) {
-        setError('No missing primary channels could be predicted from the current signal data.');
+      if (totalPredicted > 0) {
+        setNotice(formatPredictionMessage({
+          signalPredictedCount,
+          datasetPredictedCount,
+          datasetName: predictionDataset,
+          remainingMissing
+        }));
+
+        if (backendErrorMessage) {
+          setError(
+            `Applied the current signal-data predictions, but backend fallback failed: ${backendErrorMessage}`
+          );
+        }
+        return;
       }
+
+      if (signalResult.hasSignal && backendAttempted) {
+        setError(
+          `No missing primary channels could be predicted from the current signal data or the loaded dataset${predictionDataset ? ` (${predictionDataset})` : ''}.`
+        );
+      } else if (signalResult.hasSignal) {
+        setError('No missing primary channels could be predicted from the current signal data.');
+      } else {
+        setError(
+          `No missing primary channels could be predicted from the loaded dataset${predictionDataset ? ` (${predictionDataset})` : ''}.`
+        );
+      }
+    } catch (predictionError) {
+      setError(predictionError?.message || 'Unable to predict primary channels.');
     } finally {
       setIsPredicting(false);
     }
@@ -441,6 +592,12 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect }) => {
       {error && (
         <div className="curator-message curator-message-error">
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="curator-message curator-message-success">
+          {notice}
         </div>
       )}
 

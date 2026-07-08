@@ -20,6 +20,7 @@ import WaveformSingleChannelView from '../components/WaveformSingleChannelView';
 import AmplitudeProfileWidget from '../components/AmplitudeProfileWidget';
 import ClusterComparisonWidget from '../components/ClusterComparisonWidget';
 import CuratorWidget from '../components/CuratorWidget';
+import RasterPlotWidget from '../components/RasterPlotWidget';
 
 /**
  * Built-in widget definitions
@@ -30,8 +31,8 @@ import CuratorWidget from '../components/CuratorWidget';
 const BUILTIN_WIDGETS = [
   {
     id: 'clusterList',
-    name: 'Cluster List',
-    description: 'View and select neuron clusters',
+    name: 'Cluster Selector',
+    description: 'Optional checklist for selecting clusters across linked widgets',
     icon: '📋',
     category: 'data',
     defaultSize: { width: 180, height: 350 },
@@ -153,6 +154,20 @@ const BUILTIN_WIDGETS = [
     requiredData: [],
     dataContract: WIDGET_DATA_CONTRACTS.curator,
     order: 9,
+  },
+  {
+    id: 'rasterPlot',
+    name: 'Raster Plot',
+    description: 'Compact spike-event raster grouped by cluster or channel',
+    icon: '|',
+    category: 'visualization',
+    defaultSize: { width: 760, height: 420 },
+    minWidth: 420,
+    minHeight: 260,
+    component: RasterPlotWidget,
+    requiredData: ['spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.rasterPlot,
+    order: 10,
   },
 ];
 

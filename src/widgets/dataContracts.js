@@ -124,7 +124,7 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
 export const WIDGET_DATA_CONTRACTS = Object.freeze({
   clusterList: {
     widgetId: 'clusterList',
-    label: 'Cluster List',
+    label: 'Cluster Selector',
     inputs: [
       {
         id: 'clusters',
@@ -313,6 +313,30 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         required: false
       }
     ]
+  },
+  rasterPlot: {
+    widgetId: 'rasterPlot',
+    label: 'Raster Plot',
+    inputs: [
+      {
+        id: 'spikes',
+        label: 'Spike events',
+        accepts: [DATA_TYPES.SPIKE_EVENTS],
+        required: false
+      },
+      {
+        id: 'selectedClusters',
+        label: 'Selected clusters',
+        accepts: [DATA_TYPES.CLUSTER_IDS],
+        required: false
+      },
+      {
+        id: 'clusterData',
+        label: 'Cluster embedding',
+        accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS],
+        required: false
+      }
+    ]
   }
 });
 
@@ -340,7 +364,8 @@ export function createDashboardPipelineVariables(values = {}) {
 }
 
 export function getWidgetDataContract(widgetId) {
-  return WIDGET_DATA_CONTRACTS[widgetId] || null;
+  const baseWidgetId = String(widgetId || '').split('__')[0];
+  return WIDGET_DATA_CONTRACTS[widgetId] || WIDGET_DATA_CONTRACTS[baseWidgetId] || null;
 }
 
 export function isVariableCompatibleWithInput(variable, input) {
@@ -373,13 +398,25 @@ export function createDefaultWidgetInputBindings(pipelineVariables = PIPELINE_VA
 export function mergeWidgetInputBindings(savedBindings = {}, pipelineVariables = PIPELINE_VARIABLE_DEFINITIONS) {
   const defaults = createDefaultWidgetInputBindings(pipelineVariables);
 
-  return Object.entries(defaults).reduce((merged, [widgetId, defaultInputs]) => {
+  const mergedBindings = Object.entries(defaults).reduce((merged, [widgetId, defaultInputs]) => {
     merged[widgetId] = {
       ...defaultInputs,
       ...(savedBindings[widgetId] || {})
     };
     return merged;
   }, {});
+
+  Object.entries(savedBindings || {}).forEach(([widgetId, bindings]) => {
+    if (mergedBindings[widgetId]) return;
+
+    const baseWidgetId = String(widgetId || '').split('__')[0];
+    mergedBindings[widgetId] = {
+      ...(defaults[baseWidgetId] || {}),
+      ...(bindings || {})
+    };
+  });
+
+  return mergedBindings;
 }
 
 export function validateWidgetBindings(widgetId, bindings = {}, pipelineVariables = {}) {

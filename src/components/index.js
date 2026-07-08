@@ -32,6 +32,7 @@ export { default as DimensionalityReductionPanel } from './DimensionalityReducti
 export { default as AmplitudeProfileWidget } from './AmplitudeProfileWidget';
 export { default as ClusterComparisonWidget } from './ClusterComparisonWidget';
 export { default as CuratorWidget } from './CuratorWidget';
+export { default as RasterPlotWidget } from './RasterPlotWidget';
 
 // Data display components  
 export { default as ClusterListTable } from './ClusterListTable';

@@ -9,6 +9,7 @@ import WaveformNeighboringChannelsView from './WaveformNeighboringChannelsView';
 import AmplitudeProfileWidget from './AmplitudeProfileWidget';
 import ClusterComparisonWidget from './ClusterComparisonWidget';
 import CuratorWidget from './CuratorWidget';
+import RasterPlotWidget from './RasterPlotWidget';
 import DockableWidget from './DockableWidget';
 import WidgetBank from './WidgetBank';
 import RightSideMenu from './RightSideMenu';
@@ -20,6 +21,7 @@ import {
   getScopedStorageKey
 } from './ViewManager';
 import {
+  createDefaultWidgetInputBindings,
   createDashboardPipelineVariables,
   mergeWidgetInputBindings
 } from '../widgets/dataContracts';
@@ -27,7 +29,7 @@ import { useAuth } from '../context/AuthContext';
 import './MultiPanelView.css';
 
 const DEFAULT_WIDGET_STATES = {
-  clusterList: { visible: true, minimized: false, maximized: false, order: 1, position: null, size: null },
+  clusterList: { visible: false, minimized: false, maximized: false, order: 1, position: null, size: null },
   spikeList: { visible: true, minimized: false, maximized: false, order: 2, position: null, size: null },
   clusterStats: { visible: true, minimized: false, maximized: false, order: 3, position: null, size: null },
   signalView: { visible: true, minimized: false, maximized: false, order: 4, position: null, size: null },
@@ -35,7 +37,8 @@ const DEFAULT_WIDGET_STATES = {
   waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
   amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
   clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null },
-  curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null }
+  curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null },
+  rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null }
 };
 
 const WIDGET_BINDINGS_STORAGE_KEY = 'spike_dashboard_widget_input_bindings';
@@ -49,17 +52,126 @@ const PANEL_CLASS_MAP = {
   waveform: 'panel-waveform',
   amplitudeProfile: 'panel-amplitude-profile',
   clusterComparison: 'panel-cluster-comparison',
-  curator: 'panel-curator'
+  curator: 'panel-curator',
+  rasterPlot: 'panel-raster-plot'
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}) => {
-  return Object.entries(DEFAULT_WIDGET_STATES).reduce((acc, [widgetId, defaultState]) => {
+  const merged = Object.entries(DEFAULT_WIDGET_STATES).reduce((acc, [widgetId, defaultState]) => {
     acc[widgetId] = {
       ...defaultState,
       ...(widgetStates[widgetId] || {})
     };
     return acc;
   }, {});
+
+  Object.entries(widgetStates || {}).forEach(([widgetId, state]) => {
+    if (!merged[widgetId]) {
+      merged[widgetId] = state;
+    }
+  });
+
+  return merged;
+};
+
+const getWidgetType = (widgetId, state) => state?.type || widgetId.split('__')[0];
+
+const createWidgetInstanceId = (widgetType, widgetStates = {}) => {
+  if (!widgetStates[widgetType]?.visible) {
+    return widgetType;
+  }
+
+  let index = 2;
+  let candidateId = `${widgetType}__${index}`;
+
+  while (widgetStates[candidateId]) {
+    index += 1;
+    candidateId = `${widgetType}__${index}`;
+  }
+
+  return candidateId;
+};
+
+const getWidgetPanelClass = (widgetId, state) => (
+  PANEL_CLASS_MAP[widgetId] ||
+  PANEL_CLASS_MAP[getWidgetType(widgetId, state)] ||
+  'panel-custom-widget'
+);
+
+const findClusterById = (clusters = [], clusterId) => {
+  const clusterIdString = String(clusterId);
+  const clusterIdNumber = Number(clusterId);
+
+  return clusters.find((cluster) => {
+    const candidate = cluster?.clusterId ?? cluster?.id;
+    if (String(candidate) === clusterIdString) return true;
+    return Number.isFinite(clusterIdNumber) && Number(candidate) === clusterIdNumber;
+  });
+};
+
+const getClusterId = (cluster, fallback) => {
+  const rawId = cluster?.clusterId ?? cluster?.id ?? fallback;
+  const numericId = Number(rawId);
+  return Number.isFinite(numericId) ? numericId : rawId;
+};
+
+const getClusteringResultSpikes = (clusteringResults, clusterId) => {
+  const fullData = clusteringResults?.fullData;
+  if (!fullData) return [];
+
+  if (!Array.isArray(fullData)) {
+    return fullData[clusterId] || fullData[String(clusterId)] || [];
+  }
+
+  const clusterIndex = Array.isArray(clusteringResults?.clusters)
+    ? clusteringResults.clusters.findIndex((cluster, index) => (
+        String(getClusterId(cluster, index)) === String(clusterId)
+      ))
+    : -1;
+
+  if (clusterIndex >= 0 && Array.isArray(fullData[clusterIndex])) {
+    return fullData[clusterIndex];
+  }
+
+  const numericClusterId = Number(clusterId);
+  if (Number.isInteger(numericClusterId) && Array.isArray(fullData[numericClusterId])) {
+    return fullData[numericClusterId];
+  }
+
+  return [];
+};
+
+const buildSpikesFromCuratorCluster = (cluster) => {
+  const clusterId = getClusterId(cluster, cluster?.id);
+  const channel = cluster?.primaryChannel;
+
+  return (cluster?.spikeTimes || [])
+    .filter((time) => Number.isFinite(Number(time)))
+    .map((time, pointIndex) => ({
+      time,
+      clusterId,
+      channel,
+      pointIndex
+    }));
+};
+
+const buildCuratorStats = (cluster) => {
+  const clusterId = getClusterId(cluster, cluster?.id);
+  const spikeTimes = (cluster?.spikeTimes || [])
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+
+  return {
+    [clusterId]: {
+      numSpikes: spikeTimes.length,
+      peakChannel: cluster?.primaryChannel ?? null,
+      firstSpike: spikeTimes[0] ?? null,
+      lastSpike: spikeTimes[spikeTimes.length - 1] ?? null,
+      source: cluster?.datasetName || 'Curator',
+      metadata: cluster?.metadata || {}
+    }
+  };
 };
 
 const getWidgetStatesFromViewSnapshot = (views, currentViewId) => {
@@ -86,9 +198,9 @@ const readWidgetLayoutFromDom = (widgetIds) => {
 
   widgetIds.forEach((widgetId) => {
     const panelClass = PANEL_CLASS_MAP[widgetId];
-    if (!panelClass) return;
 
-    const panel = document.querySelector(`.${panelClass}`);
+    const panel = document.querySelector(`[data-widget-panel-id="${widgetId}"]`) ||
+      (panelClass ? document.querySelector(`.${panelClass}`) : null);
     const widget = panel?.querySelector('.dockable-widget');
 
     if (!panel || !widget) return;
@@ -111,6 +223,10 @@ const readWidgetLayoutFromDom = (widgetIds) => {
   });
 
   return layout;
+};
+
+const isSameLayoutValue = (first, second) => {
+  return JSON.stringify(first || null) === JSON.stringify(second || null);
 };
 
 const MultiPanelView = forwardRef(({
@@ -162,7 +278,9 @@ const MultiPanelView = forwardRef(({
   const [signalData, setSignalData] = useState(null);
   const [timeRange, setTimeRange] = useState({ start: 0, end: 1000 });
   const [highlightedSpikes, setHighlightedSpikes] = useState([]);
-  const [waveformViewMode, setWaveformViewMode] = useState('single');
+  const [waveformViewModes, setWaveformViewModes] = useState({ waveform: 'single' });
+  const [curatorDataset, setCuratorDataset] = useState(null);
+  const defaultSignalData = demoMode ? demoSignalData : null;
 
   const [isWidgetBankOpen, setIsWidgetBankOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -215,7 +333,6 @@ const MultiPanelView = forwardRef(({
   });
 
   const [isInitialized, setIsInitialized] = useState(false);
-  const lastSavedPositionsRef = useRef(null);
   const activeViewIdRef = useRef(
     profilePreferences[PROFILE_CURRENT_VIEW_KEY] ||
     localStorage.getItem(layoutCurrentViewStorageKey) ||
@@ -279,7 +396,6 @@ const MultiPanelView = forwardRef(({
     }
 
     lastPersistedAccountViewsRef.current = null;
-    lastSavedPositionsRef.current = null;
 
     const accountWidgetStates = getWidgetStatesFromViewSnapshot(
       profilePreferences[PROFILE_VIEWS_KEY],
@@ -292,7 +408,6 @@ const MultiPanelView = forwardRef(({
       setWidgetStates(accountWidgetStates);
       setTimeout(() => {
         isApplyingViewRef.current = false;
-        lastSavedPositionsRef.current = null;
       }, 250);
       return;
     }
@@ -310,7 +425,6 @@ const MultiPanelView = forwardRef(({
           setWidgetStates(mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES));
           setTimeout(() => {
             isApplyingViewRef.current = false;
-            lastSavedPositionsRef.current = null;
           }, 250);
           return;
         }
@@ -320,7 +434,6 @@ const MultiPanelView = forwardRef(({
           setWidgetStates(mergeWidgetStateDefaults(currentView.widgetStates));
           setTimeout(() => {
             isApplyingViewRef.current = false;
-            lastSavedPositionsRef.current = null;
           }, 250);
           return;
         }
@@ -334,9 +447,7 @@ const MultiPanelView = forwardRef(({
     setWidgetStates(mergeWidgetStateDefaults(DEFAULT_WIDGET_STATES));
     setTimeout(() => {
       isApplyingViewRef.current = false;
-      lastSavedPositionsRef.current = null;
     }, 250);
-    lastSavedPositionsRef.current = null;
   }, [
     isInitialized,
     layoutCurrentViewStorageKey,
@@ -354,7 +465,7 @@ const MultiPanelView = forwardRef(({
       clusterData,
       clusterWaveforms,
       clusteringResults,
-      signalData: signalData || demoSignalData,
+      signalData: signalData || defaultSignalData,
       datasetInfo
     });
   }, [
@@ -367,7 +478,7 @@ const MultiPanelView = forwardRef(({
     clusterWaveforms,
     clusteringResults,
     signalData,
-    demoSignalData,
+    defaultSignalData,
     datasetInfo
   ]);
 
@@ -377,6 +488,13 @@ const MultiPanelView = forwardRef(({
       JSON.stringify(widgetInputBindings)
     );
   }, [widgetInputBindings]);
+
+  const curatorClusterMap = useMemo(() => {
+    return (curatorDataset?.clusters || []).reduce((map, cluster) => {
+      map.set(String(getClusterId(cluster, cluster.id)), cluster);
+      return map;
+    }, new Map());
+  }, [curatorDataset]);
 
   useEffect(() => {
     if (!demoMode) return;
@@ -454,7 +572,10 @@ const MultiPanelView = forwardRef(({
 
     Object.keys(widgetStates).forEach((widgetId) => {
       if (!widgetStates[widgetId].visible) {
-        positionsAndSizes[widgetId] = { position: null, size: null };
+        positionsAndSizes[widgetId] = {
+          position: widgetStates[widgetId].position || null,
+          size: widgetStates[widgetId].size || null
+        };
         return;
       }
 
@@ -475,67 +596,40 @@ const MultiPanelView = forwardRef(({
     return positionsAndSizes;
   }, [widgetStates]);
 
-  const mergeLiveLayoutIntoStates = useCallback((states) => {
-    const liveLayout = readWidgetLayoutFromDom(Object.keys(states));
-
-    return Object.entries(states).reduce((acc, [widgetId, state]) => {
-      const layout = liveLayout[widgetId];
-
-      if (state?.minimized) {
-        acc[widgetId] = state;
-        return acc;
-      }
-
-      acc[widgetId] = layout
-        ? {
-            ...state,
-            position: layout.position || state.position,
-            size: layout.size || state.size
-          }
-        : state;
-
-      return acc;
-    }, {});
-  }, []);
-
-  const syncLiveLayoutIntoState = useCallback(() => {
-    if (isApplyingViewRef.current) {
+  const handleWidgetLayoutChange = useCallback((widgetId, layout) => {
+    if (isApplyingViewRef.current || !layout) {
       return;
     }
 
-    setWidgetStates((currentStates) => {
-      const nextStates = mergeLiveLayoutIntoStates(currentStates);
-      const stateSnapshot = JSON.stringify(nextStates);
+    setWidgetStates((prev) => {
+      const current = prev[widgetId];
 
-      if (lastSavedPositionsRef.current === stateSnapshot) {
-        return currentStates;
+      if (!current) {
+        return prev;
       }
 
-      lastSavedPositionsRef.current = stateSnapshot;
-      return nextStates;
+      const nextPosition = layout.position || current.position || null;
+      const nextSize = current.minimized
+        ? current.size || null
+        : layout.size || current.size || null;
+
+      if (
+        isSameLayoutValue(current.position, nextPosition) &&
+        isSameLayoutValue(current.size, nextSize)
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [widgetId]: {
+          ...current,
+          position: nextPosition,
+          size: nextSize
+        }
+      };
     });
-  }, [mergeLiveLayoutIntoStates]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-
-    const intervalId = setInterval(() => {
-      syncLiveLayoutIntoState();
-    }, 3000);
-
-    const handleMouseUp = () => {
-      setTimeout(syncLiveLayoutIntoState, 100);
-    };
-
-    document.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('resize', handleMouseUp);
-
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('resize', handleMouseUp);
-    };
-  }, [isInitialized, syncLiveLayoutIntoState]);
+  }, []);
 
   useEffect(() => {
     if (demoMode) return;
@@ -555,19 +649,6 @@ const MultiPanelView = forwardRef(({
     if (demoMode) return;
     fetchClusterList();
   }, [selectedDataset, clusteringResults, selectedAlgorithm, demoMode]);
-
-  useEffect(() => {
-    if (
-      (selectedAlgorithm === 'preprocessed_torchbci' || selectedAlgorithm === 'preprocessed_kilosort4') &&
-      clusters.length > 0 &&
-      selectedClusters.length === 0
-    ) {
-      const defaultClusters = [0, 1, 2].filter((id) => clusters.some((c) => c.id === id));
-      if (defaultClusters.length > 0) {
-        setSelectedClusters(defaultClusters);
-      }
-    }
-  }, [clusters, selectedAlgorithm, selectedClusters.length]);
 
   useEffect(() => {
     return () => {
@@ -592,16 +673,16 @@ const MultiPanelView = forwardRef(({
       setClusterStats({});
       setClusterWaveforms({});
     }
-  }, [selectedClusters, clusterData, clusteringResults, demoMode]);
+  }, [selectedClusters, clusterData, clusteringResults, curatorClusterMap, demoMode]);
 
   useEffect(() => {
     const applyLayoutFromState = () => {
       Object.entries(widgetStates).forEach(([widgetId, state]) => {
         if (!state.visible) return;
 
-        const panelClass = PANEL_CLASS_MAP[widgetId] || '';
-
-        const panel = document.querySelector(`.${panelClass}`);
+        const panelClass = getWidgetPanelClass(widgetId, state);
+        const panel = document.querySelector(`[data-widget-panel-id="${widgetId}"]`) ||
+          document.querySelector(`.${panelClass}`);
         const widget = panel?.querySelector('.dockable-widget');
 
         if (panel && state.position && (state.position.left !== null || state.position.top !== null)) {
@@ -640,8 +721,8 @@ const MultiPanelView = forwardRef(({
     try {
       if (selectedAlgorithm === 'torchbci_jims' || selectedAlgorithm === 'kilosort4') {
         if (clusteringResults && clusteringResults.available) {
-          const clusterList = clusteringResults.clusters.map((clusterSummary) => ({
-            id: clusterSummary.clusterId,
+          const clusterList = (clusteringResults.clusters || []).map((clusterSummary, index) => ({
+            id: getClusterId(clusterSummary, index),
             size: clusterSummary.numSpikes
           }));
           setClusters(clusterList);
@@ -667,7 +748,7 @@ const MultiPanelView = forwardRef(({
       if (response.ok) {
         const data = await response.json();
         setClusterData(data);
-        const clusterList = data.clusterIds.map((id) => ({ id }));
+        const clusterList = (data.clusterIds || []).map((id) => ({ id }));
         setClusters(clusterList);
       }
     } catch (error) {
@@ -677,6 +758,21 @@ const MultiPanelView = forwardRef(({
 
   const fetchSpikesForClusters = async () => {
     try {
+      const curatorSpikes = [];
+
+      selectedClusters.forEach((clusterId) => {
+        const curatorCluster = curatorClusterMap.get(String(clusterId));
+        if (curatorCluster) {
+          curatorSpikes.push(...buildSpikesFromCuratorCluster(curatorCluster));
+        }
+      });
+
+      if (curatorSpikes.length > 0) {
+        curatorSpikes.sort((a, b) => Number(a.time) - Number(b.time));
+        setSpikes(curatorSpikes);
+        return;
+      }
+
       if (
         (selectedAlgorithm === 'torchbci_jims' || selectedAlgorithm === 'kilosort4') &&
         clusteringResults &&
@@ -685,16 +781,15 @@ const MultiPanelView = forwardRef(({
         const allSpikes = [];
 
         selectedClusters.forEach((clusterId) => {
-          if (clusterId < clusteringResults.fullData.length) {
-            const clusterSpikes = clusteringResults.fullData[clusterId];
-            clusterSpikes.forEach((spike) => {
-              allSpikes.push({
-                time: spike.time,
-                clusterId,
-                channel: spike.channel
-              });
+          const clusterSpikes = getClusteringResultSpikes(clusteringResults, clusterId);
+          clusterSpikes.forEach((spike, pointIndex) => {
+            allSpikes.push({
+              time: spike.time,
+              clusterId,
+              channel: spike.channel,
+              pointIndex
             });
-          }
+          });
         });
 
         allSpikes.sort((a, b) => a.time - b.time);
@@ -707,13 +802,15 @@ const MultiPanelView = forwardRef(({
       const allSpikes = [];
 
       selectedClusters.forEach((clusterId) => {
-        const cluster = clusterData.clusters.find((c) => c.clusterId === clusterId);
+        const cluster = findClusterById(clusterData.clusters, clusterId);
         if (cluster && cluster.spikeTimes) {
-          cluster.spikeTimes.forEach((time) => {
+          cluster.spikeTimes.forEach((time, pointIndex) => {
             if (time !== null) {
               allSpikes.push({
                 time,
-                clusterId
+                clusterId,
+                channel: cluster.primaryChannel ?? cluster.channel,
+                pointIndex
               });
             }
           });
@@ -729,6 +826,20 @@ const MultiPanelView = forwardRef(({
 
   const fetchClusterStatistics = async () => {
     try {
+      const curatorStatistics = {};
+
+      selectedClusters.forEach((clusterId) => {
+        const curatorCluster = curatorClusterMap.get(String(clusterId));
+        if (curatorCluster) {
+          Object.assign(curatorStatistics, buildCuratorStats(curatorCluster));
+        }
+      });
+
+      if (Object.keys(curatorStatistics).length > 0) {
+        setClusterStats(curatorStatistics);
+        return;
+      }
+
       const apiUrl = process.env.REACT_APP_API_URL || '';
       const response = await fetch(`${apiUrl}/api/cluster-statistics`, {
         method: 'POST',
@@ -788,7 +899,7 @@ const MultiPanelView = forwardRef(({
   const handleSpikeSelect = (index, spike) => {
     setSelectedSpike(index);
 
-    let pointIndex = -1;
+    let pointIndex = Number.isInteger(spike.pointIndex) ? spike.pointIndex : -1;
     const spikeTimeNum = Number(spike.time);
 
     if (
@@ -796,12 +907,12 @@ const MultiPanelView = forwardRef(({
       clusteringResults &&
       clusteringResults.available
     ) {
-      if (clusteringResults.fullData && clusteringResults.fullData[spike.clusterId]) {
-        const clusterSpikes = clusteringResults.fullData[spike.clusterId];
+      const clusterSpikes = getClusteringResultSpikes(clusteringResults, spike.clusterId);
+      if (clusterSpikes.length > 0) {
         pointIndex = clusterSpikes.findIndex((s) => Math.abs(Number(s.time) - spikeTimeNum) < 0.01);
       }
     } else if (clusterData && clusterData.clusters) {
-      const cluster = clusterData.clusters.find((c) => c.clusterId === spike.clusterId);
+      const cluster = findClusterById(clusterData.clusters, spike.clusterId);
       if (cluster && cluster.spikeTimes) {
         pointIndex = cluster.spikeTimes.findIndex((t) => Math.abs(Number(t) - spikeTimeNum) < 0.01);
       }
@@ -828,11 +939,12 @@ const MultiPanelView = forwardRef(({
       clusteringResults &&
       clusteringResults.available
     ) {
-      if (clusteringResults.fullData && clusteringResults.fullData[clusterId] && clusteringResults.fullData[clusterId][pointIndex]) {
-        spikeTime = clusteringResults.fullData[clusterId][pointIndex].time;
+      const clusterSpikes = getClusteringResultSpikes(clusteringResults, clusterId);
+      if (clusterSpikes[pointIndex]) {
+        spikeTime = clusterSpikes[pointIndex].time;
       }
     } else if (clusterData && clusterData.clusters) {
-      const cluster = clusterData.clusters.find((c) => c.clusterId === clusterId);
+      const cluster = findClusterById(clusterData.clusters, clusterId);
       if (cluster && cluster.spikeTimes && cluster.spikeTimes[pointIndex]) {
         spikeTime = cluster.spikeTimes[pointIndex];
       }
@@ -852,13 +964,11 @@ const MultiPanelView = forwardRef(({
 
   const handleToggleWidget = (widgetId) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-
       return {
-        ...next,
+        ...prev,
         [widgetId]: {
-          ...next[widgetId],
-          visible: !next[widgetId].visible,
+          ...prev[widgetId],
+          visible: !prev[widgetId].visible,
           minimized: false
         }
       };
@@ -867,13 +977,11 @@ const MultiPanelView = forwardRef(({
 
   const handleMinimizeWidget = (widgetId) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-
       return {
-        ...next,
+        ...prev,
         [widgetId]: {
-          ...next[widgetId],
-          minimized: !next[widgetId].minimized,
+          ...prev[widgetId],
+          minimized: !prev[widgetId].minimized,
           maximized: false
         }
       };
@@ -882,13 +990,11 @@ const MultiPanelView = forwardRef(({
 
   const handleMaximizeWidget = (widgetId) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-
       return {
-        ...next,
+        ...prev,
         [widgetId]: {
-          ...next[widgetId],
-          maximized: !next[widgetId].maximized,
+          ...prev[widgetId],
+          maximized: !prev[widgetId].maximized,
           minimized: false
         }
       };
@@ -897,12 +1003,10 @@ const MultiPanelView = forwardRef(({
 
   const handleCloseWidget = (widgetId) => {
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-
       return {
-        ...next,
+        ...prev,
         [widgetId]: {
-          ...next[widgetId],
+          ...prev[widgetId],
           visible: false
         }
       };
@@ -928,7 +1032,6 @@ const MultiPanelView = forwardRef(({
 
     setTimeout(() => {
       isApplyingViewRef.current = false;
-      lastSavedPositionsRef.current = null;
     }, 250);
   };
 
@@ -937,7 +1040,13 @@ const MultiPanelView = forwardRef(({
     const liveLayout = readWidgetLayoutFromDom(Object.keys(widgetStates));
 
     Object.keys(widgetStates).forEach((widgetId) => {
-      if (!widgetStates[widgetId].visible) return;
+      if (!widgetStates[widgetId].visible) {
+        result[widgetId] = {
+          position: widgetStates[widgetId].position || null,
+          size: widgetStates[widgetId].size || null
+        };
+        return;
+      }
 
       if (widgetStates[widgetId].minimized) {
         result[widgetId] = {
@@ -979,7 +1088,6 @@ const MultiPanelView = forwardRef(({
 
     setTimeout(() => {
       isApplyingViewRef.current = false;
-      lastSavedPositionsRef.current = null;
     }, 250);
   }, []);
 
@@ -998,7 +1106,9 @@ const MultiPanelView = forwardRef(({
   }, []);
 
   const getBoundWidgetValue = useCallback((widgetId, inputId, fallbackValue) => {
-    const variableId = widgetInputBindings[widgetId]?.[inputId];
+    const widgetType = getWidgetType(widgetId, widgetStates[widgetId]);
+    const variableId = widgetInputBindings[widgetId]?.[inputId] ||
+      widgetInputBindings[widgetType]?.[inputId];
     const variable = pipelineVariables[variableId];
 
     if (!variable || !variable.isAvailable || !variable.isFormatValid) {
@@ -1006,28 +1116,41 @@ const MultiPanelView = forwardRef(({
     }
 
     return variable.value;
-  }, [pipelineVariables, widgetInputBindings]);
+  }, [pipelineVariables, widgetInputBindings, widgetStates]);
 
   const handleAddWidget = useCallback((widget) => {
+    const widgetId = createWidgetInstanceId(widget.id, widgetStates);
+    const isDuplicate = widgetId !== widget.id;
+    const duplicateNumber = isDuplicate ? widgetId.split('__')[1] : null;
+    const defaultBindings = createDefaultWidgetInputBindings();
+
     setWidgetStates((prev) => {
-      const next = mergeLiveLayoutIntoStates(prev);
-      const currentState = next[widget.id] || DEFAULT_WIDGET_STATES[widget.id] || {};
-      const position = dropPosition || currentState.position || { top: 100, left: 100 };
+      const currentState = prev[widgetId] || DEFAULT_WIDGET_STATES[widget.id] || {};
+      const position = dropPosition ||
+        currentState.position ||
+        { top: 100 + (Number(duplicateNumber || 1) - 1) * 28, left: 100 + (Number(duplicateNumber || 1) - 1) * 28 };
 
       return {
-        ...next,
-        [widget.id]: {
+        ...prev,
+        [widgetId]: {
           ...currentState,
+          ...(isDuplicate ? { type: widget.id, title: `${widget.name} ${duplicateNumber}` } : {}),
           visible: true,
           minimized: false,
           maximized: false,
-          position
+          position,
+          size: currentState.size || widget.defaultSize || null
         }
       };
     });
 
+    setWidgetInputBindings((prev) => mergeWidgetInputBindings({
+      ...prev,
+      [widgetId]: prev[widgetId] || prev[widget.id] || defaultBindings[widget.id] || {}
+    }));
+
     setDropPosition(null);
-  }, [dropPosition, mergeLiveLayoutIntoStates]);
+  }, [dropPosition, widgetStates]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -1066,17 +1189,30 @@ const MultiPanelView = forwardRef(({
     setDropPosition(null);
   }, [handleAddWidget]);
 
-  const getWidgetList = () => [
-    { id: 'clusterList', name: 'Cluster List', visible: widgetStates.clusterList.visible },
-    { id: 'spikeList', name: 'Spike List Table', visible: widgetStates.spikeList.visible },
-    { id: 'clusterStats', name: 'Cluster Statistics Window', visible: widgetStates.clusterStats.visible },
-    { id: 'signalView', name: 'Signal View', visible: widgetStates.signalView.visible },
-    { id: 'dimReduction', name: 'Dimensionality Reduction Plot View (PCA)', visible: widgetStates.dimReduction.visible },
-    { id: 'waveform', name: 'Waveform View', visible: widgetStates.waveform.visible },
-    { id: 'amplitudeProfile', name: 'Amplitude Profile', visible: widgetStates.amplitudeProfile.visible },
-    { id: 'clusterComparison', name: 'Cluster Comparison', visible: widgetStates.clusterComparison.visible },
-    { id: 'curator', name: 'Curator', visible: widgetStates.curator.visible }
-  ];
+  const getWidgetList = () => {
+    const names = {
+      clusterList: 'Cluster Selector',
+      spikeList: 'Spike List Table',
+      clusterStats: 'Cluster Statistics Window',
+      signalView: 'Signal View',
+      dimReduction: 'Dimensionality Reduction Plot View (PCA)',
+      waveform: 'Waveform View',
+      amplitudeProfile: 'Amplitude Profile',
+      clusterComparison: 'Cluster Comparison',
+      curator: 'Curator',
+      rasterPlot: 'Raster Plot'
+    };
+
+    return Object.entries(widgetStates).map(([widgetId, state]) => {
+      const widgetType = getWidgetType(widgetId, state);
+      return {
+        id: widgetId,
+        type: widgetType,
+        name: state.title || names[widgetType] || widgetId,
+        visible: Boolean(state.visible)
+      };
+    });
+  };
 
   useImperativeHandle(ref, () => ({
     getWidgetList,
@@ -1116,21 +1252,51 @@ const MultiPanelView = forwardRef(({
   const statsData = getBoundWidgetValue('clusterStats', 'statistics', clusterStats);
   const signalDatasetInfo = getBoundWidgetValue('signalView', 'datasetInfo', datasetInfo);
   const signalHighlightedSpikes = getBoundWidgetValue('signalView', 'highlightedSpikes', highlightedSpikes);
-  const signalTrace = getBoundWidgetValue('signalView', 'signal', demoSignalData);
+  const signalTrace = getBoundWidgetValue('signalView', 'signal', defaultSignalData);
   const dimReductionSource = getBoundWidgetValue('dimReduction', 'clusterData', clusterData);
   const dimReductionSelectedClusters = getBoundWidgetValue('dimReduction', 'selectedClusters', selectedClusters);
   const dimReductionHighlightedSpikes = getBoundWidgetValue('dimReduction', 'highlightedSpikes', highlightedSpikes);
   const dimReductionClusterData = dimReductionSource?.clusterIds ? dimReductionSource : clusterData;
   const dimReductionClusteringResults = dimReductionSource?.available !== undefined ? dimReductionSource : clusteringResults;
-  const waveformSelectedClusters = getBoundWidgetValue('waveform', 'selectedClusters', selectedClusters);
-  const waveformData = getBoundWidgetValue('waveform', 'waveforms', clusterWaveforms);
-  const waveformHighlightedSpikes = getBoundWidgetValue('waveform', 'highlightedSpikes', highlightedSpikes);
   const amplitudeSelectedClusters = getBoundWidgetValue('amplitudeProfile', 'selectedClusters', selectedClusters);
   const amplitudeWaveforms = getBoundWidgetValue('amplitudeProfile', 'waveforms', clusterWaveforms);
   const amplitudeClusterData = getBoundWidgetValue('amplitudeProfile', 'clusterData', clusterData);
   const amplitudeClusteringResults = getBoundWidgetValue('amplitudeProfile', 'clusteringResults', clusteringResults);
   const curatorClusterSet = getBoundWidgetValue('curator', 'clusterSetData', null);
-  const curatorSignalData = getBoundWidgetValue('curator', 'signalData', signalData || demoSignalData);
+  const curatorSignalData = getBoundWidgetValue('curator', 'signalData', signalData || defaultSignalData);
+  const rasterSpikes = getBoundWidgetValue('rasterPlot', 'spikes', spikes);
+  const rasterSelectedClusters = getBoundWidgetValue('rasterPlot', 'selectedClusters', selectedClusters);
+  const rasterClusterSource = getBoundWidgetValue('rasterPlot', 'clusterData', clusterData);
+
+  const revealWidgetsForCluster = useCallback(() => {
+    setWidgetStates((prevStates) => {
+      const widgetIdsToReveal = ['clusterStats', 'signalView', 'waveform', 'amplitudeProfile', 'rasterPlot'];
+      let hasChanges = false;
+      const nextStates = { ...prevStates };
+
+      widgetIdsToReveal.forEach((widgetId) => {
+        const currentState = nextStates[widgetId] || DEFAULT_WIDGET_STATES[widgetId];
+
+        if (!currentState || (currentState.visible && !currentState.minimized)) {
+          return;
+        }
+
+        nextStates[widgetId] = {
+          ...currentState,
+          visible: true,
+          minimized: false,
+          maximized: false
+        };
+        hasChanges = true;
+      });
+
+      return hasChanges ? mergeWidgetStateDefaults(nextStates) : prevStates;
+    });
+  }, []);
+
+  const handleCuratorDatasetChange = useCallback((nextDataset) => {
+    setCuratorDataset(nextDataset);
+  }, []);
 
   const handleCuratorClusterSelect = useCallback((cluster) => {
     const numericClusterId = Number(cluster.id);
@@ -1139,6 +1305,8 @@ const MultiPanelView = forwardRef(({
     const firstSpikeTime = spikeTimes.find((time) => Number.isFinite(Number(time)));
 
     setSelectedClusters([clusterId]);
+    setSpikes(buildSpikesFromCuratorCluster(cluster));
+    setClusterStats(buildCuratorStats(cluster));
     setHighlightedSpikes(
       spikeTimes.slice(0, 25).map((time, pointIndex) => ({
         clusterId,
@@ -1151,7 +1319,207 @@ const MultiPanelView = forwardRef(({
       const start = Math.max(0, Number(firstSpikeTime) - 500);
       setTimeRange({ start, end: start + 1000 });
     }
-  }, []);
+
+    revealWidgetsForCluster();
+  }, [revealWidgetsForCluster]);
+
+  const handleRasterEventSelect = useCallback((event) => {
+    const clusterId = getClusterId(event, event?.clusterId);
+    const spikeTime = Number(event?.time);
+    const pointIndex = Number.isInteger(event?.pointIndex) ? event.pointIndex : 0;
+
+    setSelectedClusters([clusterId]);
+    setHighlightedSpikes([{
+      clusterId,
+      pointIndex,
+      time: event?.time
+    }]);
+
+    if (Number.isFinite(spikeTime)) {
+      const start = Math.max(0, spikeTime - 500);
+      setTimeRange({ start, end: start + 1000 });
+    }
+
+    revealWidgetsForCluster();
+  }, [revealWidgetsForCluster]);
+
+  const renderWidgetContent = (widgetId) => {
+    const state = widgetStates[widgetId] || {};
+    const widgetType = getWidgetType(widgetId, state);
+
+    switch (widgetType) {
+      case 'clusterList':
+        return (
+          <ClusterListTable
+            clusters={getBoundWidgetValue(widgetId, 'clusters', clusters)}
+            selectedClusters={selectedClusters}
+            onClusterToggle={handleClusterToggle}
+          />
+        );
+      case 'spikeList':
+        return (
+          <SpikeListTable
+            spikes={getBoundWidgetValue(widgetId, 'spikes', spikes)}
+            selectedSpike={selectedSpike}
+            onSpikeSelect={handleSpikeSelect}
+            selectedClusters={getBoundWidgetValue(widgetId, 'selectedClusters', selectedClusters)}
+          />
+        );
+      case 'clusterStats':
+        return (
+          <ClusterStatisticsWindow
+            selectedClusters={getBoundWidgetValue(widgetId, 'selectedClusters', selectedClusters)}
+            clusterStats={getBoundWidgetValue(widgetId, 'statistics', clusterStats)}
+          />
+        );
+      case 'signalView':
+        return (
+          <SignalViewPanel
+            demoMode={demoMode}
+            highlightedSpikes={getBoundWidgetValue(widgetId, 'highlightedSpikes', highlightedSpikes)}
+            datasetInfo={getBoundWidgetValue(widgetId, 'datasetInfo', datasetInfo)}
+            demoSignalData={getBoundWidgetValue(widgetId, 'signal', defaultSignalData)}
+          />
+        );
+      case 'dimReduction': {
+        const source = getBoundWidgetValue(widgetId, 'clusterData', clusterData);
+        const selected = getBoundWidgetValue(widgetId, 'selectedClusters', selectedClusters);
+        const highlighted = getBoundWidgetValue(widgetId, 'highlightedSpikes', highlightedSpikes);
+        return (
+          <DimensionalityReductionPanel
+            clusterData={source?.clusterIds ? source : clusterData}
+            selectedClusters={selected}
+            clusteringResults={source?.available !== undefined ? source : clusteringResults}
+            selectedAlgorithm={selectedAlgorithm}
+            selectedSpike={
+              highlighted.length > 0
+                ? {
+                    clusterId: highlighted[0].clusterId,
+                    pointIndex: highlighted[0].pointIndex
+                  }
+                : null
+            }
+            onSpikeClick={handleDimReductionSpikeClick}
+          />
+        );
+      }
+      case 'waveform': {
+        const selected = getBoundWidgetValue(widgetId, 'selectedClusters', selectedClusters);
+        const waveforms = getBoundWidgetValue(widgetId, 'waveforms', clusterWaveforms);
+        const highlighted = getBoundWidgetValue(widgetId, 'highlightedSpikes', highlightedSpikes);
+        const waveformViewMode = waveformViewModes[widgetId] || 'single';
+
+        return (
+          <>
+            <div className="waveform-view-toggle">
+              <button
+                className={waveformViewMode === 'single' ? 'active' : ''}
+                onClick={() => setWaveformViewModes((prev) => ({ ...prev, [widgetId]: 'single' }))}
+              >
+                Single Channel
+              </button>
+              <button
+                className={waveformViewMode === 'neighboring' ? 'active' : ''}
+                onClick={() => setWaveformViewModes((prev) => ({ ...prev, [widgetId]: 'neighboring' }))}
+              >
+                Multi Channel
+              </button>
+            </div>
+
+            {waveformViewMode === 'single' ? (
+              <WaveformSingleChannelView
+                selectedClusters={selected}
+                clusterWaveforms={waveforms}
+                highlightedSpike={
+                  highlighted.length > 0
+                    ? {
+                        clusterId: highlighted[0].clusterId,
+                        waveformIdx: highlighted[0].pointIndex
+                      }
+                    : null
+                }
+              />
+            ) : (
+              <WaveformNeighboringChannelsView
+                selectedClusters={selected}
+                selectedAlgorithm={selectedAlgorithm}
+                demoMode={demoMode}
+                demoWaveforms={waveforms}
+              />
+            )}
+          </>
+        );
+      }
+      case 'amplitudeProfile':
+        return (
+          <AmplitudeProfileWidget
+            selectedClusters={getBoundWidgetValue(widgetId, 'selectedClusters', selectedClusters)}
+            clusterWaveforms={getBoundWidgetValue(widgetId, 'waveforms', clusterWaveforms)}
+            clusterData={getBoundWidgetValue(widgetId, 'clusterData', clusterData)}
+            clusteringResults={getBoundWidgetValue(widgetId, 'clusteringResults', clusteringResults)}
+          />
+        );
+      case 'clusterComparison':
+        return <ClusterComparisonWidget />;
+      case 'curator':
+        return (
+          <CuratorWidget
+            clusterSetData={getBoundWidgetValue(widgetId, 'clusterSetData', null)}
+            signalData={getBoundWidgetValue(widgetId, 'signalData', signalData || defaultSignalData)}
+            onClusterSelect={handleCuratorClusterSelect}
+            onDatasetChange={handleCuratorDatasetChange}
+          />
+        );
+      case 'rasterPlot': {
+        const source = getBoundWidgetValue(widgetId, 'clusterData', clusterData);
+        return (
+          <RasterPlotWidget
+            spikes={getBoundWidgetValue(widgetId, 'spikes', spikes)}
+            selectedClusters={getBoundWidgetValue(widgetId, 'selectedClusters', selectedClusters)}
+            clusteringResults={source?.available !== undefined ? source : clusteringResults}
+            clusterData={source?.clusterIds ? source : clusterData}
+            curatorDataset={curatorDataset}
+            highlightedSpikes={highlightedSpikes}
+            onEventSelect={handleRasterEventSelect}
+          />
+        );
+      }
+      default:
+        return null;
+    }
+  };
+
+  const renderExtraWidgetPanel = (widgetId) => {
+    const state = widgetStates[widgetId];
+    if (!state?.visible || DEFAULT_WIDGET_STATES[widgetId]) {
+      return null;
+    }
+
+    const widgetType = getWidgetType(widgetId, state);
+    const title = state.title || getWidgetList().find((widget) => widget.id === widgetId)?.name || widgetType;
+
+    return (
+      <div
+        key={widgetId}
+        className={`panel ${getWidgetPanelClass(widgetId, state)}`}
+        data-widget-panel-id={widgetId}
+        style={getPanelStyle(widgetId)}
+      >
+        <DockableWidget
+          id={widgetId}
+          title={title}
+          onClose={handleCloseWidget}
+          onMinimize={handleMinimizeWidget}
+          onMaximize={handleMaximizeWidget}
+          onLayoutChange={handleWidgetLayoutChange}
+          isMinimized={state.minimized}
+          isMaximized={state.maximized}
+        >
+          {renderWidgetContent(widgetId)}
+        </DockableWidget>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -1227,13 +1595,14 @@ const MultiPanelView = forwardRef(({
 
       <div className="panel-row panel-row-top">
         {widgetStates.clusterList.visible && (
-          <div className="panel panel-cluster-list" style={getPanelStyle('clusterList')}>
+          <div className="panel panel-cluster-list" data-widget-panel-id="clusterList" style={getPanelStyle('clusterList')}>
             <DockableWidget
               id="clusterList"
-              title="Cluster List"
+              title="Cluster Selector"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.clusterList.minimized}
               isMaximized={widgetStates.clusterList.maximized}
             >
@@ -1247,13 +1616,14 @@ const MultiPanelView = forwardRef(({
         )}
 
         {widgetStates.spikeList.visible && (
-          <div className="panel panel-spike-list" style={getPanelStyle('spikeList')}>
+          <div className="panel panel-spike-list" data-widget-panel-id="spikeList" style={getPanelStyle('spikeList')}>
             <DockableWidget
               id="spikeList"
               title="Spike List Table"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.spikeList.minimized}
               isMaximized={widgetStates.spikeList.maximized}
             >
@@ -1268,13 +1638,14 @@ const MultiPanelView = forwardRef(({
         )}
 
         {widgetStates.clusterStats.visible && (
-          <div className="panel panel-cluster-stats" style={getPanelStyle('clusterStats')}>
+          <div className="panel panel-cluster-stats" data-widget-panel-id="clusterStats" style={getPanelStyle('clusterStats')}>
             <DockableWidget
               id="clusterStats"
               title="Cluster Statistics Window"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.clusterStats.minimized}
               isMaximized={widgetStates.clusterStats.maximized}
             >
@@ -1287,13 +1658,14 @@ const MultiPanelView = forwardRef(({
         )}
 
         {widgetStates.signalView.visible && (
-          <div className="panel panel-signal-view" style={getPanelStyle('signalView')}>
+          <div className="panel panel-signal-view" data-widget-panel-id="signalView" style={getPanelStyle('signalView')}>
             <DockableWidget
               id="signalView"
               title="Signal View"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.signalView.minimized}
               isMaximized={widgetStates.signalView.maximized}
             >
@@ -1310,13 +1682,14 @@ const MultiPanelView = forwardRef(({
 
       <div className="panel-row panel-row-bottom">
         {widgetStates.dimReduction.visible && (
-          <div className="panel panel-dim-reduction" style={getPanelStyle('dimReduction')}>
+          <div className="panel panel-dim-reduction" data-widget-panel-id="dimReduction" style={getPanelStyle('dimReduction')}>
             <DockableWidget
               id="dimReduction"
               title="Dimensionality Reduction Plot View (PCA)"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.dimReduction.minimized}
               isMaximized={widgetStates.dimReduction.maximized}
             >
@@ -1340,13 +1713,14 @@ const MultiPanelView = forwardRef(({
         )}
 
         {widgetStates.amplitudeProfile.visible && (
-          <div className="panel panel-amplitude-profile" style={getPanelStyle('amplitudeProfile')}>
+          <div className="panel panel-amplitude-profile" data-widget-panel-id="amplitudeProfile" style={getPanelStyle('amplitudeProfile')}>
             <DockableWidget
               id="amplitudeProfile"
               title="Amplitude Profile"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.amplitudeProfile.minimized}
               isMaximized={widgetStates.amplitudeProfile.maximized}
             >
@@ -1361,13 +1735,14 @@ const MultiPanelView = forwardRef(({
         )}
 
         {widgetStates.clusterComparison.visible && (
-          <div className="panel panel-cluster-comparison" style={getPanelStyle('clusterComparison')}>
+          <div className="panel panel-cluster-comparison" data-widget-panel-id="clusterComparison" style={getPanelStyle('clusterComparison')}>
             <DockableWidget
               id="clusterComparison"
               title="Cluster Comparison"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.clusterComparison.minimized}
               isMaximized={widgetStates.clusterComparison.maximized}
             >
@@ -1377,13 +1752,14 @@ const MultiPanelView = forwardRef(({
         )}
 
         {widgetStates.curator.visible && (
-          <div className="panel panel-curator" style={getPanelStyle('curator')}>
+          <div className="panel panel-curator" data-widget-panel-id="curator" style={getPanelStyle('curator')}>
             <DockableWidget
               id="curator"
               title="Curator"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.curator.minimized}
               isMaximized={widgetStates.curator.maximized}
             >
@@ -1391,61 +1767,55 @@ const MultiPanelView = forwardRef(({
                 clusterSetData={curatorClusterSet}
                 signalData={curatorSignalData}
                 onClusterSelect={handleCuratorClusterSelect}
+                onDatasetChange={handleCuratorDatasetChange}
+              />
+            </DockableWidget>
+          </div>
+        )}
+
+        {widgetStates.rasterPlot.visible && (
+          <div className="panel panel-raster-plot" data-widget-panel-id="rasterPlot" style={getPanelStyle('rasterPlot')}>
+            <DockableWidget
+              id="rasterPlot"
+              title="Raster Plot"
+              onClose={handleCloseWidget}
+              onMinimize={handleMinimizeWidget}
+              onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
+              isMinimized={widgetStates.rasterPlot.minimized}
+              isMaximized={widgetStates.rasterPlot.maximized}
+            >
+              <RasterPlotWidget
+                spikes={rasterSpikes}
+                selectedClusters={rasterSelectedClusters}
+                clusteringResults={rasterClusterSource?.available !== undefined ? rasterClusterSource : clusteringResults}
+                clusterData={rasterClusterSource?.clusterIds ? rasterClusterSource : clusterData}
+                curatorDataset={curatorDataset}
+                highlightedSpikes={highlightedSpikes}
+                onEventSelect={handleRasterEventSelect}
               />
             </DockableWidget>
           </div>
         )}
 
         {widgetStates.waveform.visible && (
-          <div className="panel panel-waveform" style={getPanelStyle('waveform')}>
+          <div className="panel panel-waveform" data-widget-panel-id="waveform" style={getPanelStyle('waveform')}>
             <DockableWidget
               id="waveform"
               title="Waveform View"
               onClose={handleCloseWidget}
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
+              onLayoutChange={handleWidgetLayoutChange}
               isMinimized={widgetStates.waveform.minimized}
               isMaximized={widgetStates.waveform.maximized}
             >
-              <div className="waveform-view-toggle">
-                <button
-                  className={waveformViewMode === 'single' ? 'active' : ''}
-                  onClick={() => setWaveformViewMode('single')}
-                >
-                  Single Channel
-                </button>
-                <button
-                  className={waveformViewMode === 'neighboring' ? 'active' : ''}
-                  onClick={() => setWaveformViewMode('neighboring')}
-                >
-                  Multi Channel
-                </button>
-              </div>
-
-              {waveformViewMode === 'single' ? (
-                <WaveformSingleChannelView
-                  selectedClusters={waveformSelectedClusters}
-                  clusterWaveforms={waveformData}
-                  highlightedSpike={
-                    waveformHighlightedSpikes.length > 0
-                      ? {
-                          clusterId: waveformHighlightedSpikes[0].clusterId,
-                          waveformIdx: waveformHighlightedSpikes[0].pointIndex
-                        }
-                      : null
-                  }
-                />
-              ) : (
-                <WaveformNeighboringChannelsView
-                  selectedClusters={waveformSelectedClusters}
-                  selectedAlgorithm={selectedAlgorithm}
-                  demoMode={demoMode}
-                  demoWaveforms={waveformData}
-                />
-              )}
+              {renderWidgetContent('waveform')}
             </DockableWidget>
           </div>
         )}
+
+        {Object.keys(widgetStates).map(renderExtraWidgetPanel)}
       </div>
     </div>
   );

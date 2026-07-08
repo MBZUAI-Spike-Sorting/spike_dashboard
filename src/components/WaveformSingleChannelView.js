@@ -220,7 +220,7 @@ const WaveformSingleChannelView = ({
           />
         ) : (
           <div className="no-data-message">
-            <p>Select clusters from the Cluster List to view waveforms</p>
+            <p>Select clusters from any linked widget, or open the Cluster Selector.</p>
           </div>
         )}
       </div>

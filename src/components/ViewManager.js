@@ -10,13 +10,13 @@ const getScopedStorageKey = (key, scope) => {
   return scope ? `${key}:${scope}` : key;
 };
 
-// Default view configuration - all widgets visible
+// Default view configuration
 const DEFAULT_VIEW = {
   id: 'default',
   name: 'Default Layout',
   isDefault: true,
   widgetStates: {
-    clusterList: { visible: true, minimized: false, maximized: false, order: 1, position: null, size: null },
+    clusterList: { visible: false, minimized: false, maximized: false, order: 1, position: null, size: null },
     spikeList: { visible: true, minimized: false, maximized: false, order: 2, position: null, size: null },
     clusterStats: { visible: true, minimized: false, maximized: false, order: 3, position: null, size: null },
     signalView: { visible: true, minimized: false, maximized: false, order: 4, position: null, size: null },
@@ -24,7 +24,8 @@ const DEFAULT_VIEW = {
     waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
     amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
     clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null },
-    curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null }
+    curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null },
+    rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null }
   }
 };
 
@@ -38,17 +39,26 @@ const EMPTY_WIDGET_STATES = {
   waveform: { visible: false, minimized: false, maximized: false, order: 6, position: null, size: null },
   amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
   clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null },
-  curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null }
+  curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null },
+  rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null }
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {
-  return Object.entries(defaults).reduce((acc, [widgetId, defaultState]) => {
+  const merged = Object.entries(defaults).reduce((acc, [widgetId, defaultState]) => {
     acc[widgetId] = {
       ...defaultState,
       ...(widgetStates[widgetId] || {})
     };
     return acc;
   }, {});
+
+  Object.entries(widgetStates || {}).forEach(([widgetId, state]) => {
+    if (!merged[widgetId]) {
+      merged[widgetId] = state;
+    }
+  });
+
+  return merged;
 };
 
 const normalizeViews = (candidateViews) => {
@@ -214,8 +224,8 @@ const ViewManager = ({
 
         acc[widgetId] = {
           ...state,
-          position: state.visible ? (layout.position || state.position || null) : null,
-          size: state.visible ? (layout.size || state.size || null) : null
+          position: layout.position || state.position || null,
+          size: layout.size || state.size || null
         };
 
         return acc;
@@ -275,6 +285,40 @@ const ViewManager = ({
     lastAppliedAccountSnapshotRef.current = snapshotKey;
     onPersistViews(views, currentViewId);
   }, [views, currentViewId, isInitialized, onPersistViews, layoutStorageScope]);
+
+  useEffect(() => {
+    if (!isInitialized) {
+      return undefined;
+    }
+
+    const viewsStorageKey = getScopedStorageKey(STORAGE_KEY, layoutStorageScope);
+    const currentViewStorageKey = getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope);
+
+    const handleStorageChange = (event) => {
+      if (event.storageArea !== localStorage) return;
+      if (event.key !== viewsStorageKey && event.key !== currentViewStorageKey) return;
+
+      const snapshot = readLocalViewSnapshot(layoutStorageScope);
+      const snapshotKey = JSON.stringify(snapshot);
+
+      if (lastAppliedAccountSnapshotRef.current === snapshotKey) {
+        return;
+      }
+
+      lastAppliedAccountSnapshotRef.current = snapshotKey;
+      lastPersistedSnapshotRef.current = snapshotKey;
+      setViews(snapshot.views);
+      setCurrentViewId(snapshot.currentViewId);
+
+      const viewToApply = snapshot.views.find((view) => view.id === snapshot.currentViewId);
+      if (viewToApply && onViewChange) {
+        onViewChange(viewToApply.widgetStates, viewToApply.id);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [isInitialized, layoutStorageScope, onViewChange]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -387,6 +431,10 @@ const ViewManager = ({
     }
   };
 
+  const handleOpenInNewTab = () => {
+    window.open(window.location.href, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="view-manager" ref={dropdownRef}>
       <button 
@@ -456,6 +504,13 @@ const ViewManager = ({
           </div>
 
           <div className="dropdown-footer">
+            <button
+              className="open-tab-btn"
+              onClick={handleOpenInNewTab}
+            >
+              Open In New Tab
+            </button>
+
             {isCreatingNew ? (
               <div className="create-view-form">
                 <input

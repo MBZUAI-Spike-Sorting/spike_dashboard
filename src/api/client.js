@@ -458,6 +458,18 @@ const apiClient = {
 
     return response.json();
   },
+
+  /**
+   * Predict missing primary channels for cluster data using the loaded dataset.
+   * @param {Array} clusters - Normalized cluster rows with spikeTimes
+   * @param {number} sampleLimit - Max spike samples per cluster
+   */
+  async predictPrimaryChannels(clusters, sampleLimit = 5000) {
+    return request('/api/cluster-comparison/predict-primary-channels', {
+      method: 'POST',
+      body: JSON.stringify({ clusters, sampleLimit }),
+    });
+  },
   
   // =====================
   // Spike Sorting

@@ -17,14 +17,14 @@ const WidgetDataWiringPanel = ({
 }) => {
   const visibleWidgetIds = useMemo(
     () =>
-      Object.keys(WIDGET_DATA_CONTRACTS).filter(
+      Object.keys(widgetStates).filter(
         (widgetId) => widgetStates[widgetId]?.visible
       ),
     [widgetStates]
   );
 
   const [selectedWidgetId, setSelectedWidgetId] = useState(
-    visibleWidgetIds[0] || Object.keys(WIDGET_DATA_CONTRACTS)[0]
+    visibleWidgetIds[0] || Object.keys(widgetStates)[0] || Object.keys(WIDGET_DATA_CONTRACTS)[0]
   );
 
   useEffect(() => {
@@ -53,12 +53,18 @@ const WidgetDataWiringPanel = ({
         value={selectedWidgetId}
         onChange={(event) => setSelectedWidgetId(event.target.value)}
       >
-        {Object.entries(WIDGET_DATA_CONTRACTS).map(([widgetId, item]) => (
+        {Object.keys(widgetStates).map((widgetId) => {
+          const item = getWidgetDataContract(widgetId);
+          const state = widgetStates[widgetId] || {};
+          if (!item) return null;
+
+          return (
           <option key={widgetId} value={widgetId}>
-            {item.label}
-            {widgetStates[widgetId]?.visible ? '' : ' (hidden)'}
+            {state.title || item.label}
+            {state.visible ? '' : ' (hidden)'}
           </option>
-        ))}
+          );
+        })}
       </select>
 
       <div className={`wiring-status ${validation.valid ? 'valid' : 'invalid'}`}>

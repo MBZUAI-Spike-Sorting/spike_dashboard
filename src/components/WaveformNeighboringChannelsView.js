@@ -211,7 +211,7 @@ const WaveformNeighboringChannelsView = ({
       <div className="multi-channel-plots-container">
         {selectedClusters.length === 0 ? (
           <div className="no-data-message">
-            <p>Select clusters from the Cluster List to view multi-channel waveforms</p>
+            <p>Select clusters from any linked widget, or open the Cluster Selector.</p>
           </div>
         ) : isLoading ? (
           <div className="no-data-message">
