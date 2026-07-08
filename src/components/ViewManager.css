@@ -209,6 +209,25 @@
   background: rgba(0, 0, 0, 0.2);
 }
 
+.open-tab-btn {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(64, 224, 208, 0.28);
+  border-radius: 8px;
+  color: #9ef5ed;
+  background: rgba(64, 224, 208, 0.08);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.open-tab-btn:hover {
+  border-color: rgba(64, 224, 208, 0.55);
+  background: rgba(64, 224, 208, 0.14);
+}
+
 .create-view-btn {
   display: flex;
   align-items: center;
@@ -319,4 +338,3 @@
 .view-list::-webkit-scrollbar-thumb:hover {
   background: rgba(138, 43, 226, 0.5);
 }
-

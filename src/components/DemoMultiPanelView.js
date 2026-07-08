@@ -56,7 +56,7 @@ const DemoMultiPanelView = ({
         <div className="panel panel-cluster-list">
           <div className="dockable-widget">
             <div className="dockable-widget-header">
-              <span>Cluster List</span>
+              <span>Cluster Selector</span>
             </div>
             <div className="dockable-widget-content">
               <table style={{ width: '100%', color: '#e0e6ed' }}>

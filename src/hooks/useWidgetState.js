@@ -11,12 +11,16 @@ import { useLocalStorage } from './useLocalStorage';
  * Default widget states
  */
 export const DEFAULT_WIDGET_STATES = {
-  clusterList: { visible: true, minimized: false, maximized: false, order: 1, position: null, size: null },
+  clusterList: { visible: false, minimized: false, maximized: false, order: 1, position: null, size: null },
   spikeList: { visible: true, minimized: false, maximized: false, order: 2, position: null, size: null },
   clusterStats: { visible: true, minimized: false, maximized: false, order: 3, position: null, size: null },
   signalView: { visible: true, minimized: false, maximized: false, order: 4, position: null, size: null },
   dimReduction: { visible: true, minimized: false, maximized: false, order: 5, position: null, size: null },
   waveform: { visible: true, minimized: false, maximized: false, order: 6, position: null, size: null },
+  amplitudeProfile: { visible: false, minimized: false, maximized: false, order: 7, position: null, size: null },
+  clusterComparison: { visible: false, minimized: false, maximized: false, order: 8, position: null, size: null },
+  curator: { visible: false, minimized: false, maximized: false, order: 9, position: null, size: null },
+  rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null },
 };
 
 /**

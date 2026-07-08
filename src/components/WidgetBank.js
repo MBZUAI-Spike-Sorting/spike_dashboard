@@ -5,8 +5,8 @@ import './WidgetBank.css';
 const WIDGET_DEFINITIONS = {
   clusterList: {
     id: 'clusterList',
-    name: 'Cluster List',
-    description: 'View and select neuron clusters',
+    name: 'Cluster Selector',
+    description: 'Optional checklist for selecting clusters across linked widgets',
     icon: '📋',
     category: 'data',
     defaultSize: { width: 180, height: 350 }
@@ -74,6 +74,14 @@ const WIDGET_DEFINITIONS = {
     icon: 'R',
     category: 'analysis',
     defaultSize: { width: 760, height: 480 }
+  },
+  rasterPlot: {
+    id: 'rasterPlot',
+    name: 'Raster Plot',
+    description: 'Compact spike-event raster grouped by cluster or channel',
+    icon: '|',
+    category: 'visualization',
+    defaultSize: { width: 760, height: 420 }
   }
 };
 
@@ -139,20 +147,14 @@ const WidgetBank = ({
     setDraggedWidget(null);
   };
 
-  // Check if widget is already visible
-  const isWidgetVisible = (widgetId) => {
-    return widgetStates[widgetId]?.visible;
+  const getWidgetActiveCount = (widgetId) => {
+    return Object.entries(widgetStates || {}).filter(([instanceId, state]) => (
+      state?.visible && (state.type || instanceId.split('__')[0]) === widgetId
+    )).length;
   };
 
-  // Handle click to add/toggle widget
   const handleWidgetClick = (widget) => {
-    if (isWidgetVisible(widget.id)) {
-      // Widget is visible, toggle it off
-      onToggleWidget(widget.id);
-    } else {
-      // Widget is hidden, add/show it
-      onAddWidget(widget);
-    }
+    onAddWidget(widget);
   };
 
   // Close on outside click
@@ -215,7 +217,7 @@ const WidgetBank = ({
         <div className="widget-bank-content">
           <p className="drag-hint">
             <span className="hint-icon">💡</span>
-            Drag widgets to the canvas or click to toggle
+            Drag widgets to the canvas or click to add another
           </p>
 
           {Object.entries(groupedWidgets).map(([category, widgets]) => (
@@ -226,7 +228,8 @@ const WidgetBank = ({
               </h4>
               <div className="widget-items">
                 {widgets.map(widget => {
-                  const visible = isWidgetVisible(widget.id);
+                  const activeCount = getWidgetActiveCount(widget.id);
+                  const visible = activeCount > 0;
                   return (
                     <div
                       key={widget.id}

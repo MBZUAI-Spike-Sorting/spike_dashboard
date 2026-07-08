@@ -514,6 +514,111 @@ def _normalize_cluster_payload(payload, fallback_name='Uploaded clusters'):
     }
 
 
+def _is_missing_primary_channel(value):
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == '':
+        return True
+    if isinstance(value, (list, tuple, np.ndarray)) and len(value) == 0:
+        return True
+    return False
+
+
+def _normalize_prediction_clusters(clusters_payload):
+    clusters = []
+
+    if not isinstance(clusters_payload, list):
+        return clusters
+
+    for index, cluster in enumerate(clusters_payload):
+        if not isinstance(cluster, dict):
+            continue
+
+        cluster_id = _pick(cluster, ['id', 'clusterId', 'cluster_id'], index)
+        spike_times = _to_number_list(_pick(cluster, ['spikeTimes', 'spike_times', 'times']))
+        primary_channel = _pick(cluster, ['primaryChannel', 'primary_channel', 'channel'])
+        metadata = cluster.get('metadata') if isinstance(cluster.get('metadata'), dict) else {}
+
+        clusters.append({
+            'id': str(cluster_id),
+            'primaryChannel': _to_scalar(primary_channel, None),
+            'primaryChannelSource': cluster.get('primaryChannelSource'),
+            'spikeTimes': spike_times,
+            'metadata': metadata
+        })
+
+    return clusters
+
+
+def _predict_primary_channels_from_data(clusters, data_array, sample_limit=5000):
+    if data_array is None:
+        raise ValueError('No dataset is loaded. Load a recording before predicting primary channels.')
+
+    if not clusters:
+        raise ValueError('No clusters were provided for primary-channel prediction.')
+
+    total_channels, total_samples = data_array.shape[:2]
+    predicted_count = 0
+    normalized_sample_limit = max(1, int(sample_limit or 5000))
+    predicted_clusters = []
+
+    for cluster in clusters:
+        if not _is_missing_primary_channel(cluster.get('primaryChannel')):
+            predicted_clusters.append(cluster)
+            continue
+
+        spike_times = np.asarray(cluster.get('spikeTimes') or [], dtype=float)
+        if spike_times.size == 0:
+            predicted_clusters.append(cluster)
+            continue
+
+        sample_indices = np.rint(spike_times).astype(np.int64)
+        sample_indices = sample_indices[
+            (sample_indices >= 0) & (sample_indices < total_samples)
+        ]
+
+        if sample_indices.size == 0:
+            predicted_clusters.append(cluster)
+            continue
+
+        if sample_indices.size > normalized_sample_limit:
+            pick_indices = np.linspace(
+                0,
+                sample_indices.size - 1,
+                normalized_sample_limit,
+                dtype=np.int64
+            )
+            sample_indices = sample_indices[pick_indices]
+
+        signal_at_spikes = np.asarray(data_array[:, sample_indices], dtype=np.float32)
+        if signal_at_spikes.size == 0:
+            predicted_clusters.append(cluster)
+            continue
+
+        channel_scores = np.nanmean(np.abs(signal_at_spikes), axis=1)
+        if channel_scores.size == 0 or np.all(np.isnan(channel_scores)):
+            predicted_clusters.append(cluster)
+            continue
+
+        primary_channel = int(np.nanargmax(channel_scores)) + 1
+        score = float(channel_scores[primary_channel])
+        predicted_count += 1
+
+        predicted_clusters.append({
+            **cluster,
+            'primaryChannel': primary_channel,
+            'primaryChannelSource': 'predicted',
+            'metadata': {
+                **(cluster.get('metadata') or {}),
+                'predictionScore': round(score, 4),
+                'predictionSamples': int(sample_indices.size),
+                'predictionChannels': int(total_channels)
+            }
+        })
+
+    return predicted_clusters, predicted_count
+
+
 def _load_json_cluster_file(file_storage):
     return json.load(io.TextIOWrapper(file_storage.stream, encoding='utf-8'))
 
@@ -599,6 +704,34 @@ def parse_cluster_comparison_file():
     except Exception as e:
         logger.error(f"Error parsing cluster comparison file: {e}", exc_info=True)
         return server_error('Failed to parse cluster comparison file', exception=e)
+
+
+@clustering_bp.route('/api/cluster-comparison/predict-primary-channels', methods=['POST'])
+@login_required
+def predict_cluster_primary_channels():
+    """Predict missing primary channels for uploaded cluster data."""
+    try:
+        data = request.get_json(silent=True) or {}
+        clusters = _normalize_prediction_clusters(data.get('clusters', []))
+        sample_limit = data.get('sampleLimit', 5000)
+        dataset_manager = current_app.config['dataset_manager']
+
+        predicted_clusters, predicted_count = _predict_primary_channels_from_data(
+            clusters,
+            dataset_manager.data_array,
+            sample_limit=sample_limit
+        )
+
+        return success_response({
+            'clusters': predicted_clusters,
+            'predictedCount': predicted_count,
+            'dataset': dataset_manager.current_dataset
+        })
+    except ValueError as e:
+        return validation_error(str(e))
+    except Exception as e:
+        logger.error(f"Error predicting primary channels: {e}", exc_info=True)
+        return server_error('Failed to predict primary channels', exception=e)
 
 
 def _format_custom_pipeline_algorithm(pipeline):
