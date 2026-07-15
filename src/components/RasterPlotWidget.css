@@ -11,9 +11,9 @@
 .raster-toolbar {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr);
-  gap: 0.65rem;
+  gap: var(--dashboard-panel-gap, 0.65rem);
   align-items: center;
-  padding: 0.6rem 0.75rem;
+  padding: var(--dashboard-shell-padding, 0.75rem);
   border-bottom: 1px solid rgba(125, 223, 216, 0.22);
   background: rgba(15, 23, 42, 0.82);
 }
@@ -27,14 +27,14 @@
 
 .raster-group-toggle button,
 .raster-actions button {
-  min-height: 30px;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
   padding: 0 0.65rem;
   border: 1px solid rgba(125, 223, 216, 0.28);
   border-radius: 5px;
   color: #dbeafe;
   background: rgba(30, 41, 59, 0.78);
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: var(--dashboard-font-xs, 0.78rem);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -53,10 +53,10 @@
 .raster-summary {
   display: flex;
   justify-content: flex-end;
-  gap: 0.75rem;
+  gap: var(--dashboard-panel-gap, 0.75rem);
   min-width: 0;
   color: #94a3b8;
-  font-size: 0.78rem;
+  font-size: var(--dashboard-font-xs, 0.78rem);
   white-space: nowrap;
 }
 
@@ -86,13 +86,13 @@
   color: #dbeafe;
   background: rgba(2, 6, 23, 0.92);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
-  font-size: 0.75rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   pointer-events: none;
 }
 
 .raster-tooltip strong {
   color: #7ddfd8;
-  font-size: 0.8rem;
+  font-size: var(--dashboard-font-sm, 0.8rem);
 }
 
 .raster-empty {
@@ -100,7 +100,7 @@
   height: 100%;
   place-items: center;
   color: #94a3b8;
-  font-size: 0.9rem;
+  font-size: var(--dashboard-font-base, 0.9rem);
 }
 
 @media (max-width: 760px) {

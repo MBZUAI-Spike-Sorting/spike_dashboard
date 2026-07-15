@@ -6,7 +6,8 @@ const WaveformNeighboringChannelsView = ({
   selectedClusters,
   selectedAlgorithm,
   demoMode = false,
-  demoWaveforms = {}
+  demoWaveforms = {},
+  clusterLookup = null
 }) => {
   const [selectedClusterId, setSelectedClusterId] = useState(null);
   const [multiChannelData, setMultiChannelData] = useState(null);
@@ -31,7 +32,7 @@ const WaveformNeighboringChannelsView = ({
     } else {
       fetchMultiChannelWaveforms(selectedClusterId);
     }
-  }, [selectedClusterId, selectedAlgorithm, demoMode, demoWaveforms]);
+  }, [selectedClusterId, selectedAlgorithm, demoMode, demoWaveforms, clusterLookup]);
 
   const getClusterColor = (clusterId) => {
     return `hsl(${(clusterId * 137) % 360}, 70%, 60%)`;
@@ -101,6 +102,7 @@ const WaveformNeighboringChannelsView = ({
     setIsLoading(true);
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '';
+      const explicitCluster = clusterLookup?.get?.(String(clusterId));
       const response = await fetch(`${apiUrl}/api/cluster-multi-channel-waveforms`, {
         method: 'POST',
         headers: {
@@ -108,6 +110,11 @@ const WaveformNeighboringChannelsView = ({
         },
         body: JSON.stringify({
           clusterId: clusterId,
+          cluster: explicitCluster ? {
+            id: explicitCluster.id ?? clusterId,
+            spikeTimes: explicitCluster.spikeTimes || [],
+            primaryChannel: explicitCluster.primaryChannel ?? explicitCluster.channel ?? null
+          } : null,
           maxWaveforms: 50,
           windowSize: 30,
           algorithm: selectedAlgorithm

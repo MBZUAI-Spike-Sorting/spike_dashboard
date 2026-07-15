@@ -1,12 +1,12 @@
 .amplitude-profile-widget {
   background: rgba(30, 30, 60, 0.6);
   border-radius: 8px;
-  padding: 0.75rem;
+  padding: var(--dashboard-shell-padding, 0.75rem);
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  gap: 0.55rem;
+  gap: var(--dashboard-panel-gap, 0.55rem);
 }
 
 .amplitude-profile-toolbar {
@@ -14,9 +14,9 @@
   align-items: center;
   justify-content: flex-start;
   flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
+  gap: var(--dashboard-panel-gap, 0.5rem) calc(var(--dashboard-panel-gap, 0.5rem) + 0.2rem);
   flex-shrink: 0;
-  min-height: 32px;
+  min-height: calc(var(--dashboard-toolbar-control-height, 28px) + 4px);
 }
 
 .amplitude-profile-control,
@@ -29,19 +29,19 @@
 
 .amplitude-profile-control span {
   color: rgba(224, 230, 237, 0.72);
-  font-size: 0.78rem;
+  font-size: var(--dashboard-font-xs, 0.78rem);
   font-weight: 600;
 }
 
 .amplitude-profile-control select {
-  height: 28px;
+  height: var(--dashboard-toolbar-control-height, 28px);
   min-width: 96px;
   background: rgba(0, 0, 0, 0.24);
   border: 1px solid rgba(64, 224, 208, 0.24);
   border-radius: 4px;
   color: #e0e6ed;
   padding: 0 0.45rem;
-  font-size: 0.78rem;
+  font-size: var(--dashboard-font-xs, 0.78rem);
 }
 
 .amplitude-profile-control select:focus {
@@ -50,14 +50,14 @@
 }
 
 .amplitude-profile-merge button {
-  height: 28px;
+  height: var(--dashboard-toolbar-control-height, 28px);
   padding: 0 0.65rem;
   background: rgba(64, 224, 208, 0.1);
   border: 1px solid rgba(64, 224, 208, 0.28);
   border-radius: 4px;
   color: #40e0d0;
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: var(--dashboard-font-xs, 0.78rem);
   font-weight: 600;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -88,7 +88,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  min-height: 26px;
+  min-height: calc(var(--dashboard-toolbar-control-height, 28px) - 2px);
   max-width: 160px;
   padding: 0.25rem 0.5rem;
   background: rgba(255, 255, 255, 0.04);
@@ -96,7 +96,7 @@
   border-radius: 4px;
   color: rgba(224, 230, 237, 0.78);
   cursor: pointer;
-  font-size: 0.76rem;
+  font-size: var(--dashboard-font-xs, 0.76rem);
   font-weight: 600;
   line-height: 1.1;
   overflow: hidden;
@@ -150,7 +150,7 @@
 }
 
 .amplitude-profile-separated-panel {
-  min-height: 210px;
+  min-height: 190px;
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(64, 224, 208, 0.12);
@@ -163,10 +163,10 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  min-height: 28px;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
   padding: 0.35rem 0.55rem;
   color: #e0e6ed;
-  font-size: 0.78rem;
+  font-size: var(--dashboard-font-xs, 0.78rem);
   font-weight: 700;
   border-bottom: 1px solid rgba(64, 224, 208, 0.12);
   flex-shrink: 0;
@@ -198,7 +198,7 @@
 
 .amplitude-profile-empty p {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--dashboard-font-base, 0.95rem);
 }
 
 .amplitude-profile-stats {
@@ -217,9 +217,9 @@
   grid-template-columns: minmax(96px, 1fr) repeat(3, minmax(72px, auto));
   gap: 0.55rem;
   align-items: center;
-  min-height: 22px;
+  min-height: var(--dashboard-row-min-height, 22px);
   color: rgba(224, 230, 237, 0.68);
-  font-size: 0.75rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   white-space: nowrap;
 }
 

@@ -42,6 +42,16 @@ const DEFAULT_WIDGET_STATES = {
 };
 
 const WIDGET_BINDINGS_STORAGE_KEY = 'spike_dashboard_widget_input_bindings';
+const DISPLAY_SETTINGS_STORAGE_KEY = 'spike_dashboard_display_settings';
+const DEFAULT_DISPLAY_SETTINGS = {
+  scale: 1,
+  density: 'standard'
+};
+const DISPLAY_DENSITY_FACTORS = {
+  compact: 0.84,
+  standard: 1,
+  comfortable: 1.12
+};
 
 const PANEL_CLASS_MAP = {
   clusterList: 'panel-cluster-list',
@@ -97,6 +107,79 @@ const getWidgetPanelClass = (widgetId, state) => (
   PANEL_CLASS_MAP[getWidgetType(widgetId, state)] ||
   'panel-custom-widget'
 );
+
+const clampNumber = (value, min, max) => {
+  const lowerBound = Number.isFinite(min) ? min : value;
+  const upperBound = Number.isFinite(max) ? max : value;
+  return Math.max(lowerBound, Math.min(upperBound, value));
+};
+
+const getMaxWidgetOrder = (widgetStates = {}) => (
+  Object.values(widgetStates).reduce((maxOrder, state) => {
+    const order = Number(state?.order);
+    return Number.isFinite(order) ? Math.max(maxOrder, order) : maxOrder;
+  }, 0)
+);
+
+const normalizeDisplaySettings = (value) => {
+  const normalizedScale = Number(value?.scale);
+  const density = value?.density;
+
+  return {
+    scale: clampNumber(Number.isFinite(normalizedScale) ? normalizedScale : DEFAULT_DISPLAY_SETTINGS.scale, 0.85, 1.25),
+    density: DISPLAY_DENSITY_FACTORS[density] ? density : DEFAULT_DISPLAY_SETTINGS.density
+  };
+};
+
+const readDisplaySettings = (storageKey) => {
+  if (!storageKey) {
+    return DEFAULT_DISPLAY_SETTINGS;
+  }
+
+  try {
+    const savedValue = localStorage.getItem(storageKey);
+    if (!savedValue) {
+      return DEFAULT_DISPLAY_SETTINGS;
+    }
+
+    return normalizeDisplaySettings(JSON.parse(savedValue));
+  } catch (error) {
+    console.error('Error loading display settings:', error);
+    return DEFAULT_DISPLAY_SETTINGS;
+  }
+};
+
+const buildDisplayStyle = (displaySettings) => {
+  const scale = displaySettings.scale;
+  const densityFactor = DISPLAY_DENSITY_FACTORS[displaySettings.density] || DISPLAY_DENSITY_FACTORS.standard;
+  const compactFactor = scale * densityFactor;
+  const toPx = (value) => `${Math.round(value)}px`;
+  const toRem = (value) => `${value.toFixed(3)}rem`;
+
+  return {
+    '--dashboard-container-padding': toPx(8 * densityFactor),
+    '--dashboard-shell-padding': toPx(10 * compactFactor),
+    '--dashboard-panel-gap': toPx(8 * compactFactor),
+    '--dashboard-compact-gap': toPx(6 * compactFactor),
+    '--dashboard-control-gap': toPx(4 * compactFactor),
+    '--dashboard-font-xs': toRem(0.72 * scale),
+    '--dashboard-font-sm': toRem(0.82 * scale),
+    '--dashboard-font-base': toRem(0.92 * scale),
+    '--dashboard-font-lg': toRem(1.02 * scale),
+    '--dashboard-control-font-size': toRem(0.8 * scale),
+    '--dashboard-widget-header-pad-y': toPx(6 * compactFactor),
+    '--dashboard-widget-header-pad-x': toPx(10 * compactFactor),
+    '--dashboard-widget-header-height': toPx(36 * compactFactor),
+    '--dashboard-widget-control-size': toPx(22 * compactFactor),
+    '--dashboard-widget-minimized-height': toPx(42 * compactFactor),
+    '--dashboard-table-cell-pad-y': toPx(7 * compactFactor),
+    '--dashboard-table-cell-pad-x': toPx(8 * compactFactor),
+    '--dashboard-toolbar-control-height': toPx(28 * compactFactor),
+    '--dashboard-sidebar-width': toPx(104 * compactFactor),
+    '--dashboard-summary-card-padding': toPx(12 * compactFactor),
+    '--dashboard-row-min-height': toPx(22 * compactFactor)
+  };
+};
 
 const findClusterById = (clusters = [], clusterId) => {
   const clusterIdString = String(clusterId);
@@ -173,6 +256,12 @@ const buildCuratorStats = (cluster) => {
     }
   };
 };
+
+const buildCuratorWaveformRequestCluster = (cluster) => ({
+  id: getClusterId(cluster, cluster?.id),
+  spikeTimes: Array.isArray(cluster?.spikeTimes) ? cluster.spikeTimes : [],
+  primaryChannel: cluster?.primaryChannel ?? cluster?.channel ?? null
+});
 
 const getWidgetStatesFromViewSnapshot = (views, currentViewId) => {
   if (!Array.isArray(views) || views.length === 0) {
@@ -267,6 +356,7 @@ const MultiPanelView = forwardRef(({
   }, [demoMode, user?.email, user?.id, user?.username]);
   const layoutViewsStorageKey = getScopedStorageKey(STORAGE_KEY, layoutStorageScope);
   const layoutCurrentViewStorageKey = getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope);
+  const displaySettingsStorageKey = getScopedStorageKey(DISPLAY_SETTINGS_STORAGE_KEY, layoutStorageScope);
   const [clusters, setClusters] = useState([]);
   const [selectedClusters, setSelectedClusters] = useState([]);
   const [spikes, setSpikes] = useState([]);
@@ -285,6 +375,7 @@ const MultiPanelView = forwardRef(({
   const [isWidgetBankOpen, setIsWidgetBankOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropPosition, setDropPosition] = useState(null);
+  const [displaySettings, setDisplaySettings] = useState(() => readDisplaySettings(displaySettingsStorageKey));
   const containerRef = useRef(null);
 
   const [widgetStates, setWidgetStates] = useState(() => {
@@ -489,12 +580,42 @@ const MultiPanelView = forwardRef(({
     );
   }, [widgetInputBindings]);
 
+  useEffect(() => {
+    setDisplaySettings(readDisplaySettings(displaySettingsStorageKey));
+  }, [displaySettingsStorageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      displaySettingsStorageKey,
+      JSON.stringify(displaySettings)
+    );
+  }, [displaySettings, displaySettingsStorageKey]);
+
+  useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key !== displaySettingsStorageKey || !event.newValue) {
+        return;
+      }
+
+      try {
+        setDisplaySettings(normalizeDisplaySettings(JSON.parse(event.newValue)));
+      } catch (error) {
+        console.error('Error syncing display settings:', error);
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [displaySettingsStorageKey]);
+
   const curatorClusterMap = useMemo(() => {
     return (curatorDataset?.clusters || []).reduce((map, cluster) => {
       map.set(String(getClusterId(cluster, cluster.id)), cluster);
       return map;
     }, new Map());
   }, [curatorDataset]);
+
+  const displayStyle = useMemo(() => buildDisplayStyle(displaySettings), [displaySettings]);
 
   useEffect(() => {
     if (!demoMode) return;
@@ -863,6 +984,11 @@ const MultiPanelView = forwardRef(({
 
   const fetchClusterWaveforms = async () => {
     try {
+      const explicitClusters = selectedClusters
+        .map((clusterId) => curatorClusterMap.get(String(clusterId)))
+        .filter(Boolean)
+        .map(buildCuratorWaveformRequestCluster);
+
       const apiUrl = process.env.REACT_APP_API_URL || '';
       const response = await fetch(`${apiUrl}/api/cluster-waveforms`, {
         method: 'POST',
@@ -871,6 +997,7 @@ const MultiPanelView = forwardRef(({
         },
         body: JSON.stringify({
           clusterIds: selectedClusters,
+          clusters: explicitClusters,
           maxWaveforms: 50,
           windowSize: 30,
           algorithm: selectedAlgorithm
@@ -964,12 +1091,16 @@ const MultiPanelView = forwardRef(({
 
   const handleToggleWidget = (widgetId) => {
     setWidgetStates((prev) => {
+      const currentState = prev[widgetId];
+      const nextVisible = !currentState?.visible;
+      const nextOrder = nextVisible ? getMaxWidgetOrder(prev) + 1 : currentState?.order;
       return {
         ...prev,
         [widgetId]: {
-          ...prev[widgetId],
-          visible: !prev[widgetId].visible,
-          minimized: false
+          ...currentState,
+          visible: nextVisible,
+          minimized: false,
+          order: nextOrder
         }
       };
     });
@@ -977,12 +1108,15 @@ const MultiPanelView = forwardRef(({
 
   const handleMinimizeWidget = (widgetId) => {
     setWidgetStates((prev) => {
+      const currentState = prev[widgetId];
+      const nextOrder = getMaxWidgetOrder(prev) + 1;
       return {
         ...prev,
         [widgetId]: {
-          ...prev[widgetId],
-          minimized: !prev[widgetId].minimized,
-          maximized: false
+          ...currentState,
+          minimized: !currentState.minimized,
+          maximized: false,
+          order: nextOrder
         }
       };
     });
@@ -990,12 +1124,15 @@ const MultiPanelView = forwardRef(({
 
   const handleMaximizeWidget = (widgetId) => {
     setWidgetStates((prev) => {
+      const currentState = prev[widgetId];
+      const nextOrder = getMaxWidgetOrder(prev) + 1;
       return {
         ...prev,
         [widgetId]: {
-          ...prev[widgetId],
-          maximized: !prev[widgetId].maximized,
-          minimized: false
+          ...currentState,
+          maximized: !currentState.maximized,
+          minimized: false,
+          order: nextOrder
         }
       };
     });
@@ -1105,6 +1242,39 @@ const MultiPanelView = forwardRef(({
     });
   }, []);
 
+  const handleDisplaySettingsChange = useCallback((nextPartialSettings) => {
+    setDisplaySettings((prev) => normalizeDisplaySettings({
+      ...prev,
+      ...nextPartialSettings
+    }));
+  }, []);
+
+  const handleResetDisplaySettings = useCallback(() => {
+    setDisplaySettings(DEFAULT_DISPLAY_SETTINGS);
+  }, []);
+
+  const handleActivateWidget = useCallback((widgetId) => {
+    setWidgetStates((prev) => {
+      const currentState = prev[widgetId];
+      if (!currentState) {
+        return prev;
+      }
+
+      const nextOrder = getMaxWidgetOrder(prev) + 1;
+      if (currentState.order === nextOrder) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [widgetId]: {
+          ...currentState,
+          order: nextOrder
+        }
+      };
+    });
+  }, []);
+
   const getBoundWidgetValue = useCallback((widgetId, inputId, fallbackValue) => {
     const widgetType = getWidgetType(widgetId, widgetStates[widgetId]);
     const variableId = widgetInputBindings[widgetId]?.[inputId] ||
@@ -1129,6 +1299,7 @@ const MultiPanelView = forwardRef(({
       const position = dropPosition ||
         currentState.position ||
         { top: 100 + (Number(duplicateNumber || 1) - 1) * 28, left: 100 + (Number(duplicateNumber || 1) - 1) * 28 };
+      const nextOrder = getMaxWidgetOrder(prev) + 1;
 
       return {
         ...prev,
@@ -1138,6 +1309,7 @@ const MultiPanelView = forwardRef(({
           visible: true,
           minimized: false,
           maximized: false,
+          order: nextOrder,
           position,
           size: currentState.size || widget.defaultSize || null
         }
@@ -1234,15 +1406,130 @@ const MultiPanelView = forwardRef(({
     return () => clearTimeout(timer);
   }, [widgetStates]);
 
+  const getWidgetRectWithinContainer = useCallback((widgetId) => {
+    const container = containerRef.current;
+    if (!container) {
+      return null;
+    }
+
+    const panelClass = getWidgetPanelClass(widgetId, widgetStates[widgetId]);
+    const panel = document.querySelector(`[data-widget-panel-id="${widgetId}"]`) ||
+      document.querySelector(`.${panelClass}`);
+    const widget = panel?.querySelector('.dockable-widget');
+
+    if (!panel || !widget) {
+      return null;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const widgetRect = widget.getBoundingClientRect();
+
+    return {
+      left: widgetRect.left - containerRect.left,
+      top: widgetRect.top - containerRect.top,
+      width: widgetRect.width,
+      height: widgetRect.height
+    };
+  }, [widgetStates]);
+
+  const getRecommendedRevealLayouts = useCallback((sourceWidgetId = 'curator') => {
+    const container = containerRef.current;
+    if (!container) {
+      return {};
+    }
+
+    const margin = 12;
+    const gap = 14;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const sourceRect = getWidgetRectWithinContainer(sourceWidgetId) || {
+      left: margin,
+      top: margin,
+      width: Math.min(840, containerWidth * 0.54),
+      height: Math.min(500, containerHeight * 0.52)
+    };
+
+    const sourceLeft = clampNumber(sourceRect.left, margin, Math.max(margin, containerWidth - 360));
+    const sourceTop = clampNumber(sourceRect.top, margin, Math.max(margin, containerHeight - 240));
+    const sourceWidth = clampNumber(sourceRect.width, 360, Math.max(360, containerWidth - (margin * 2)));
+    const sourceHeight = clampNumber(sourceRect.height, 240, Math.max(240, containerHeight - (margin * 2)));
+    const rightColumnWidth = clampNumber(
+      containerWidth - (sourceLeft + sourceWidth) - margin - gap,
+      320,
+      500
+    );
+    const rightColumnLeft = clampNumber(
+      containerWidth - margin - rightColumnWidth,
+      margin,
+      Math.max(margin, containerWidth - rightColumnWidth - margin)
+    );
+    const rightStackHeight = clampNumber(
+      (containerHeight - (margin * 2) - gap) / 2,
+      220,
+      340
+    );
+    const bottomTop = clampNumber(
+      sourceTop + sourceHeight + gap,
+      margin,
+      Math.max(margin, containerHeight - 240)
+    );
+    const bottomHeight = clampNumber(containerHeight - bottomTop - margin, 220, 320);
+    const bottomWidth = clampNumber(
+      Math.min(sourceWidth, containerWidth - (margin * 2)),
+      360,
+      containerWidth - (margin * 2)
+    );
+    const bottomSplitWidth = clampNumber((bottomWidth - gap) / 2, 280, 520);
+    const overlayWidth = clampNumber(Math.min(220, sourceWidth - (gap * 2)), 180, 220);
+
+    return {
+      clusterStats: {
+        position: {
+          left: clampNumber(sourceLeft + sourceWidth - overlayWidth - gap, margin, containerWidth - overlayWidth - margin),
+          top: clampNumber(sourceTop + gap, margin, containerHeight - 190)
+        },
+        size: {
+          width: overlayWidth,
+          height: clampNumber(Math.min(200, sourceHeight - (gap * 2)), 170, 200)
+        }
+      },
+      signalView: {
+        position: { left: rightColumnLeft, top: margin },
+        size: { width: rightColumnWidth, height: rightStackHeight }
+      },
+      waveform: {
+        position: {
+          left: rightColumnLeft,
+          top: clampNumber(margin + rightStackHeight + gap, margin, containerHeight - rightStackHeight - margin)
+        },
+        size: { width: rightColumnWidth, height: rightStackHeight }
+      },
+      rasterPlot: {
+        position: { left: sourceLeft, top: bottomTop },
+        size: { width: bottomSplitWidth, height: bottomHeight }
+      },
+      amplitudeProfile: {
+        position: {
+          left: clampNumber(sourceLeft + bottomSplitWidth + gap, margin, containerWidth - bottomSplitWidth - margin),
+          top: bottomTop
+        },
+        size: { width: bottomSplitWidth, height: bottomHeight }
+      }
+    };
+  }, [getWidgetRectWithinContainer]);
+
   const getPanelStyle = (widgetId) => {
     const state = widgetStates[widgetId];
+    const panelStyle = {
+      zIndex: state?.maximized ? 5000 : (state?.order || DEFAULT_WIDGET_STATES[getWidgetType(widgetId, state)]?.order || 1)
+    };
+
     if (state?.position) {
-      return {
-        top: typeof state.position.top === 'number' ? `${state.position.top}px` : state.position.top,
-        left: typeof state.position.left === 'number' ? `${state.position.left}px` : state.position.left
-      };
+      panelStyle.top = typeof state.position.top === 'number' ? `${state.position.top}px` : state.position.top;
+      panelStyle.left = typeof state.position.left === 'number' ? `${state.position.left}px` : state.position.left;
     }
-    return {};
+
+    return panelStyle;
   };
 
   const clusterListClusters = getBoundWidgetValue('clusterList', 'clusters', clusters);
@@ -1268,11 +1555,14 @@ const MultiPanelView = forwardRef(({
   const rasterSelectedClusters = getBoundWidgetValue('rasterPlot', 'selectedClusters', selectedClusters);
   const rasterClusterSource = getBoundWidgetValue('rasterPlot', 'clusterData', clusterData);
 
-  const revealWidgetsForCluster = useCallback(() => {
+  const revealWidgetsForCluster = useCallback((sourceWidgetId = 'curator') => {
+    const recommendedLayouts = getRecommendedRevealLayouts(sourceWidgetId);
+
     setWidgetStates((prevStates) => {
       const widgetIdsToReveal = ['clusterStats', 'signalView', 'waveform', 'amplitudeProfile', 'rasterPlot'];
       let hasChanges = false;
       const nextStates = { ...prevStates };
+      let nextOrder = getMaxWidgetOrder(prevStates);
 
       widgetIdsToReveal.forEach((widgetId) => {
         const currentState = nextStates[widgetId] || DEFAULT_WIDGET_STATES[widgetId];
@@ -1281,18 +1571,23 @@ const MultiPanelView = forwardRef(({
           return;
         }
 
+        const recommendedLayout = recommendedLayouts[widgetId];
+        nextOrder += 1;
         nextStates[widgetId] = {
           ...currentState,
           visible: true,
           minimized: false,
-          maximized: false
+          maximized: false,
+          order: nextOrder,
+          position: recommendedLayout?.position || currentState.position || null,
+          size: recommendedLayout?.size || currentState.size || null
         };
         hasChanges = true;
       });
 
       return hasChanges ? mergeWidgetStateDefaults(nextStates) : prevStates;
     });
-  }, []);
+  }, [getRecommendedRevealLayouts]);
 
   const handleCuratorDatasetChange = useCallback((nextDataset) => {
     setCuratorDataset(nextDataset);
@@ -1320,7 +1615,7 @@ const MultiPanelView = forwardRef(({
       setTimeRange({ start, end: start + 1000 });
     }
 
-    revealWidgetsForCluster();
+    revealWidgetsForCluster('curator');
   }, [revealWidgetsForCluster]);
 
   const handleRasterEventSelect = useCallback((event) => {
@@ -1340,7 +1635,7 @@ const MultiPanelView = forwardRef(({
       setTimeRange({ start, end: start + 1000 });
     }
 
-    revealWidgetsForCluster();
+    revealWidgetsForCluster('rasterPlot');
   }, [revealWidgetsForCluster]);
 
   const renderWidgetContent = (widgetId) => {
@@ -1445,6 +1740,7 @@ const MultiPanelView = forwardRef(({
                 selectedAlgorithm={selectedAlgorithm}
                 demoMode={demoMode}
                 demoWaveforms={waveforms}
+                clusterLookup={curatorClusterMap}
               />
             )}
           </>
@@ -1512,6 +1808,7 @@ const MultiPanelView = forwardRef(({
           onMinimize={handleMinimizeWidget}
           onMaximize={handleMaximizeWidget}
           onLayoutChange={handleWidgetLayoutChange}
+          onActivate={handleActivateWidget}
           isMinimized={state.minimized}
           isMaximized={state.maximized}
         >
@@ -1525,6 +1822,7 @@ const MultiPanelView = forwardRef(({
     <div
       className={`multi-panel-view ${isDragOver ? 'drag-over' : ''}`}
       ref={containerRef}
+      style={displayStyle}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1585,6 +1883,9 @@ const MultiPanelView = forwardRef(({
         pipelineVariables={pipelineVariables}
         widgetInputBindings={widgetInputBindings}
         onWidgetBindingChange={handleWidgetBindingChange}
+        displaySettings={displaySettings}
+        onDisplaySettingsChange={handleDisplaySettingsChange}
+        onResetDisplaySettings={handleResetDisplaySettings}
         customPipelines={customPipelines}
         isLoadingCustomPipelines={isLoadingCustomPipelines}
         customPipelineError={customPipelineError}
@@ -1603,6 +1904,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.clusterList.minimized}
               isMaximized={widgetStates.clusterList.maximized}
             >
@@ -1624,6 +1926,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.spikeList.minimized}
               isMaximized={widgetStates.spikeList.maximized}
             >
@@ -1646,6 +1949,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.clusterStats.minimized}
               isMaximized={widgetStates.clusterStats.maximized}
             >
@@ -1666,6 +1970,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.signalView.minimized}
               isMaximized={widgetStates.signalView.maximized}
             >
@@ -1690,6 +1995,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.dimReduction.minimized}
               isMaximized={widgetStates.dimReduction.maximized}
             >
@@ -1721,6 +2027,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.amplitudeProfile.minimized}
               isMaximized={widgetStates.amplitudeProfile.maximized}
             >
@@ -1743,6 +2050,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.clusterComparison.minimized}
               isMaximized={widgetStates.clusterComparison.maximized}
             >
@@ -1760,6 +2068,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.curator.minimized}
               isMaximized={widgetStates.curator.maximized}
             >
@@ -1782,6 +2091,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.rasterPlot.minimized}
               isMaximized={widgetStates.rasterPlot.maximized}
             >
@@ -1807,6 +2117,7 @@ const MultiPanelView = forwardRef(({
               onMinimize={handleMinimizeWidget}
               onMaximize={handleMaximizeWidget}
               onLayoutChange={handleWidgetLayoutChange}
+              onActivate={handleActivateWidget}
               isMinimized={widgetStates.waveform.minimized}
               isMaximized={widgetStates.waveform.maximized}
             >

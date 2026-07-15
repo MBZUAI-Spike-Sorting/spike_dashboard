@@ -1,8 +1,29 @@
 .multi-panel-view {
+  --dashboard-container-padding: 8px;
+  --dashboard-shell-padding: 10px;
+  --dashboard-panel-gap: 8px;
+  --dashboard-compact-gap: 6px;
+  --dashboard-control-gap: 4px;
+  --dashboard-font-xs: 0.72rem;
+  --dashboard-font-sm: 0.82rem;
+  --dashboard-font-base: 0.92rem;
+  --dashboard-font-lg: 1.02rem;
+  --dashboard-control-font-size: 0.8rem;
+  --dashboard-widget-header-pad-y: 6px;
+  --dashboard-widget-header-pad-x: 10px;
+  --dashboard-widget-header-height: 36px;
+  --dashboard-widget-control-size: 22px;
+  --dashboard-widget-minimized-height: 42px;
+  --dashboard-table-cell-pad-y: 7px;
+  --dashboard-table-cell-pad-x: 8px;
+  --dashboard-toolbar-control-height: 28px;
+  --dashboard-sidebar-width: 104px;
+  --dashboard-summary-card-padding: 12px;
+  --dashboard-row-min-height: 22px;
   position: relative;
   height: 100%;
   width: 100%;
-  padding: 0.5rem;
+  padding: var(--dashboard-container-padding);
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   overflow: hidden;
   transition: background 0.2s ease;
@@ -248,8 +269,8 @@
 .waveform-view-toggle {
   display: flex !important;
   flex-direction: row !important;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: var(--dashboard-panel-gap);
+  padding: var(--dashboard-shell-padding);
   background: transparent;
   border-bottom: 1px solid rgba(64, 224, 208, 0.2);
   flex-shrink: 0 !important;
@@ -263,13 +284,14 @@
 .waveform-view-toggle button {
   flex: 1 1 0;
   min-width: 0;
-  padding: 0.4rem 0.75rem;
+  min-height: var(--dashboard-toolbar-control-height);
+  padding: 0 var(--dashboard-shell-padding);
   background: rgba(64, 224, 208, 0.1);
   border: 1px solid rgba(64, 224, 208, 0.3);
   border-radius: 4px;
   color: #e0e6ed;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--dashboard-control-font-size);
   font-weight: 500;
   transition: all 0.2s ease;
   white-space: nowrap;

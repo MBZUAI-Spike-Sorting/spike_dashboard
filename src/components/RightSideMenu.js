@@ -60,6 +60,9 @@ const RightSideMenu = ({
   pipelineVariables,
   widgetInputBindings,
   onWidgetBindingChange,
+  displaySettings = { scale: 1, density: 'standard' },
+  onDisplaySettingsChange,
+  onResetDisplaySettings,
   customPipelines = [],
   isLoadingCustomPipelines = false,
   customPipelineError = null,
@@ -132,6 +135,50 @@ const RightSideMenu = ({
               onPersistViews={onPersistViews}
               layoutStorageScope={layoutStorageScope}
             />
+          </div>
+
+          <div className="menu-section">
+            <div className="section-label">Display</div>
+            <div className="display-controls">
+              <label className="display-control">
+                <div className="display-control-row">
+                  <span>UI scale</span>
+                  <strong>{displaySettings.scale.toFixed(2)}x</strong>
+                </div>
+                <input
+                  className="display-scale-slider"
+                  type="range"
+                  min="0.85"
+                  max="1.25"
+                  step="0.05"
+                  value={displaySettings.scale}
+                  onChange={(e) => onDisplaySettingsChange?.({ scale: Number(e.target.value) })}
+                />
+              </label>
+
+              <label className="display-control">
+                <div className="display-control-row">
+                  <span>Density</span>
+                </div>
+                <select
+                  className="menu-select"
+                  value={displaySettings.density}
+                  onChange={(e) => onDisplaySettingsChange?.({ density: e.target.value })}
+                >
+                  <option value="compact">Compact</option>
+                  <option value="standard">Standard</option>
+                  <option value="comfortable">Comfortable</option>
+                </select>
+              </label>
+
+              <button
+                className="display-reset-btn"
+                type="button"
+                onClick={onResetDisplaySettings}
+              >
+                Reset display
+              </button>
+            </div>
           </div>
 
           <div className="menu-section">
