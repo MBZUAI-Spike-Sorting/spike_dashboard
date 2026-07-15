@@ -380,3 +380,12 @@
 .multi-panel-view ::-webkit-scrollbar-thumb:hover {
   background: rgba(64, 224, 208, 0.5);
 }
+
+.panel-custom-widget {
+  position: absolute;
+}
+
+.panel-custom-widget .dockable-widget {
+  min-width: 180px;
+  min-height: 160px;
+}

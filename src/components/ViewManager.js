@@ -10,7 +10,6 @@ const getScopedStorageKey = (key, scope) => {
   return scope ? `${key}:${scope}` : key;
 };
 
-// Default view configuration
 const DEFAULT_VIEW = {
   id: 'default',
   name: 'Default Layout',
@@ -29,7 +28,6 @@ const DEFAULT_VIEW = {
   }
 };
 
-// Empty view configuration - all widgets hidden (for new custom views)
 const EMPTY_WIDGET_STATES = {
   clusterList: { visible: false, minimized: false, maximized: false, order: 1, position: null, size: null },
   spikeList: { visible: false, minimized: false, maximized: false, order: 2, position: null, size: null },
@@ -105,9 +103,10 @@ const readLocalViewSnapshot = (storageScope) => {
     const views = normalizeViews(JSON.parse(savedViews));
     return {
       views,
-      currentViewId: savedCurrentView && views.some((view) => view.id === savedCurrentView)
-        ? savedCurrentView
-        : 'default'
+      currentViewId:
+        savedCurrentView && views.some((view) => view.id === savedCurrentView)
+          ? savedCurrentView
+          : 'default'
     };
   } catch (e) {
     console.error('Error loading saved views:', e);
@@ -123,18 +122,19 @@ const buildViewSnapshot = (savedViews, savedCurrentViewId, storageScope) => {
     const views = normalizeViews(savedViews);
     return {
       views,
-      currentViewId: savedCurrentViewId && views.some((view) => view.id === savedCurrentViewId)
-        ? savedCurrentViewId
-        : 'default'
+      currentViewId:
+        savedCurrentViewId && views.some((view) => view.id === savedCurrentViewId)
+          ? savedCurrentViewId
+          : 'default'
     };
   }
 
   return readLocalViewSnapshot(storageScope);
 };
 
-const ViewManager = ({ 
-  currentWidgetStates, 
-  onViewChange, 
+const ViewManager = ({
+  currentWidgetStates,
+  onViewChange,
   getWidgetPositionsAndSizes,
   savedViews,
   savedCurrentViewId,
@@ -149,28 +149,31 @@ const ViewManager = ({
   const [editingViewId, setEditingViewId] = useState(null);
   const [editingName, setEditingName] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
+
   const dropdownRef = useRef(null);
   const inputRef = useRef(null);
   const lastAppliedAccountSnapshotRef = useRef(null);
   const lastPersistedSnapshotRef = useRef(null);
 
-  // Load views from account preferences first, then localStorage as a fallback.
   useEffect(() => {
     let applyViewTimer = null;
     const snapshot = buildViewSnapshot(savedViews, savedCurrentViewId, layoutStorageScope);
     const snapshotKey = JSON.stringify(snapshot);
     const hasAccountSavedViews = Array.isArray(savedViews) && savedViews.length > 0;
-    
+
     lastAppliedAccountSnapshotRef.current = snapshotKey;
     lastPersistedSnapshotRef.current = hasAccountSavedViews ? snapshotKey : null;
+
     setViews(snapshot.views);
     setCurrentViewId(snapshot.currentViewId);
-    
-    // Apply the loaded view
-    const viewToApply = snapshot.views.find(v => v.id === snapshot.currentViewId);
+
+    const viewToApply = snapshot.views.find((v) => v.id === snapshot.currentViewId);
     if (viewToApply && onViewChange) {
       applyViewTimer = setTimeout(() => {
-        onViewChange(viewToApply.widgetStates, viewToApply.id);
+        onViewChange(
+          JSON.parse(JSON.stringify(viewToApply.widgetStates)),
+          viewToApply.id
+        );
         setIsInitialized(true);
       }, 100);
     } else {
@@ -178,13 +181,10 @@ const ViewManager = ({
     }
 
     return () => {
-      if (applyViewTimer) {
-        clearTimeout(applyViewTimer);
-      }
+      if (applyViewTimer) clearTimeout(applyViewTimer);
     };
-  }, [layoutStorageScope]);
+  }, [layoutStorageScope, savedViews, savedCurrentViewId, onViewChange]);
 
-  // Apply account-saved views if they arrive after the component has mounted.
   useEffect(() => {
     if (!isInitialized || !Array.isArray(savedViews) || savedViews.length === 0) {
       return;
@@ -199,38 +199,31 @@ const ViewManager = ({
 
     lastAppliedAccountSnapshotRef.current = snapshotKey;
     lastPersistedSnapshotRef.current = snapshotKey;
+
     setViews(snapshot.views);
     setCurrentViewId(snapshot.currentViewId);
 
-    const viewToApply = snapshot.views.find(v => v.id === snapshot.currentViewId);
+    const viewToApply = snapshot.views.find((v) => v.id === snapshot.currentViewId);
     if (viewToApply && onViewChange) {
-      onViewChange(viewToApply.widgetStates, viewToApply.id);
+      onViewChange(
+        JSON.parse(JSON.stringify(viewToApply.widgetStates)),
+        viewToApply.id
+      );
     }
   }, [savedViews, savedCurrentViewId, isInitialized, onViewChange, layoutStorageScope]);
 
-  // Keep the active custom view synchronized with live widget changes.
+  /**
+   * IMPORTANT FIX:
+   * Save the live React widget state directly.
+   * Do not re-read positions from the DOM here.
+   */
   useEffect(() => {
     if (!isInitialized || currentViewId === 'default' || !currentWidgetStates) {
       return;
     }
 
-    const positionsAndSizes = typeof getWidgetPositionsAndSizes === 'function'
-      ? getWidgetPositionsAndSizes()
-      : {};
-    const normalizedWidgetStates = mergeWidgetStateDefaults(currentWidgetStates);
-    const widgetStatesWithLayout = Object.entries(normalizedWidgetStates).reduce(
-      (acc, [widgetId, state]) => {
-        const layout = positionsAndSizes[widgetId] || {};
-
-        acc[widgetId] = {
-          ...state,
-          position: layout.position || state.position || null,
-          size: layout.size || state.size || null
-        };
-
-        return acc;
-      },
-      {}
+    const normalizedWidgetStates = mergeWidgetStateDefaults(
+      JSON.parse(JSON.stringify(currentWidgetStates))
     );
 
     setViews((previousViews) => {
@@ -238,30 +231,26 @@ const ViewManager = ({
         (view) => view.id === currentViewId && !view.isDefault
       );
 
-      if (viewIndex === -1) {
-        return previousViews;
-      }
+      if (viewIndex === -1) return previousViews;
 
       const activeView = previousViews[viewIndex];
-      if (JSON.stringify(activeView.widgetStates) === JSON.stringify(widgetStatesWithLayout)) {
+      if (JSON.stringify(activeView.widgetStates) === JSON.stringify(normalizedWidgetStates)) {
         return previousViews;
       }
 
       const nextViews = [...previousViews];
       nextViews[viewIndex] = {
         ...activeView,
-        widgetStates: widgetStatesWithLayout,
+        widgetStates: normalizedWidgetStates,
         updatedAt: new Date().toISOString()
       };
+
       return nextViews;
     });
-  }, [currentWidgetStates, currentViewId, getWidgetPositionsAndSizes, isInitialized]);
+  }, [currentWidgetStates, currentViewId, isInitialized]);
 
-  // Save views locally and, for logged-in users, to account preferences.
   useEffect(() => {
-    if (!isInitialized) {
-      return;
-    }
+    if (!isInitialized) return;
 
     localStorage.setItem(
       getScopedStorageKey(STORAGE_KEY, layoutStorageScope),
@@ -272,9 +261,7 @@ const ViewManager = ({
       currentViewId
     );
 
-    if (!onPersistViews) {
-      return;
-    }
+    if (!onPersistViews) return;
 
     const snapshotKey = JSON.stringify({ views, currentViewId });
     if (lastPersistedSnapshotRef.current === snapshotKey) {
@@ -287,9 +274,7 @@ const ViewManager = ({
   }, [views, currentViewId, isInitialized, onPersistViews, layoutStorageScope]);
 
   useEffect(() => {
-    if (!isInitialized) {
-      return undefined;
-    }
+    if (!isInitialized) return undefined;
 
     const viewsStorageKey = getScopedStorageKey(STORAGE_KEY, layoutStorageScope);
     const currentViewStorageKey = getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope);
@@ -307,12 +292,16 @@ const ViewManager = ({
 
       lastAppliedAccountSnapshotRef.current = snapshotKey;
       lastPersistedSnapshotRef.current = snapshotKey;
+
       setViews(snapshot.views);
       setCurrentViewId(snapshot.currentViewId);
 
       const viewToApply = snapshot.views.find((view) => view.id === snapshot.currentViewId);
       if (viewToApply && onViewChange) {
-        onViewChange(viewToApply.widgetStates, viewToApply.id);
+        onViewChange(
+          JSON.parse(JSON.stringify(viewToApply.widgetStates)),
+          viewToApply.id
+        );
       }
     };
 
@@ -320,7 +309,6 @@ const ViewManager = ({
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [isInitialized, layoutStorageScope, onViewChange]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -329,40 +317,39 @@ const ViewManager = ({
         setEditingViewId(null);
       }
     };
-    
+
     if (isDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [isDropdownOpen]);
 
-  // Focus input when creating new view
   useEffect(() => {
     if (isCreatingNew && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isCreatingNew]);
 
-  // Get current view
-  const currentView = views.find(v => v.id === currentViewId) || DEFAULT_VIEW;
+  const currentView = views.find((v) => v.id === currentViewId) || DEFAULT_VIEW;
 
-  // Handle view selection
   const handleSelectView = (viewId) => {
-    const view = views.find(v => v.id === viewId);
-    if (view) {
-      setCurrentViewId(viewId);
-      const widgetStatesToApply = viewId === 'default'
+    const view = views.find((v) => v.id === viewId);
+    if (!view) return;
+
+    setCurrentViewId(viewId);
+
+    const widgetStatesToApply =
+      viewId === 'default'
         ? mergeWidgetStateDefaults(DEFAULT_VIEW.widgetStates)
         : mergeWidgetStateDefaults(view.widgetStates);
-      onViewChange(widgetStatesToApply, view.id);
-      setIsDropdownOpen(false);
-    }
+
+    onViewChange(JSON.parse(JSON.stringify(widgetStatesToApply)), view.id);
+    setIsDropdownOpen(false);
   };
 
-  // Create new view with EMPTY widgets
   const handleCreateView = () => {
     if (!newViewName.trim()) return;
-    
+
     const newView = {
       id: `view_${Date.now()}`,
       name: newViewName.trim(),
@@ -373,29 +360,30 @@ const ViewManager = ({
       ),
       createdAt: new Date().toISOString()
     };
-    
-    setViews(prev => [...prev, newView]);
+
+    setViews((prev) => [...prev, newView]);
     setCurrentViewId(newView.id);
-    onViewChange(newView.widgetStates, newView.id);
+    onViewChange(JSON.parse(JSON.stringify(newView.widgetStates)), newView.id);
     setNewViewName('');
     setIsCreatingNew(false);
     setIsDropdownOpen(false);
   };
 
-  // Delete a view
   const handleDeleteView = (e, viewId) => {
     e.stopPropagation();
     if (viewId === 'default') return;
-    
-    setViews(prev => prev.filter(v => v.id !== viewId));
-    
+
+    setViews((prev) => prev.filter((v) => v.id !== viewId));
+
     if (currentViewId === viewId) {
       setCurrentViewId('default');
-      onViewChange(mergeWidgetStateDefaults(DEFAULT_VIEW.widgetStates), 'default');
+      onViewChange(
+        JSON.parse(JSON.stringify(mergeWidgetStateDefaults(DEFAULT_VIEW.widgetStates))),
+        'default'
+      );
     }
   };
 
-  // Rename a view
   const handleStartRename = (e, viewId, currentName) => {
     e.stopPropagation();
     setEditingViewId(viewId);
@@ -407,13 +395,12 @@ const ViewManager = ({
       setEditingViewId(null);
       return;
     }
-    
-    setViews(prev => prev.map(view => {
-      if (view.id === viewId) {
-        return { ...view, name: editingName.trim() };
-      }
-      return view;
-    }));
+
+    setViews((prev) =>
+      prev.map((view) =>
+        view.id === viewId ? { ...view, name: editingName.trim() } : view
+      )
+    );
     setEditingViewId(null);
   };
 
@@ -437,7 +424,7 @@ const ViewManager = ({
 
   return (
     <div className="view-manager" ref={dropdownRef}>
-      <button 
+      <button
         className={`view-manager-toggle ${isDropdownOpen ? 'active' : ''}`}
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
       >
@@ -453,7 +440,7 @@ const ViewManager = ({
           </div>
 
           <div className="view-list">
-            {views.map(view => (
+            {views.map((view) => (
               <div
                 key={view.id}
                 className={`view-item ${view.id === currentViewId ? 'active' : ''} ${view.isDefault ? 'default' : ''}`}
@@ -504,10 +491,7 @@ const ViewManager = ({
           </div>
 
           <div className="dropdown-footer">
-            <button
-              className="open-tab-btn"
-              onClick={handleOpenInNewTab}
-            >
+            <button className="open-tab-btn" onClick={handleOpenInNewTab}>
               Open In New Tab
             </button>
 
@@ -522,14 +506,14 @@ const ViewManager = ({
                   onKeyDown={(e) => handleKeyDown(e, 'create')}
                   className="new-view-input"
                 />
-                <button 
+                <button
                   className="confirm-btn"
                   onClick={handleCreateView}
                   disabled={!newViewName.trim()}
                 >
                   ✓
                 </button>
-                <button 
+                <button
                   className="cancel-btn"
                   onClick={() => {
                     setIsCreatingNew(false);
@@ -540,7 +524,7 @@ const ViewManager = ({
                 </button>
               </div>
             ) : (
-              <button 
+              <button
                 className="create-view-btn"
                 onClick={() => setIsCreatingNew(true)}
               >
@@ -564,4 +548,5 @@ export {
   EMPTY_WIDGET_STATES,
   getScopedStorageKey
 };
+
 export default ViewManager;
