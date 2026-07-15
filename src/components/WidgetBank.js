@@ -155,6 +155,7 @@ const WidgetBank = ({
 
   const handleWidgetClick = (widget) => {
     onAddWidget(widget);
+    onClose();
   };
 
   // Close on outside click
