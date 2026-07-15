@@ -5,7 +5,7 @@
 .cluster-list-table {
   background: rgba(30, 30, 60, 0.5);
   border-radius: var(--radius-md, 8px);
-  padding: var(--space-md, 1rem);
+  padding: var(--dashboard-shell-padding, var(--space-md, 1rem));
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -45,22 +45,22 @@
 }
 
 .cluster-list-table th {
-  padding: 0.6rem 0.5rem;
+  padding: var(--dashboard-table-cell-pad-y, 7px) var(--dashboard-table-cell-pad-x, 8px);
   text-align: center;
   color: var(--color-text-muted, rgba(224, 230, 237, 0.6));
   font-weight: 600;
-  font-size: var(--text-xs, 0.75rem);
+  font-size: var(--dashboard-font-xs, var(--text-xs, 0.75rem));
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid rgba(64, 224, 208, 0.2);
 }
 
 .cluster-list-table td {
-  padding: 0.55rem 0.5rem;
+  padding: var(--dashboard-table-cell-pad-y, 7px) var(--dashboard-table-cell-pad-x, 8px);
   text-align: center;
   color: var(--color-text-primary, #e0e6ed);
   border-bottom: 1px solid rgba(64, 224, 208, 0.06);
-  font-size: var(--text-sm, 0.875rem);
+  font-size: var(--dashboard-font-sm, var(--text-sm, 0.875rem));
   transition: background var(--transition-fast, 150ms ease);
 }
 
@@ -95,7 +95,7 @@
 }
 
 .cluster-id-cell {
-  font-size: var(--text-sm, 0.875rem);
+  font-size: var(--dashboard-font-sm, var(--text-sm, 0.875rem));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }

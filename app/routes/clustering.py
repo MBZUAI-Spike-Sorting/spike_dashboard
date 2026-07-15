@@ -131,6 +131,7 @@ def get_cluster_waveforms():
     try:
         data = request.get_json()
         cluster_ids = data.get('clusterIds', [])
+        explicit_clusters = data.get('clusters', [])
         max_waveforms = data.get('maxWaveforms', 100)
         window_size = data.get('windowSize', 30)
         algorithm = data.get('algorithm', '')
@@ -138,7 +139,7 @@ def get_cluster_waveforms():
         dataset_manager = current_app.config['dataset_manager']
         clustering_manager = current_app.config['clustering_manager']
         
-        if not cluster_ids or dataset_manager.data_array is None:
+        if (not cluster_ids and not explicit_clusters) or dataset_manager.data_array is None:
             return jsonify({'waveforms': {}})
         
         # For preprocessed algorithms, load saved results into memory first
@@ -149,12 +150,17 @@ def get_cluster_waveforms():
             if clustering_manager.clustering_results is None:
                 clustering_manager.load_preprocessed_kilosort4()
         
-        if clustering_manager.clustering_results is not None:
-            waveforms_data = _get_algorithm_waveforms(
+        waveforms_data = {}
+
+        if cluster_ids and clustering_manager.clustering_results is not None:
+            waveforms_data.update(_get_algorithm_waveforms(
                 clustering_manager, dataset_manager, cluster_ids, max_waveforms, window_size
-            )
-        else:
-            return jsonify({'waveforms': {}})
+            ))
+
+        if explicit_clusters:
+            waveforms_data.update(_get_explicit_cluster_waveforms(
+                dataset_manager, explicit_clusters, max_waveforms, window_size
+            ))
         
         return jsonify({'waveforms': waveforms_data})
     except Exception as e:
@@ -200,12 +206,229 @@ def _get_algorithm_waveforms(clustering_manager, dataset_manager, cluster_ids, m
                 
                 waveforms.append({
                     'timePoints': time_points,
-                    'amplitude': waveform.tolist()
+                    'amplitude': waveform.tolist(),
+                    'time': int(spike_time),
+                    'channel': int(channel)
                 })
         
         waveforms_data[cluster_id] = waveforms
-    
+
     return waveforms_data
+
+
+def _normalize_explicit_cluster_payload(cluster):
+    """Normalize an explicit cluster payload coming from the curator widget."""
+    if not isinstance(cluster, dict):
+        return None
+
+    raw_id = cluster.get('id', cluster.get('clusterId'))
+    cluster_id = raw_id if raw_id is not None else cluster.get('label')
+
+    try:
+        raw_channel = cluster.get('primaryChannel', cluster.get('channel'))
+        primary_channel = int(round(float(raw_channel))) if raw_channel not in (None, '') else None
+    except (TypeError, ValueError):
+        primary_channel = None
+
+    spike_times = []
+    for raw_time in cluster.get('spikeTimes', cluster.get('times', [])) or []:
+        try:
+            spike_time = int(round(float(raw_time)))
+        except (TypeError, ValueError):
+            continue
+
+        if spike_time >= 0:
+            spike_times.append(spike_time)
+
+    if cluster_id is None or not spike_times:
+        return None
+
+    return {
+        'id': cluster_id,
+        'primaryChannel': primary_channel,
+        'spikeTimes': spike_times
+    }
+
+
+def _sample_spike_times(spike_times, max_waveforms):
+    """Sample spike times without replacement when needed."""
+    if len(spike_times) <= max_waveforms:
+        return spike_times
+
+    indices = np.random.choice(len(spike_times), max_waveforms, replace=False)
+    return [spike_times[index] for index in indices]
+
+
+def _normalize_channel_reference(channel_value, num_channels):
+    """
+    Convert a channel identifier to a zero-based dataset index and a display label.
+
+    The dashboard mostly displays one-based channel labels, while some curator files may
+    provide zero-based channel indices. We accept both and normalize them here.
+    """
+    if channel_value in (None, ''):
+        return None, None
+
+    try:
+        raw_channel = int(round(float(channel_value)))
+    except (TypeError, ValueError):
+        return None, None
+
+    if 1 <= raw_channel <= num_channels:
+        return raw_channel - 1, raw_channel
+
+    if 0 <= raw_channel < num_channels:
+        return raw_channel, raw_channel + 1
+
+    return None, None
+
+
+def _infer_peak_channel_from_dataset(dataset_manager, spike_times):
+    """Infer the most likely peak channel from the raw dataset when no channel is provided."""
+    if dataset_manager.data_array is None or not spike_times:
+        return None, None
+
+    sampled_times = _sample_spike_times(spike_times, min(128, len(spike_times)))
+    data_array = dataset_manager.data_array
+    num_channels, num_samples = data_array.shape[0], data_array.shape[1]
+    channel_scores = np.zeros(num_channels, dtype=float)
+    usable_spikes = 0
+
+    for spike_time in sampled_times:
+        if spike_time < 0 or spike_time >= num_samples:
+            continue
+
+        start_idx = max(0, spike_time - 1)
+        end_idx = min(num_samples, spike_time + 2)
+        sample_window = data_array[:, start_idx:end_idx]
+        if sample_window.size == 0:
+            continue
+
+        channel_scores += np.mean(np.abs(sample_window), axis=1)
+        usable_spikes += 1
+
+    if usable_spikes == 0 or not np.any(channel_scores):
+        return None, None
+
+    peak_channel_idx = int(np.argmax(channel_scores))
+    return peak_channel_idx, peak_channel_idx + 1
+
+
+def _extract_waveforms_for_channel(dataset_manager, spike_times, channel_idx, channel_label, max_waveforms, window_size):
+    """Extract normalized single-channel waveforms for a list of spike times."""
+    sampled_spike_times = _sample_spike_times(spike_times, max_waveforms)
+    waveforms = []
+    num_samples = dataset_manager.data_array.shape[1]
+
+    for spike_time in sampled_spike_times:
+        start_idx = max(0, int(spike_time) - window_size)
+        end_idx = min(num_samples, int(spike_time) + window_size)
+
+        if start_idx >= end_idx or channel_idx < 0 or channel_idx >= dataset_manager.data_array.shape[0]:
+            continue
+
+        waveform = dataset_manager.data_array[channel_idx, start_idx:end_idx].astype(float)
+        if len(waveform) == 0:
+            continue
+
+        mean = np.mean(waveform)
+        std = np.std(waveform)
+        if std > 0:
+            waveform = (waveform - mean) / std
+
+        time_points = [(i - window_size) / 30.0 for i in range(len(waveform))]
+        waveforms.append({
+            'timePoints': time_points,
+            'amplitude': waveform.tolist(),
+            'time': int(spike_time),
+            'channel': channel_label
+        })
+
+    return waveforms
+
+
+def _get_explicit_cluster_waveforms(dataset_manager, explicit_clusters, max_waveforms, window_size):
+    """Extract waveforms for curator-provided clusters using explicit spike times."""
+    waveforms_data = {}
+    num_channels = dataset_manager.data_array.shape[0]
+
+    for cluster in explicit_clusters:
+        normalized_cluster = _normalize_explicit_cluster_payload(cluster)
+        if not normalized_cluster:
+            continue
+
+        channel_idx, channel_label = _normalize_channel_reference(
+            normalized_cluster['primaryChannel'],
+            num_channels
+        )
+
+        if channel_idx is None:
+            channel_idx, channel_label = _infer_peak_channel_from_dataset(
+                dataset_manager,
+                normalized_cluster['spikeTimes']
+            )
+
+        if channel_idx is None:
+            continue
+
+        waveforms = _extract_waveforms_for_channel(
+            dataset_manager,
+            normalized_cluster['spikeTimes'],
+            channel_idx,
+            channel_label,
+            max_waveforms,
+            window_size
+        )
+
+        waveforms_data[normalized_cluster['id']] = waveforms
+
+    return waveforms_data
+
+
+def _build_multi_channel_waveforms_from_spike_times(
+    dataset_manager,
+    cluster_id,
+    spike_times,
+    primary_channel,
+    max_waveforms,
+    window_size
+):
+    """Build neighboring-channel waveforms for an explicit cluster payload."""
+    if dataset_manager.data_array is None or not spike_times:
+        return None
+
+    num_channels = dataset_manager.data_array.shape[0]
+    peak_channel_idx, peak_channel_label = _normalize_channel_reference(primary_channel, num_channels)
+
+    if peak_channel_idx is None:
+        peak_channel_idx, peak_channel_label = _infer_peak_channel_from_dataset(dataset_manager, spike_times)
+
+    if peak_channel_idx is None:
+        return None
+
+    channels_data = {}
+    for channel_idx in range(max(0, peak_channel_idx - 2), min(num_channels, peak_channel_idx + 3)):
+        display_channel = channel_idx + 1
+        waveforms = _extract_waveforms_for_channel(
+            dataset_manager,
+            spike_times,
+            channel_idx,
+            display_channel,
+            max_waveforms,
+            window_size
+        )
+
+        channels_data[display_channel] = {
+            'channelId': display_channel,
+            'waveforms': waveforms,
+            'isPeak': channel_idx == peak_channel_idx
+        }
+
+    return {
+        'clusterId': cluster_id,
+        'peakChannel': peak_channel_label,
+        'channels': channels_data
+    }
 
 
 
@@ -216,6 +439,7 @@ def get_cluster_multi_channel_waveforms():
     try:
         data = request.get_json()
         cluster_id = data.get('clusterId')
+        explicit_cluster = data.get('cluster')
         max_waveforms = data.get('maxWaveforms', 50)
         window_size = data.get('windowSize', 30)
         algorithm = data.get('algorithm', '')
@@ -225,6 +449,22 @@ def get_cluster_multi_channel_waveforms():
         
         if cluster_id is None or dataset_manager.data_array is None:
             return validation_error('Invalid cluster ID or no data loaded')
+
+        normalized_explicit_cluster = _normalize_explicit_cluster_payload(explicit_cluster)
+        if normalized_explicit_cluster:
+            result = _build_multi_channel_waveforms_from_spike_times(
+                dataset_manager,
+                normalized_explicit_cluster['id'],
+                normalized_explicit_cluster['spikeTimes'],
+                normalized_explicit_cluster['primaryChannel'],
+                max_waveforms,
+                window_size
+            )
+
+            if result is None:
+                return not_found_error('Spikes for cluster', str(cluster_id))
+
+            return jsonify(result)
         
         spike_times, spike_channels = _get_cluster_spike_info(
             cluster_id, algorithm, clustering_manager

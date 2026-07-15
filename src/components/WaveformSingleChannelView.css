@@ -1,7 +1,7 @@
 .waveform-single-channel-view {
   background: rgba(30, 30, 60, 0.6);
   border-radius: 8px;
-  padding: 0.5rem 0.75rem 0.75rem 0.75rem;
+  padding: var(--dashboard-shell-padding, 0.75rem);
   flex: 1 !important;
   min-height: 0 !important;
   display: flex;
@@ -21,12 +21,12 @@
 .waveform-header h3 {
   margin: 0;
   color: #40e0d0;
-  font-size: 0.9rem;
+  font-size: var(--dashboard-font-base, 0.9rem);
   font-weight: 600;
 }
 
 .waveform-info {
-  font-size: 0.75rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   color: #e0e6ed;
   opacity: 0.7;
 }
@@ -48,5 +48,5 @@
 
 .no-data-message p {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--dashboard-font-base, 0.95rem);
 }

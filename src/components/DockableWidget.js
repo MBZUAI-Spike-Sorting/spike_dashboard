@@ -3,8 +3,6 @@ import PropTypes from 'prop-types';
 import './DockableWidget.css';
 
 const WIDGET_BASE_Z_INDEX = 10;
-const WIDGET_ACTIVE_Z_INDEX_MIN = 20;
-const WIDGET_ACTIVE_Z_INDEX_RANGE = 60;
 const WIDGET_TRANSIENT_Z_INDEX = 120;
 
 /**
@@ -21,6 +19,7 @@ const DockableWidget = ({
   onMinimize,
   onMaximize,
   onLayoutChange,
+  onActivate,
   isMinimized = false,
   isMaximized = false,
   showControls = true,
@@ -28,7 +27,6 @@ const DockableWidget = ({
   resizable = true,
   draggable = true
 }) => {
-  const [zIndex, setZIndex] = useState(WIDGET_BASE_Z_INDEX);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const contentRef = useRef(null);
@@ -110,6 +108,12 @@ const DockableWidget = ({
     }
   };
 
+  const activateWidget = () => {
+    if (onActivate) {
+      onActivate(id);
+    }
+  };
+
   // Handle drag to move
   const handleDragStart = (e) => {
     if (!draggable || isMaximized || isResizingRef.current) return;
@@ -152,7 +156,7 @@ const DockableWidget = ({
 
     isDraggingRef.current = true;
     setIsDragging(true);
-    setZIndex(WIDGET_TRANSIENT_Z_INDEX);
+    activateWidget();
 
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
@@ -182,17 +186,9 @@ const DockableWidget = ({
   const handleDragEnd = () => {
     isDraggingRef.current = false;
     setIsDragging(false);
-    setZIndex(WIDGET_BASE_Z_INDEX);
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('mouseup', handleDragEnd);
     notifyLayoutChange();
-  };
-
-  // Bring widget to front on click
-  const handleWidgetClick = () => {
-    if (!isMaximized) {
-      setZIndex(WIDGET_ACTIVE_Z_INDEX_MIN + (Date.now() % WIDGET_ACTIVE_Z_INDEX_RANGE));
-    }
   };
 
   // Setup ResizeObserver to notify child components when widget size changes
@@ -279,6 +275,7 @@ const DockableWidget = ({
 
     isResizingRef.current = true;
     setIsResizing(true);
+    activateWidget();
 
     // Add will-change hints for better performance
     parent.style.willChange = 'left, top';
@@ -385,9 +382,9 @@ const DockableWidget = ({
       style={{
         zIndex: isMaximized || isDragging || isResizing
           ? WIDGET_TRANSIENT_Z_INDEX
-          : zIndex
+          : WIDGET_BASE_Z_INDEX
       }}
-      onClick={handleWidgetClick}
+      onMouseDownCapture={activateWidget}
     >
       {showControls && (
         <div 
@@ -461,6 +458,8 @@ DockableWidget.propTypes = {
   onMaximize: PropTypes.func,
   /** Callback when the widget is moved or resized */
   onLayoutChange: PropTypes.func,
+  /** Callback when the widget becomes active */
+  onActivate: PropTypes.func,
   /** Whether widget is currently minimized */
   isMinimized: PropTypes.bool,
   /** Whether widget is currently maximized */
@@ -481,6 +480,7 @@ DockableWidget.defaultProps = {
   onMinimize: null,
   onMaximize: null,
   onLayoutChange: null,
+  onActivate: null,
   isMinimized: false,
   isMaximized: false,
   showControls: true,

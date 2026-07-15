@@ -5,7 +5,7 @@
   backdrop-filter: blur(10px);
   border: 1px solid rgba(64, 224, 208, 0.2);
   border-radius: 0 0 8px 8px;
-  padding: 0.75rem;
+  padding: var(--dashboard-shell-padding, 0.75rem);
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
@@ -24,7 +24,7 @@
 
 .signal-view-panel .viz-header h2 {
   color: #40e0d0;
-  font-size: 0.9rem;
+  font-size: var(--dashboard-font-base, 0.9rem);
   font-weight: 600;
   margin: 0;
 }
@@ -38,7 +38,7 @@
 
 .signal-view-panel .time-controls label {
   color: rgba(224, 230, 237, 0.7);
-  font-size: 0.75rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
 }
 
 .signal-view-panel .time-input {
@@ -46,8 +46,9 @@
   border: 1px solid rgba(64, 224, 208, 0.3);
   border-radius: 4px;
   color: #e0e6ed;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.75rem;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
+  padding: 0 0.4rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   width: 70px;
 }
 
@@ -62,8 +63,9 @@
   border: 1px solid rgba(64, 224, 208, 0.3);
   border-radius: 4px;
   color: #e0e6ed;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.75rem;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
+  padding: 0 0.4rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   width: 60px;
 }
 
@@ -78,8 +80,9 @@
   border: 1px solid rgba(64, 224, 208, 0.3);
   border-radius: 4px;
   color: #e0e6ed;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.75rem;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
+  padding: 0 0.4rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   width: 70px;
 }
 
@@ -94,8 +97,9 @@
   border: 1px solid rgba(64, 224, 208, 0.3);
   border-radius: 4px;
   color: #e0e6ed;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.75rem;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
+  padding: 0 0.45rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   width: 160px;
   cursor: pointer;
 }
@@ -116,8 +120,9 @@
   border: 1px solid rgba(64, 224, 208, 0.3);
   border-radius: 4px;
   color: #e0e6ed;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.75rem;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
+  padding: 0 0.45rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   width: 150px;
   cursor: pointer;
 }
@@ -138,8 +143,9 @@
   border: 1px solid rgba(64, 224, 208, 0.3);
   border-radius: 4px;
   color: #e0e6ed;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.75rem;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
+  padding: 0 0.45rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   width: 100px;
   cursor: pointer;
 }
@@ -161,7 +167,7 @@
   gap: 0.3rem;
   cursor: pointer;
   color: rgba(224, 230, 237, 0.7);
-  font-size: 0.75rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
 }
 
 .signal-view-panel .invert-checkbox input[type="checkbox"] {
@@ -181,7 +187,7 @@
   gap: 0.3rem;
   cursor: pointer;
   color: rgba(94, 234, 212, 0.9);
-  font-size: 0.75rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
   margin-left: 0.5rem;
   padding-left: 0.5rem;
   border-left: 1px solid rgba(64, 224, 208, 0.2);
@@ -201,15 +207,15 @@
 
 .signal-view-panel .time-controls span {
   color: rgba(224, 230, 237, 0.5);
-  font-size: 0.75rem;
+  font-size: var(--dashboard-font-xs, 0.75rem);
 }
 
 /* Signal content area with sidebar */
 .signal-view-panel .signal-content {
   flex: 1;
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  gap: 0.5rem;
+  grid-template-columns: var(--dashboard-sidebar-width, 104px) minmax(0, 1fr);
+  gap: var(--dashboard-panel-gap, 0.5rem);
   min-height: 0;
   overflow: hidden;
 }
@@ -221,8 +227,8 @@
   background: rgba(0, 0, 0, 0.3);
   border-radius: 6px;
   overflow: hidden;
-  width: 112px;
-  min-width: 112px;
+  width: var(--dashboard-sidebar-width, 104px);
+  min-width: var(--dashboard-sidebar-width, 104px);
 }
 
 .signal-view-panel .sidebar-header {

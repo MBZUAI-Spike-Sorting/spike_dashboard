@@ -2,10 +2,10 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--dashboard-panel-gap, 0.75rem);
   height: 100%;
   min-height: 0;
-  padding: 0.75rem;
+  padding: var(--dashboard-shell-padding, 0.75rem);
   color: #e0e6ed;
   overflow: hidden;
 }
@@ -13,7 +13,7 @@
 .curator-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
-  gap: 0.75rem;
+  gap: var(--dashboard-panel-gap, 0.75rem);
   align-items: end;
 }
 
@@ -27,7 +27,7 @@
 
 .curator-file-control label {
   color: #7ddfd8;
-  font-size: 0.8rem;
+  font-size: var(--dashboard-font-sm, 0.8rem);
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -40,14 +40,15 @@
   background: rgba(15, 23, 42, 0.8);
   border: 1px solid rgba(125, 223, 216, 0.35);
   border-radius: 6px;
-  padding: 0.55rem;
+  min-height: var(--dashboard-toolbar-control-height, 28px);
+  padding: 0 0.55rem;
 }
 
 .curator-action-button {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  min-height: 42px;
+  min-height: calc(var(--dashboard-toolbar-control-height, 28px) + 8px);
   padding: 0 1rem;
   border: 1px solid rgba(64, 224, 208, 0.55);
   border-radius: 6px;
@@ -87,7 +88,7 @@
 .curator-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: var(--dashboard-panel-gap, 0.75rem);
 }
 
 .curator-summary-card {
@@ -96,7 +97,7 @@
   flex-direction: column;
   gap: 0.35rem;
   min-width: 0;
-  padding: 0.85rem;
+  padding: var(--dashboard-summary-card-padding, 0.85rem);
   border: 1px solid rgba(125, 223, 216, 0.25);
   border-radius: 6px;
   background: rgba(15, 23, 42, 0.55);
@@ -104,14 +105,14 @@
 
 .curator-summary-card span {
   color: #9ca3af;
-  font-size: 0.78rem;
+  font-size: var(--dashboard-font-xs, 0.78rem);
   text-transform: uppercase;
 }
 
 .curator-summary-card strong {
   overflow: hidden;
   color: #f8fafc;
-  font-size: 1.1rem;
+  font-size: var(--dashboard-font-lg, 1.1rem);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -134,10 +135,11 @@
 
 .curator-table th,
 .curator-table td {
-  padding: 0.75rem 0.85rem;
+  padding: var(--dashboard-table-cell-pad-y, 7px) calc(var(--dashboard-table-cell-pad-x, 8px) + 4px);
   border-bottom: 1px solid rgba(148, 163, 184, 0.13);
   text-align: left;
   vertical-align: top;
+  font-size: var(--dashboard-font-sm, 0.82rem);
 }
 
 .curator-table th {
@@ -160,7 +162,7 @@
 .curator-table th button span {
   margin-left: 0.25rem;
   color: #9ca3af;
-  font-size: 0.72rem;
+  font-size: var(--dashboard-font-xs, 0.72rem);
   text-transform: uppercase;
 }
 
