@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Plot from 'react-plotly.js';
 import './WaveformNeighboringChannelsView.css';
 
+const EMPTY_DEMO_WAVEFORMS = Object.freeze({});
+
 const WaveformNeighboringChannelsView = ({
   selectedClusters,
   selectedAlgorithm,
   demoMode = false,
-  demoWaveforms = {},
+  demoWaveforms = EMPTY_DEMO_WAVEFORMS,
   clusterLookup = null
 }) => {
   const [selectedClusterId, setSelectedClusterId] = useState(null);
@@ -29,9 +31,12 @@ const WaveformNeighboringChannelsView = ({
 
     if (demoMode) {
       buildDemoMultiChannelWaveforms(selectedClusterId);
-    } else {
-      fetchMultiChannelWaveforms(selectedClusterId);
+      return undefined;
     }
+
+    const controller = new AbortController();
+    fetchMultiChannelWaveforms(selectedClusterId, controller.signal);
+    return () => controller.abort();
   }, [selectedClusterId, selectedAlgorithm, demoMode, demoWaveforms, clusterLookup]);
 
   const getClusterColor = (clusterId) => {
@@ -98,13 +103,14 @@ const WaveformNeighboringChannelsView = ({
     });
   };
 
-  const fetchMultiChannelWaveforms = async (clusterId) => {
+  const fetchMultiChannelWaveforms = async (clusterId, signal) => {
     setIsLoading(true);
     try {
       const apiUrl = process.env.REACT_APP_API_URL || '';
       const explicitCluster = clusterLookup?.get?.(String(clusterId));
       const response = await fetch(`${apiUrl}/api/cluster-multi-channel-waveforms`, {
         method: 'POST',
+        signal,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -129,6 +135,7 @@ const WaveformNeighboringChannelsView = ({
         setMultiChannelData(null);
       }
     } catch (error) {
+      if (error.name === 'AbortError') return;
       console.error('Error fetching multi-channel waveforms:', error);
       setMultiChannelData(null);
     } finally {

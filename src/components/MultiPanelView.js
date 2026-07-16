@@ -23,6 +23,7 @@ import AmplitudeProfileWidget from './AmplitudeProfileWidget';
 import ClusterComparisonWidget from './ClusterComparisonWidget';
 import CuratorWidget from './CuratorWidget';
 import RasterPlotWidget from './RasterPlotWidget';
+import apiClient from '../api/client';
 
 const DEFAULT_WIDGET_STATES = {
   clusterList: { visible: true, minimized: false, maximized: false, order: 1, position: null, size: null, type: 'clusterList' },
@@ -178,6 +179,166 @@ const MultiPanelView = forwardRef(({
     setClusterStats(normalizedStats);
     setClusterWaveforms(demoWaveforms || {});
   }, [demoMode, demoClusterPlotData, demoSpikeTable, demoClusterStats, demoWaveforms]);
+
+  useEffect(() => {
+    if (demoMode) return undefined;
+
+    let cancelled = false;
+
+    const clearClusterState = () => {
+      setClusters([]);
+      setSelectedClusters([]);
+      setSpikes([]);
+      setSelectedSpike(null);
+      setClusterStats({});
+      setClusterData(null);
+      setClusterWaveforms({});
+      setHighlightedSpikes([]);
+    };
+
+    const applyClusterData = (data) => {
+      const normalizedClusters = Array.isArray(data?.clusters) ? data.clusters : [];
+      const clusterIds = normalizedClusters.map((cluster, index) =>
+        cluster.clusterId ?? cluster.id ?? index
+      );
+
+      setClusterData({
+        ...data,
+        clusters: normalizedClusters,
+        clusterIds
+      });
+      setClusters(normalizedClusters.map((cluster, index) => ({
+        id: cluster.clusterId ?? cluster.id ?? index,
+        size: cluster.pointCount ?? cluster.numSpikes ?? cluster.points?.length ?? 0
+      })));
+      setSelectedClusters((previous) => {
+        const stillAvailable = previous.filter((id) => clusterIds.includes(id));
+        return stillAvailable.length > 0 ? stillAvailable : clusterIds.slice(0, 3);
+      });
+    };
+
+    const loadClusterList = async () => {
+      clearClusterState();
+
+      try {
+        if (selectedAlgorithm === 'preprocessed_torchbci' || selectedAlgorithm === 'preprocessed_kilosort4') {
+          const apiUrl = process.env.REACT_APP_API_URL || '';
+          const response = await fetch(`${apiUrl}/api/cluster-data`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'real',
+              channelMapping: {},
+              algorithm: selectedAlgorithm
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to load cluster data (${response.status})`);
+          }
+
+          const data = await response.json();
+          if (!cancelled) applyClusterData(data);
+          return;
+        }
+
+        if (clusteringResults?.available) {
+          const resultClusters = Array.isArray(clusteringResults.fullData)
+            ? clusteringResults.fullData.map((clusterSpikes, index) => {
+                const summary = clusteringResults.clusters?.[index] || {};
+                const clusterId = summary.clusterId ?? index;
+                return {
+                  clusterId,
+                  points: (clusterSpikes || []).map((spike) => [spike.x, spike.y]),
+                  spikeTimes: (clusterSpikes || []).map((spike) => spike.time),
+                  spikeChannels: (clusterSpikes || []).map((spike) => spike.channel),
+                  pointCount: summary.numSpikes ?? clusterSpikes?.length ?? 0
+                };
+              })
+            : (clusteringResults.clusters || []);
+
+          if (!cancelled) {
+            applyClusterData({
+              ...clusteringResults,
+              clusters: resultClusters
+            });
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error fetching cluster list:', error);
+          clearClusterState();
+        }
+      }
+    };
+
+    loadClusterList();
+    return () => {
+      cancelled = true;
+    };
+  }, [demoMode, selectedDataset, selectedAlgorithm, clusteringResults]);
+
+  useEffect(() => {
+    if (demoMode) return undefined;
+
+    if (selectedClusters.length === 0) {
+      setSpikes([]);
+      setClusterStats({});
+      setClusterWaveforms({});
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadSelectedClusterDetails = async () => {
+      const clusterLookup = new Map(
+        (clusterData?.clusters || []).map((cluster, index) => [
+          cluster.clusterId ?? cluster.id ?? index,
+          cluster
+        ])
+      );
+      const nextSpikes = [];
+
+      selectedClusters.forEach((clusterId) => {
+        const cluster = clusterLookup.get(clusterId);
+        (cluster?.spikeTimes || []).forEach((time, pointIndex) => {
+          nextSpikes.push({
+            time,
+            clusterId,
+            pointIndex,
+            channel: cluster.spikeChannels?.[pointIndex] ?? cluster.channelId
+          });
+        });
+      });
+
+      nextSpikes.sort((a, b) => Number(a.time) - Number(b.time));
+      setSpikes(nextSpikes);
+
+      try {
+        const [statisticsData, waveformsData] = await Promise.all([
+          apiClient.getClusterStatistics(selectedClusters, selectedAlgorithm),
+          apiClient.getClusterWaveforms({
+            clusterIds: selectedClusters,
+            algorithm: selectedAlgorithm
+          })
+        ]);
+
+        if (!cancelled) {
+          setClusterStats(statisticsData.statistics || {});
+          setClusterWaveforms(waveformsData.waveforms || {});
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error fetching selected cluster details:', error);
+        }
+      }
+    };
+
+    loadSelectedClusterDetails();
+    return () => {
+      cancelled = true;
+    };
+  }, [demoMode, selectedClusters, clusterData, selectedAlgorithm]);
 
   const persistCurrentView = useCallback((nextWidgetStates) => {
     const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY) || 'default';
@@ -637,6 +798,8 @@ const MultiPanelView = forwardRef(({
             <WaveformNeighboringChannelsView
               selectedClusters={selectedClusters}
               selectedAlgorithm={selectedAlgorithm}
+              demoMode={demoMode}
+              demoWaveforms={demoWaveforms}
             />
           )}
         </>,

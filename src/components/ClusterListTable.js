@@ -13,7 +13,7 @@ const ClusterListTable = ({ clusters, selectedClusters, onClusterToggle }) => {
             </tr>
           </thead>
           <tbody>
-            {clusters.map((cluster) => (
+            {clusters.length > 0 ? clusters.map((cluster) => (
               <tr key={cluster.id}>
                 <td className="checkbox-cell">
                   <input
@@ -24,7 +24,13 @@ const ClusterListTable = ({ clusters, selectedClusters, onClusterToggle }) => {
                 </td>
                 <td className="cluster-id-cell">{cluster.id}</td>
               </tr>
-            ))}
+            )) : (
+              <tr>
+                <td colSpan="2" className="cluster-id-cell">
+                  No cluster results available. Select preprocessed results or run an algorithm.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

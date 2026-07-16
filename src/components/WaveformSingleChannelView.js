@@ -148,7 +148,15 @@ const WaveformSingleChannelView = ({
   return (
     <div className="waveform-single-channel-view">
       <div className="waveform-plot-container">
-        {selectedClusters.length > 0 ? (
+        {selectedClusters.length === 0 ? (
+          <div className="no-data-message">
+            <p>Select clusters from any linked widget, or open the Cluster Selector.</p>
+          </div>
+        ) : waveformPlots.length === 0 ? (
+          <div className="no-data-message">
+            <p>No real waveform samples are available for the selected clusters.</p>
+          </div>
+        ) : (
           <Plot
             data={waveformPlots}
             layout={{
@@ -218,10 +226,6 @@ const WaveformSingleChannelView = ({
               }
             }}
           />
-        ) : (
-          <div className="no-data-message">
-            <p>Select clusters from any linked widget, or open the Cluster Selector.</p>
-          </div>
         )}
       </div>
     </div>
