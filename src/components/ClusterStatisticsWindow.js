@@ -5,8 +5,8 @@ const ClusterStatisticsWindow = ({ selectedClusters, clusterStats }) => {
   // Filter stats for selected clusters
   const selectedStats = selectedClusters.map(clusterId => {
     const stats = clusterStats[clusterId];
-    return { clusterId, ...stats };
-  }).filter(s => s);
+    return stats ? { clusterId, ...stats } : null;
+  }).filter(Boolean);
 
   return (
     <div className="cluster-statistics-window">
@@ -28,7 +28,15 @@ const ClusterStatisticsWindow = ({ selectedClusters, clusterStats }) => {
                 </div>
                 <div className="stat-item">
                   <span className="stat-label">Peak Channel =</span>
-                  <span className="stat-value">{stats.peakChannel || 'N/A'}</span>
+                  <span className="stat-value">{stats.peakChannel ?? 'N/A'}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Firing rate =</span>
+                  <span className="stat-value">{Number.isFinite(Number(stats.firingRateHz)) ? `${Number(stats.firingRateHz).toFixed(2)} Hz` : 'N/A'}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Mean amplitude =</span>
+                  <span className="stat-value">{Number.isFinite(Number(stats.meanAmplitude)) ? Number(stats.meanAmplitude).toFixed(2) : 'N/A'}</span>
                 </div>
               </div>
             </div>

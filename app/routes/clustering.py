@@ -14,10 +14,57 @@ from app.logger import get_logger
 from app.services.filter_processor import FilterProcessor
 from app.utils.auth import algorithm_access_required, get_current_user, login_required
 from app.utils.responses import server_error, validation_error, not_found_error, error_response, success_response
+from processing.cluster_diagnostics import (
+    calculate_cluster_metrics,
+    calculate_correlograms,
+    calculate_isi_histograms,
+    extract_spike_amplitudes,
+)
 
 logger = get_logger(__name__)
 
 clustering_bp = Blueprint('clustering', __name__)
+
+
+def _load_clustering_results(algorithm=''):
+    """Load the requested preprocessed result set and return common analysis context."""
+    clustering_manager = current_app.config['clustering_manager']
+    if algorithm == 'preprocessed_torchbci' and clustering_manager.clustering_results is None:
+        clustering_manager.load_preprocessed_torchbci()
+    elif algorithm == 'preprocessed_kilosort4' and clustering_manager.clustering_results is None:
+        clustering_manager.load_preprocessed_kilosort4()
+
+    app_config = current_app.config['app_config']
+    dataset_manager = current_app.config['dataset_manager']
+    data_array = dataset_manager.data_array
+    duration_samples = data_array.shape[1] if data_array is not None and data_array.ndim >= 2 else None
+
+    return {
+        'manager': clustering_manager,
+        'results': clustering_manager.clustering_results,
+        'datasetManager': dataset_manager,
+        'sampleRateHz': float(app_config.SAMPLING_RATE),
+        'durationSamples': duration_samples,
+    }
+
+
+def _bounded_number(payload, key, default, minimum, maximum):
+    try:
+        value = float(payload.get(key, default))
+    except (TypeError, ValueError):
+        value = float(default)
+    if not np.isfinite(value):
+        value = float(default)
+    return min(max(value, minimum), maximum)
+
+
+def _waveform_time_points(length, window_size):
+    """Return waveform offsets in milliseconds using configured sampling metadata."""
+    sample_rate_hz = max(float(current_app.config['app_config'].SAMPLING_RATE), 1.0)
+    return [
+        (index - window_size) * 1000.0 / sample_rate_hz
+        for index in range(length)
+    ]
 
 
 @clustering_bp.route('/api/cluster-data', methods=['POST'])
@@ -55,72 +102,147 @@ def get_cluster_data():
 def get_cluster_statistics():
     """Get statistics for specified clusters."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         cluster_ids = data.get('clusterIds', [])
         algorithm = data.get('algorithm', '')
         
         if not cluster_ids:
             return jsonify({'statistics': {}})
         
-        clustering_manager = current_app.config['clustering_manager']
-        
-        # For preprocessed algorithms, load saved results into memory first
-        if algorithm == 'preprocessed_torchbci':
-            if clustering_manager.clustering_results is None:
-                clustering_manager.load_preprocessed_torchbci()
-        elif algorithm == 'preprocessed_kilosort4':
-            if clustering_manager.clustering_results is None:
-                clustering_manager.load_preprocessed_kilosort4()
-        
-        if clustering_manager.clustering_results is not None:
-            statistics = _calculate_algorithm_statistics(clustering_manager, cluster_ids)
+        context = _load_clustering_results(algorithm)
+        if context['results'] is not None:
+            statistics = _calculate_algorithm_statistics(
+                context['manager'],
+                cluster_ids,
+                sample_rate_hz=context['sampleRateHz'],
+                recording_duration_samples=context['durationSamples'],
+            )
         else:
             return jsonify({'statistics': {}})
         
-        return jsonify({'statistics': statistics})
+        return jsonify({
+            'statistics': statistics,
+            'metadata': {
+                'sampleRateHz': context['sampleRateHz'],
+                'timeUnit': 'samples',
+                'durationSamples': context['durationSamples'],
+            }
+        })
     except Exception as e:
         logger.error(f"Error getting cluster statistics: {e}", exc_info=True)
         return server_error("Failed to get cluster statistics", exception=e)
 
 
-def _calculate_algorithm_statistics(clustering_manager, cluster_ids):
+def _calculate_algorithm_statistics(
+    clustering_manager,
+    cluster_ids,
+    sample_rate_hz=30000.0,
+    recording_duration_samples=None,
+):
     """Calculate statistics for algorithm clusters."""
-    statistics = {}
-    
-    for cluster_id in cluster_ids:
-        if cluster_id >= len(clustering_manager.clustering_results):
-            continue
-        
-        cluster_spikes = clustering_manager.clustering_results[cluster_id]
-        spike_times_samples = [spike['time'] for spike in cluster_spikes]
-        spike_times_secs = np.array(spike_times_samples) / 30000.0
-        
-        if len(spike_times_secs) > 1:
-            sorted_times = np.sort(spike_times_secs)
-            isis = np.diff(sorted_times)
-            isi_violations = np.sum(isis < 0.002)
-            isi_violation_rate = isi_violations / len(isis) if len(isis) > 0 else 0
-        else:
-            isi_violation_rate = 0
-        
-        num_spikes = len(cluster_spikes)
-        channels = [spike['channel'] for spike in cluster_spikes]
-        peak_channel = max(set(channels), key=channels.count) if channels else 181
-        
-        mean_x = np.mean([spike['x'] for spike in cluster_spikes]) if cluster_spikes else 0
-        mean_y = np.mean([spike['y'] for spike in cluster_spikes]) if cluster_spikes else 0
-        
-        statistics[cluster_id] = {
-            'isiViolationRate': float(isi_violation_rate),
-            'numSpikes': num_spikes,
-            'peakChannel': int(peak_channel),
-            'probePosition': {
-                'x': int(round(mean_x)),
-                'y': int(round(mean_y))
-            }
-        }
-    
-    return statistics
+    return calculate_cluster_metrics(
+        clustering_manager.clustering_results,
+        cluster_ids,
+        sample_rate_hz=sample_rate_hz,
+        recording_duration_samples=recording_duration_samples,
+        refractory_period_ms=2.0,
+    )
+
+
+@clustering_bp.route('/api/cluster-correlograms', methods=['POST'])
+def get_cluster_correlograms():
+    """Return auto/cross-correlograms for selected clusters."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({'clusterIds': [], 'pairs': [], 'binCentersMs': []})
+
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({'clusterIds': [], 'pairs': [], 'binCentersMs': []})
+
+        result = calculate_correlograms(
+            context['results'],
+            cluster_ids,
+            sample_rate_hz=context['sampleRateHz'],
+            bin_size_ms=_bounded_number(data, 'binSizeMs', 1.0, 0.05, 20.0),
+            window_size_ms=_bounded_number(data, 'windowSizeMs', 50.0, 1.0, 1000.0),
+            max_spikes_per_cluster=int(
+                _bounded_number(data, 'maxSpikesPerCluster', 100000, 100, 250000)
+            ),
+            recording_duration_samples=context['durationSamples'],
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error calculating correlograms: {error}", exc_info=True)
+        return server_error("Failed to calculate cluster correlograms", exception=error)
+
+
+@clustering_bp.route('/api/cluster-isi-histograms', methods=['POST'])
+def get_cluster_isi_histograms():
+    """Return full-cluster ISI histograms for selected clusters."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({'clusterIds': [], 'series': [], 'binCentersMs': []})
+
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({'clusterIds': [], 'series': [], 'binCentersMs': []})
+
+        result = calculate_isi_histograms(
+            context['results'],
+            cluster_ids,
+            sample_rate_hz=context['sampleRateHz'],
+            bin_size_ms=_bounded_number(data, 'binSizeMs', 0.5, 0.05, 50.0),
+            window_size_ms=_bounded_number(data, 'windowSizeMs', 100.0, 1.0, 10000.0),
+            refractory_period_ms=_bounded_number(data, 'refractoryPeriodMs', 2.0, 0.0, 100.0),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error calculating ISI histograms: {error}", exc_info=True)
+        return server_error("Failed to calculate ISI histograms", exception=error)
+
+
+@clustering_bp.route('/api/cluster-amplitudes', methods=['POST'])
+def get_cluster_amplitudes():
+    """Return unstandardized peak-to-peak amplitudes for drift inspection."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({'clusterIds': [], 'series': [], 'amplitudeUnit': 'raw'})
+
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({'clusterIds': [], 'series': [], 'amplitudeUnit': 'raw'})
+
+        result = extract_spike_amplitudes(
+            context['results'],
+            cluster_ids,
+            context['datasetManager'].data_array,
+            sample_rate_hz=context['sampleRateHz'],
+            max_spikes_per_cluster=int(
+                _bounded_number(data, 'maxSpikesPerCluster', 5000, 10, 20000)
+            ),
+            window_samples=int(_bounded_number(data, 'windowSamples', 15, 1, 200)),
+            include_background=bool(data.get('includeBackground', True)),
+            max_background_spikes=int(
+                _bounded_number(data, 'maxBackgroundSpikes', 5000, 0, 20000)
+            ),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error extracting spike amplitudes: {error}", exc_info=True)
+        return server_error("Failed to extract cluster amplitudes", exception=error)
 
 
 
@@ -132,9 +254,10 @@ def get_cluster_waveforms():
         data = request.get_json()
         cluster_ids = data.get('clusterIds', [])
         explicit_clusters = data.get('clusters', [])
-        max_waveforms = data.get('maxWaveforms', 100)
-        window_size = data.get('windowSize', 30)
+        max_waveforms = int(_bounded_number(data, 'maxWaveforms', 100, 1, 1000))
+        window_size = int(_bounded_number(data, 'windowSize', 30, 1, 500))
         algorithm = data.get('algorithm', '')
+        include_spike_indices = data.get('includeSpikeIndices', [])
         
         dataset_manager = current_app.config['dataset_manager']
         clustering_manager = current_app.config['clustering_manager']
@@ -154,7 +277,12 @@ def get_cluster_waveforms():
 
         if cluster_ids and clustering_manager.clustering_results is not None:
             waveforms_data.update(_get_algorithm_waveforms(
-                clustering_manager, dataset_manager, cluster_ids, max_waveforms, window_size
+                clustering_manager,
+                dataset_manager,
+                cluster_ids,
+                max_waveforms,
+                window_size,
+                include_spike_indices,
             ))
 
         if explicit_clusters:
@@ -168,24 +296,52 @@ def get_cluster_waveforms():
         return server_error("Failed to get cluster waveforms", exception=e)
 
 
-def _get_algorithm_waveforms(clustering_manager, dataset_manager, cluster_ids, max_waveforms, window_size):
+def _get_algorithm_waveforms(
+    clustering_manager,
+    dataset_manager,
+    cluster_ids,
+    max_waveforms,
+    window_size,
+    include_spike_indices=None,
+):
     """Get waveforms for algorithm clusters."""
     waveforms_data = {}
+    requested_indices = {}
+    for selection in include_spike_indices or []:
+        if not isinstance(selection, dict):
+            continue
+        try:
+            requested_cluster_id = int(selection.get('clusterId'))
+            requested_spike_index = int(selection.get('pointIndex', selection.get('spikeIndex')))
+        except (TypeError, ValueError):
+            continue
+        requested_indices.setdefault(requested_cluster_id, set()).add(requested_spike_index)
     
     for cluster_id in cluster_ids:
-        if cluster_id >= len(clustering_manager.clustering_results):
+        try:
+            cluster_index = int(cluster_id)
+        except (TypeError, ValueError):
+            continue
+        if cluster_index < 0 or cluster_index >= len(clustering_manager.clustering_results):
             continue
         
-        cluster_spikes = clustering_manager.clustering_results[cluster_id]
+        cluster_spikes = clustering_manager.clustering_results[cluster_index]
         
         if len(cluster_spikes) > max_waveforms:
-            indices = np.random.choice(len(cluster_spikes), max_waveforms, replace=False)
-            selected_spikes = [cluster_spikes[i] for i in indices]
+            indices = np.linspace(
+                0,
+                len(cluster_spikes) - 1,
+                num=max_waveforms,
+                dtype=np.int64,
+            ).tolist()
         else:
-            selected_spikes = cluster_spikes
+            indices = list(range(len(cluster_spikes)))
+        indices.extend(requested_indices.get(cluster_index, set()))
+        indices = sorted({index for index in indices if 0 <= index < len(cluster_spikes)})
+        selected_spikes = [(index, cluster_spikes[index]) for index in indices]
         
         waveforms = []
-        for spike in selected_spikes:
+        for source_spike_index, spike in selected_spikes:
             spike_time = spike['time']
             channel = spike['channel']
             channel_idx = channel - 1
@@ -202,16 +358,17 @@ def _get_algorithm_waveforms(clustering_manager, dataset_manager, cluster_ids, m
                     if std > 0:
                         waveform = (waveform - mean) / std
                 
-                time_points = [(i - window_size) / 30.0 for i in range(len(waveform))]
+                time_points = _waveform_time_points(len(waveform), window_size)
                 
                 waveforms.append({
                     'timePoints': time_points,
                     'amplitude': waveform.tolist(),
                     'time': int(spike_time),
-                    'channel': int(channel)
+                    'channel': int(channel),
+                    'spikeIndex': int(source_spike_index),
                 })
         
-        waveforms_data[cluster_id] = waveforms
+        waveforms_data[cluster_index] = waveforms
 
     return waveforms_data
 
@@ -255,7 +412,7 @@ def _sample_spike_times(spike_times, max_waveforms):
     if len(spike_times) <= max_waveforms:
         return spike_times
 
-    indices = np.random.choice(len(spike_times), max_waveforms, replace=False)
+    indices = np.linspace(0, len(spike_times) - 1, num=max_waveforms, dtype=np.int64)
     return [spike_times[index] for index in indices]
 
 
@@ -336,7 +493,7 @@ def _extract_waveforms_for_channel(dataset_manager, spike_times, channel_idx, ch
         if std > 0:
             waveform = (waveform - mean) / std
 
-        time_points = [(i - window_size) / 30.0 for i in range(len(waveform))]
+        time_points = _waveform_time_points(len(waveform), window_size)
         waveforms.append({
             'timePoints': time_points,
             'amplitude': waveform.tolist(),
@@ -483,7 +640,7 @@ def get_cluster_multi_channel_waveforms():
         target_channels = [peak_channel + offset for offset in neighbor_offsets]
         
         if len(spike_times) > max_waveforms:
-            indices = np.random.choice(len(spike_times), max_waveforms, replace=False)
+            indices = np.linspace(0, len(spike_times) - 1, num=max_waveforms, dtype=np.int64)
             selected_times = [spike_times[i] for i in indices]
         else:
             selected_times = spike_times
@@ -509,7 +666,7 @@ def get_cluster_multi_channel_waveforms():
                         if std > 0:
                             waveform = (waveform - mean) / std
                     
-                    time_points = [(i - window_size) / 30.0 for i in range(len(waveform))]
+                    time_points = _waveform_time_points(len(waveform), window_size)
                     
                     waveforms.append({
                         'timePoints': time_points,

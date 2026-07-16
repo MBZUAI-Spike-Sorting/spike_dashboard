@@ -9,6 +9,7 @@
 export const DATA_TYPES = Object.freeze({
   CLUSTER_LIST: 'cluster_list',
   CLUSTER_IDS: 'cluster_ids',
+  CLUSTER_ORDER: 'cluster_order',
   SPIKE_EVENTS: 'spike_events',
   SPIKE_SELECTION: 'spike_selection',
   CLUSTER_STATISTICS: 'cluster_statistics',
@@ -17,12 +18,18 @@ export const DATA_TYPES = Object.freeze({
   CLUSTERING_RESULTS: 'clustering_results',
   CLUSTER_COMPARISON_SET: 'cluster_comparison_set',
   SIGNAL_TRACE: 'signal_trace',
-  DATASET_INFO: 'dataset_info'
+  DATASET_INFO: 'dataset_info',
+  CURATION_STATE: 'curation_state',
+  CORRELOGRAMS: 'correlograms',
+  ISI_HISTOGRAMS: 'isi_histograms',
+  SPIKE_AMPLITUDES: 'spike_amplitudes',
+  TIME_RANGE: 'time_range'
 });
 
 export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.CLUSTER_LIST]: 'Cluster list',
   [DATA_TYPES.CLUSTER_IDS]: 'Cluster IDs',
+  [DATA_TYPES.CLUSTER_ORDER]: 'Visible cluster order',
   [DATA_TYPES.SPIKE_EVENTS]: 'Spike events',
   [DATA_TYPES.SPIKE_SELECTION]: 'Spike selection',
   [DATA_TYPES.CLUSTER_STATISTICS]: 'Cluster statistics',
@@ -31,7 +38,12 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.CLUSTERING_RESULTS]: 'Clustering results',
   [DATA_TYPES.CLUSTER_COMPARISON_SET]: 'Cluster comparison set',
   [DATA_TYPES.SIGNAL_TRACE]: 'Signal trace',
-  [DATA_TYPES.DATASET_INFO]: 'Dataset info'
+  [DATA_TYPES.DATASET_INFO]: 'Dataset info',
+  [DATA_TYPES.CURATION_STATE]: 'Cluster curation state',
+  [DATA_TYPES.CORRELOGRAMS]: 'Correlograms',
+  [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
+  [DATA_TYPES.SPIKE_AMPLITUDES]: 'Spike amplitudes',
+  [DATA_TYPES.TIME_RANGE]: 'Time range'
 });
 
 const isPlainObject = (value) =>
@@ -58,6 +70,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     shape: 'number[]',
     validate: isNumberArray
   },
+  visibleClusterOrder: {
+    id: 'visibleClusterOrder',
+    label: 'Visible cluster order',
+    dataType: DATA_TYPES.CLUSTER_ORDER,
+    shape: 'number[]',
+    validate: isNumberArray
+  },
   spikes: {
     id: 'spikes',
     label: 'Spike events',
@@ -77,6 +96,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     label: 'Cluster statistics',
     dataType: DATA_TYPES.CLUSTER_STATISTICS,
     shape: 'Record<clusterId, statistics>',
+    validate: isPlainObject
+  },
+  clusterAnnotations: {
+    id: 'clusterAnnotations',
+    label: 'Cluster annotations',
+    dataType: DATA_TYPES.CURATION_STATE,
+    shape: 'Record<clusterId, { group, label, note }>',
     validate: isPlainObject
   },
   clusterData: {
@@ -118,19 +144,59 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     validate: (value) =>
       isPlainObject(value) &&
       (value.totalChannels !== undefined || value.totalDataPoints !== undefined)
+  },
+  correlograms: {
+    id: 'correlograms',
+    label: 'Correlograms',
+    dataType: DATA_TYPES.CORRELOGRAMS,
+    shape: '{ clusterIds, binCentersMs, pairs }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.pairs)
+  },
+  isiHistograms: {
+    id: 'isiHistograms',
+    label: 'ISI histograms',
+    dataType: DATA_TYPES.ISI_HISTOGRAMS,
+    shape: '{ clusterIds, binCentersMs, series }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
+  spikeAmplitudes: {
+    id: 'spikeAmplitudes',
+    label: 'Spike amplitudes',
+    dataType: DATA_TYPES.SPIKE_AMPLITUDES,
+    shape: '{ clusterIds, sampleRateHz, series }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
+  focusedTimeRange: {
+    id: 'focusedTimeRange',
+    label: 'Focused time range',
+    dataType: DATA_TYPES.TIME_RANGE,
+    shape: '{ start, end }',
+    validate: (value) => isPlainObject(value) && Number.isFinite(Number(value.start)) && Number.isFinite(Number(value.end))
   }
 });
 
 export const WIDGET_DATA_CONTRACTS = Object.freeze({
   clusterList: {
     widgetId: 'clusterList',
-    label: 'Cluster Selector',
+    label: 'Cluster Curation Table',
     inputs: [
       {
         id: 'clusters',
         label: 'Clusters',
         accepts: [DATA_TYPES.CLUSTER_LIST],
         required: true
+      },
+      {
+        id: 'statistics',
+        label: 'Cluster statistics',
+        accepts: [DATA_TYPES.CLUSTER_STATISTICS],
+        required: false
+      },
+      {
+        id: 'annotations',
+        label: 'Curation annotations',
+        accepts: [DATA_TYPES.CURATION_STATE],
+        required: false
       }
     ]
   },
@@ -191,6 +257,12 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         label: 'Highlighted spikes',
         accepts: [DATA_TYPES.SPIKE_SELECTION],
         required: false
+      },
+      {
+        id: 'timeRange',
+        label: 'Focused time range',
+        accepts: [DATA_TYPES.TIME_RANGE],
+        required: false
       }
     ]
   },
@@ -244,7 +316,7 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
   },
   amplitudeProfile: {
     widgetId: 'amplitudeProfile',
-    label: 'Amplitude Profile',
+    label: 'Amplitude Distribution',
     inputs: [
       {
         id: 'selectedClusters',
@@ -335,7 +407,41 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         label: 'Cluster embedding',
         accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS],
         required: false
+      },
+      {
+        id: 'visibleClusters',
+        label: 'Visible cluster order',
+        accepts: [DATA_TYPES.CLUSTER_ORDER],
+        required: false
       }
+    ]
+  },
+  correlogram: {
+    widgetId: 'correlogram',
+    label: 'Correlogram Matrix',
+    inputs: [
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: true },
+      { id: 'spikes', label: 'Spike events', accepts: [DATA_TYPES.SPIKE_EVENTS], required: true },
+      { id: 'correlograms', label: 'Precomputed correlograms', accepts: [DATA_TYPES.CORRELOGRAMS], required: false }
+    ]
+  },
+  isiHistogram: {
+    widgetId: 'isiHistogram',
+    label: 'ISI Histogram',
+    inputs: [
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: true },
+      { id: 'spikes', label: 'Spike events', accepts: [DATA_TYPES.SPIKE_EVENTS], required: true },
+      { id: 'isiHistograms', label: 'Precomputed ISIs', accepts: [DATA_TYPES.ISI_HISTOGRAMS], required: false }
+    ]
+  },
+  amplitudeTime: {
+    widgetId: 'amplitudeTime',
+    label: 'Amplitude vs Time / Drift',
+    inputs: [
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: true },
+      { id: 'spikes', label: 'Spike events', accepts: [DATA_TYPES.SPIKE_EVENTS], required: true },
+      { id: 'amplitudes', label: 'Spike amplitudes', accepts: [DATA_TYPES.SPIKE_AMPLITUDES], required: false },
+      { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
     ]
   }
 });
@@ -491,4 +597,3 @@ export function validateWidgetBindings(widgetId, bindings = {}, pipelineVariable
     messages
   };
 }
-

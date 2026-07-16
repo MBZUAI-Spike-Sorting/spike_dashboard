@@ -4,7 +4,14 @@ import Timeline from './Timeline';
 import { synthesizeChannelTrace, applyDemoFilter } from '../data/demoDashboardData';
 import './SignalViewPanel.css';
 
-const SignalViewPanel = ({ demoMode = false, highlightedSpikes, datasetInfo, demoSignalData }) => {
+const SignalViewPanel = ({
+  demoMode = false,
+  highlightedSpikes,
+  linkedTimeRange,
+  onTimeRangeChange,
+  datasetInfo,
+  demoSignalData,
+}) => {
   // State management - exact copy from App.js pattern
   const [selectedChannels, setSelectedChannels] = useState([179, 181, 183]);
   const [channelScrollOffset, setChannelScrollOffset] = useState(0);
@@ -15,7 +22,7 @@ const SignalViewPanel = ({ demoMode = false, highlightedSpikes, datasetInfo, dem
   const [spikeThreshold, setSpikeThreshold] = useState(-25);
   const [invertData, setInvertData] = useState(false);
   const [usePrecomputedSpikes, setUsePrecomputedSpikes] = useState(false);
-  const [precomputedAvailable, setPrecomputedAvailable] = useState(false);
+  const [precomputedAvailable] = useState(false);
   const [selectedDataType, setSelectedDataType] = useState('raw');
   const [filterType, setFilterType] = useState('none');
   const [filteredLineColor, setFilteredLineColor] = useState('#FFD700');
@@ -25,6 +32,11 @@ const SignalViewPanel = ({ demoMode = false, highlightedSpikes, datasetInfo, dem
   const totalChannels = datasetInfo?.totalChannels || 385;
 
   const dataCache = useRef({});
+  const windowSizeRef = useRef(windowSize);
+
+  useEffect(() => {
+    windowSizeRef.current = windowSize;
+  }, [windowSize]);
 
   useEffect(() => {
     const firstSpike = Array.isArray(highlightedSpikes) ? highlightedSpikes[0] : null;
@@ -34,12 +46,37 @@ const SignalViewPanel = ({ demoMode = false, highlightedSpikes, datasetInfo, dem
       return;
     }
 
-    const nextStart = Math.max(0, Math.floor(spikeTime - windowSize / 2));
+    const activeWindowSize = windowSizeRef.current;
+    const nextStart = Math.max(0, Math.floor(spikeTime - activeWindowSize / 2));
     setTimeRange({
       start: nextStart,
-      end: nextStart + windowSize
+      end: nextStart + activeWindowSize
     });
-  }, [highlightedSpikes, windowSize]);
+    const spikeChannel = Number(firstSpike?.channel);
+    if (Number.isFinite(spikeChannel)) {
+      setSelectedChannels((previous) => [
+        spikeChannel,
+        ...previous.filter((channelId) => String(channelId) !== String(spikeChannel)),
+      ]);
+      setChannelScrollOffset(0);
+    }
+  }, [highlightedSpikes]);
+
+  useEffect(() => {
+    const start = Number(linkedTimeRange?.start);
+    const end = Number(linkedTimeRange?.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+
+    const boundedStart = Math.max(0, Math.floor(start));
+    const boundedEnd = Math.min(totalDataPoints, Math.ceil(end));
+    const nextWindowSize = Math.max(1, Math.min(10000, boundedEnd - boundedStart));
+    setWindowSize(nextWindowSize);
+    setTimeRange({ start: boundedStart, end: boundedStart + nextWindowSize });
+  }, [linkedTimeRange, totalDataPoints]);
+
+  useEffect(() => {
+    onTimeRangeChange?.(timeRange);
+  }, [onTimeRangeChange, timeRange]);
 
   // Demo synthesis: produce plottable data for any selected channel without
   // touching the backend.
@@ -137,7 +174,7 @@ const SignalViewPanel = ({ demoMode = false, highlightedSpikes, datasetInfo, dem
 
     fetchSignalData();
   }, [selectedChannels, timeRange.start, timeRange.end, spikeThreshold, invertData,
-      usePrecomputedSpikes, selectedDataType, filterType, totalDataPoints, windowSize]);
+      usePrecomputedSpikes, selectedDataType, filterType, totalDataPoints, windowSize, demoMode]);
 
   const handleChannelToggle = (channelId) => {
     setSelectedChannels(prev => {
@@ -363,6 +400,7 @@ const SignalViewPanel = ({ demoMode = false, highlightedSpikes, datasetInfo, dem
             onSpikeNavigation={null}
             filterType={filterType}
             channelsPerView={1}
+            highlightedSpikes={highlightedSpikes}
           />
 
           {/* Timeline - exact same as VisualizationArea */}

@@ -57,16 +57,16 @@ const selectedSetFrom = (selectedClusters = []) => (
   new Set(selectedClusters.map((clusterId) => String(clusterId)))
 );
 
-const shouldIncludeCluster = (clusterId, selectedSet) => (
-  selectedSet.size === 0 || selectedSet.has(String(clusterId))
+const shouldIncludeCluster = (clusterId, filterSet, filterIsActive = false) => (
+  (!filterIsActive && filterSet.size === 0) || filterSet.has(String(clusterId))
 );
 
-const normalizeEventsFromClusters = (clusters = [], selectedSet) => {
+const normalizeEventsFromClusters = (clusters = [], filterSet, filterIsActive = false) => {
   const events = [];
 
   clusters.forEach((cluster, clusterIndex) => {
     const clusterId = getClusterId(cluster, clusterIndex);
-    if (!shouldIncludeCluster(clusterId, selectedSet)) return;
+    if (!shouldIncludeCluster(clusterId, filterSet, filterIsActive)) return;
 
     const spikeTimes = cluster?.spikeTimes || cluster?.spike_times || cluster?.times || [];
     const spikeChannels = cluster?.spikeChannels || cluster?.spike_channels || [];
@@ -78,7 +78,7 @@ const normalizeEventsFromClusters = (clusters = [], selectedSet) => {
       events.push({
         time: numericTime,
         clusterId,
-        channel: spikeChannels[pointIndex] ?? cluster?.primaryChannel ?? cluster?.primary_channel ?? cluster?.channel,
+        channel: spikeChannels[pointIndex] ?? cluster?.primaryChannel ?? cluster?.primary_channel ?? cluster?.channelId ?? cluster?.channel,
         pointIndex
       });
     });
@@ -90,14 +90,20 @@ const normalizeEventsFromClusters = (clusters = [], selectedSet) => {
 const buildRasterEvents = ({
   spikes,
   selectedClusters,
+  visibleClusterIds,
   clusteringResults,
   clusterData,
   curatorDataset
 }) => {
-  const selectedSet = selectedSetFrom(selectedClusters);
+  const filterIsActive = Array.isArray(visibleClusterIds);
+  const filterSet = selectedSetFrom(filterIsActive ? visibleClusterIds : selectedClusters);
   let events = [];
 
-  if (Array.isArray(spikes) && spikes.length > 0) {
+  if (filterIsActive && Array.isArray(clusterData?.clusters)) {
+    events = normalizeEventsFromClusters(clusterData.clusters, filterSet, true);
+  }
+
+  if (events.length === 0 && !filterIsActive && Array.isArray(spikes) && spikes.length > 0) {
     events = spikes
       .map((spike, index) => {
         const time = toFiniteNumber(spike.time ?? spike.spikeTime);
@@ -112,21 +118,21 @@ const buildRasterEvents = ({
         };
       })
       .filter(Boolean)
-      .filter((event) => shouldIncludeCluster(event.clusterId, selectedSet));
+      .filter((event) => shouldIncludeCluster(event.clusterId, filterSet, filterIsActive));
   }
 
   if (events.length === 0 && Array.isArray(curatorDataset?.clusters)) {
-    events = normalizeEventsFromClusters(curatorDataset.clusters, selectedSet);
+    events = normalizeEventsFromClusters(curatorDataset.clusters, filterSet, filterIsActive);
   }
 
   if (events.length === 0 && Array.isArray(clusterData?.clusters)) {
-    events = normalizeEventsFromClusters(clusterData.clusters, selectedSet);
+    events = normalizeEventsFromClusters(clusterData.clusters, filterSet, filterIsActive);
   }
 
   if (events.length === 0 && Array.isArray(clusteringResults?.clusters)) {
     clusteringResults.clusters.forEach((cluster, index) => {
       const clusterId = getClusterId(cluster, index);
-      if (!shouldIncludeCluster(clusterId, selectedSet)) return;
+      if (!shouldIncludeCluster(clusterId, filterSet, filterIsActive)) return;
 
       getClusteringResultSpikes(clusteringResults, clusterId).forEach((spike, pointIndex) => {
         const time = toFiniteNumber(spike?.time);
@@ -158,10 +164,13 @@ const formatNumber = (value) => (
 const RasterPlotWidget = ({
   spikes = [],
   selectedClusters = [],
+  visibleClusterIds = null,
+  clusterOrder = [],
   clusteringResults = null,
   clusterData = null,
   curatorDataset = null,
   highlightedSpikes = [],
+  linkedTimeRange = null,
   onEventSelect
 }) => {
   const canvasRef = useRef(null);
@@ -175,10 +184,11 @@ const RasterPlotWidget = ({
   const events = useMemo(() => buildRasterEvents({
     spikes,
     selectedClusters,
+    visibleClusterIds,
     clusteringResults,
     clusterData,
     curatorDataset
-  }), [spikes, selectedClusters, clusteringResults, clusterData, curatorDataset]);
+  }), [spikes, selectedClusters, visibleClusterIds, clusteringResults, clusterData, curatorDataset]);
 
   const fullDomain = useMemo(() => {
     if (!events.length) return { start: 0, end: 1 };
@@ -194,6 +204,7 @@ const RasterPlotWidget = ({
       `${spike.clusterId}:${spike.pointIndex}`
     )))
   ), [highlightedSpikes]);
+  const selectedClusterSet = useMemo(() => selectedSetFrom(selectedClusters), [selectedClusters]);
 
   const rowValues = useMemo(() => {
     const values = new Set();
@@ -204,10 +215,18 @@ const RasterPlotWidget = ({
       values.add(String(rowValue));
     });
 
-    return Array.from(values).sort((left, right) => (
-      String(left).localeCompare(String(right), undefined, { numeric: true })
-    ));
-  }, [events, groupBy]);
+    const order = new Map((clusterOrder || []).map((clusterId, index) => [String(clusterId), index]));
+    return Array.from(values).sort((left, right) => {
+      if (groupBy === 'cluster' && order.size > 0) {
+        const leftOrder = order.get(String(left));
+        const rightOrder = order.get(String(right));
+        if (leftOrder !== undefined || rightOrder !== undefined) {
+          return (leftOrder ?? Number.MAX_SAFE_INTEGER) - (rightOrder ?? Number.MAX_SAFE_INTEGER);
+        }
+      }
+      return String(left).localeCompare(String(right), undefined, { numeric: true });
+    });
+  }, [clusterOrder, events, groupBy]);
 
   useEffect(() => {
     const shell = shellRef.current;
@@ -234,6 +253,17 @@ const RasterPlotWidget = ({
 
   useEffect(() => {
     if (!events.length) return;
+
+    const linkedStart = toFiniteNumber(linkedTimeRange?.start);
+    const linkedEnd = toFiniteNumber(linkedTimeRange?.end);
+    if (linkedStart !== null && linkedEnd !== null && linkedEnd > linkedStart) {
+      const clampedStart = Math.max(fullDomain.start, linkedStart);
+      const clampedEnd = Math.min(fullDomain.end, linkedEnd);
+      setTimeDomain(clampedEnd > clampedStart
+        ? { start: clampedStart, end: clampedEnd }
+        : null);
+      return;
+    }
 
     const highlightedTimes = (highlightedSpikes || [])
       .map((spike) => toFiniteNumber(spike?.time))
@@ -273,7 +303,7 @@ const RasterPlotWidget = ({
         });
       }
     }
-  }, [events, fullDomain, highlightedSpikes, selectedClusters]);
+  }, [events, fullDomain, highlightedSpikes, linkedTimeRange, selectedClusters]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -308,8 +338,9 @@ const RasterPlotWidget = ({
       context.stroke();
 
       if (rowHeight >= 12 || rowIndex % Math.ceil(14 / Math.max(rowHeight, 1)) === 0) {
-        context.fillStyle = 'rgba(226, 232, 240, 0.72)';
-        context.font = '11px system-ui, sans-serif';
+        const selectedRow = groupBy === 'cluster' && selectedClusterSet.has(String(row));
+        context.fillStyle = selectedRow ? '#7ddfd8' : 'rgba(226, 232, 240, 0.72)';
+        context.font = `${selectedRow ? '600 ' : ''}11px system-ui, sans-serif`;
         context.textAlign = 'right';
         context.textBaseline = 'middle';
         context.fillText(row, LEFT_GUTTER - 8, y);
@@ -331,10 +362,11 @@ const RasterPlotWidget = ({
       const y = TOP_GUTTER + rowIndex * rowHeight + rowHeight / 2;
       const colorKey = groupBy === 'channel' ? event.clusterId : event.channel;
       const isHighlighted = highlightedSet.has(`${event.clusterId}:${event.pointIndex}`);
+      const clusterSelected = selectedClusterSet.has(String(event.clusterId));
       const tickHalfHeight = Math.max(2, Math.min(8, rowHeight * 0.42));
 
       context.strokeStyle = isHighlighted ? '#ffffff' : getEventColor(colorKey ?? event.clusterId);
-      context.lineWidth = isHighlighted ? 2 : 1;
+      context.lineWidth = isHighlighted ? 2.5 : (clusterSelected ? 1.5 : 1);
       context.beginPath();
       context.moveTo(x, y - tickHalfHeight);
       context.lineTo(x, y + tickHalfHeight);
@@ -358,7 +390,7 @@ const RasterPlotWidget = ({
       const value = activeDomain.start + (domainSpan * tick) / 4;
       context.fillText(formatNumber(value), x, size.height - BOTTOM_GUTTER + 9);
     }
-  }, [activeDomain, events, groupBy, highlightedSet, rowValues, size]);
+  }, [activeDomain, events, groupBy, highlightedSet, rowValues, selectedClusterSet, size]);
 
   const updateZoom = (factor) => {
     const span = Math.max(1, activeDomain.end - activeDomain.start);
