@@ -9,30 +9,52 @@ import {
 } from '../widgets/dataContracts';
 import './WidgetDataWiringPanel.css';
 
+export const getSelectableWiringWidgetIds = (widgetStates = {}) =>
+  Object.keys(widgetStates).filter((widgetId) =>
+    Boolean(getWidgetDataContract(widgetId))
+  );
+
+export const resolveSelectedWiringWidgetId = (
+  selectedWidgetId,
+  widgetStates = {}
+) => {
+  const selectableWidgetIds = getSelectableWiringWidgetIds(widgetStates);
+
+  if (selectableWidgetIds.includes(selectedWidgetId)) {
+    return selectedWidgetId;
+  }
+
+  return (
+    selectableWidgetIds.find((widgetId) => widgetStates[widgetId]?.visible) ||
+    selectableWidgetIds[0] ||
+    Object.keys(WIDGET_DATA_CONTRACTS)[0]
+  );
+};
+
 const WidgetDataWiringPanel = ({
   widgetStates = {},
   widgetInputBindings = {},
   pipelineVariables = {},
   onBindingChange
 }) => {
-  const visibleWidgetIds = useMemo(
-    () =>
-      Object.keys(widgetStates).filter(
-        (widgetId) => widgetStates[widgetId]?.visible
-      ),
+  const selectableWidgetIds = useMemo(
+    () => getSelectableWiringWidgetIds(widgetStates),
     [widgetStates]
   );
 
   const [selectedWidgetId, setSelectedWidgetId] = useState(
-    visibleWidgetIds[0] || Object.keys(widgetStates)[0] || Object.keys(WIDGET_DATA_CONTRACTS)[0]
+    () => resolveSelectedWiringWidgetId('', widgetStates)
   );
 
   useEffect(() => {
-    if (visibleWidgetIds.length === 0) return;
-    if (!visibleWidgetIds.includes(selectedWidgetId)) {
-      setSelectedWidgetId(visibleWidgetIds[0]);
+    const resolvedWidgetId = resolveSelectedWiringWidgetId(
+      selectedWidgetId,
+      widgetStates
+    );
+    if (resolvedWidgetId !== selectedWidgetId) {
+      setSelectedWidgetId(resolvedWidgetId);
     }
-  }, [selectedWidgetId, visibleWidgetIds]);
+  }, [selectedWidgetId, selectableWidgetIds, widgetStates]);
 
   const contract = getWidgetDataContract(selectedWidgetId);
   const bindings = widgetInputBindings[selectedWidgetId] || {};
@@ -53,7 +75,7 @@ const WidgetDataWiringPanel = ({
         value={selectedWidgetId}
         onChange={(event) => setSelectedWidgetId(event.target.value)}
       >
-        {Object.keys(widgetStates).map((widgetId) => {
+        {selectableWidgetIds.map((widgetId) => {
           const item = getWidgetDataContract(widgetId);
           const state = widgetStates[widgetId] || {};
           if (!item) return null;
@@ -142,4 +164,3 @@ const WidgetDataWiringPanel = ({
 };
 
 export default WidgetDataWiringPanel;
-

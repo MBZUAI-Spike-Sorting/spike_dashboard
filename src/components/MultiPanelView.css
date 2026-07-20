@@ -1,4 +1,5 @@
 .multi-panel-view {
+  --dashboard-ui-scale: 1;
   --dashboard-container-padding: 8px;
   --dashboard-shell-padding: 10px;
   --dashboard-panel-gap: 8px;
@@ -27,6 +28,31 @@
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   overflow: hidden;
   transition: background 0.2s ease;
+  zoom: var(--dashboard-ui-scale);
+}
+
+.multi-panel-view.density-compact {
+  --dashboard-container-padding: 5px;
+  --dashboard-panel-gap: 5px;
+  --dashboard-control-gap: 3px;
+  --dashboard-widget-header-pad-y: 4px;
+  --dashboard-widget-header-height: 31px;
+  --dashboard-table-cell-pad-y: 4px;
+  --dashboard-toolbar-control-height: 25px;
+  --dashboard-summary-card-padding: 8px;
+  --dashboard-row-min-height: 19px;
+}
+
+.multi-panel-view.density-comfortable {
+  --dashboard-container-padding: 12px;
+  --dashboard-panel-gap: 12px;
+  --dashboard-control-gap: 7px;
+  --dashboard-widget-header-pad-y: 9px;
+  --dashboard-widget-header-height: 42px;
+  --dashboard-table-cell-pad-y: 10px;
+  --dashboard-toolbar-control-height: 33px;
+  --dashboard-summary-card-padding: 16px;
+  --dashboard-row-min-height: 26px;
 }
 
 /* Drag over state */
@@ -163,13 +189,13 @@
 }
 
 .panel-cluster-list .dockable-widget {
-  width: 180px;
+  width: 420px;
   height: 350px;
 }
 
 .panel-spike-list {
   top: 10px;
-  left: 200px;
+  left: 440px;
 }
 
 .panel-spike-list .dockable-widget {
@@ -179,7 +205,7 @@
 
 .panel-cluster-stats {
   top: 10px;
-  left: 410px;
+  left: 650px;
 }
 
 .panel-cluster-stats .dockable-widget {
@@ -189,11 +215,11 @@
 
 .panel-signal-view {
   top: 10px;
-  left: 620px;
+  left: 860px;
 }
 
 .panel-signal-view .dockable-widget {
-  width: calc(100vw - 660px);
+  width: calc(100vw - 900px);
   height: 350px;
 }
 
@@ -263,6 +289,42 @@
   min-height: 260px;
   max-width: calc(100vw - 56px);
   max-height: calc(100vh - 96px);
+}
+
+.panel-correlogram {
+  top: 70px;
+  left: clamp(48px, 14vw, 220px);
+}
+
+.panel-correlogram .dockable-widget {
+  width: min(820px, calc(100vw - 100px));
+  height: min(620px, calc(100vh - 130px));
+  min-width: min(420px, calc(100vw - 72px));
+  min-height: 300px;
+}
+
+.panel-isi-histogram {
+  top: 150px;
+  left: clamp(56px, 20vw, 300px);
+}
+
+.panel-isi-histogram .dockable-widget {
+  width: min(700px, calc(100vw - 100px));
+  height: min(430px, calc(100vh - 210px));
+  min-width: min(360px, calc(100vw - 72px));
+  min-height: 260px;
+}
+
+.panel-amplitude-time {
+  top: 190px;
+  left: clamp(64px, 22vw, 340px);
+}
+
+.panel-amplitude-time .dockable-widget {
+  width: min(760px, calc(100vw - 100px));
+  height: min(440px, calc(100vh - 250px));
+  min-width: min(400px, calc(100vw - 72px));
+  min-height: 280px;
 }
 
 /* Waveform View Toggle */

@@ -2,8 +2,31 @@ import React, { useMemo } from 'react';
 import Plot from 'react-plotly.js';
 import './SpikeChannel.css';
 
-const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeThreshold, isLoading, selectedDataType, filteredLineColor, usePrecomputedSpikes, onSpikeNavigation, filterType }) => {
+const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeThreshold, isLoading, selectedDataType, filteredLineColor, usePrecomputedSpikes, onSpikeNavigation, filterType, highlightedSpikes = [] }) => {
   const plotData = useMemo(() => {
+    const channelHighlights = highlightedSpikes.filter((spike) => (
+      Number.isFinite(Number(spike?.time)) &&
+      (spike?.channel === undefined || String(spike.channel) === String(channelId))
+    ));
+    const highlightShapes = channelHighlights.map((spike) => ({
+      type: 'line',
+      x0: Number(spike.time),
+      x1: Number(spike.time),
+      y0: 0,
+      y1: 1,
+      yref: 'paper',
+      line: { color: `hsl(${(Number(spike.clusterId) * 137) % 360}, 80%, 70%)`, width: 2, dash: 'dot' },
+    }));
+    const highlightAnnotations = channelHighlights.map((spike) => ({
+      x: Number(spike.time),
+      y: 1,
+      yref: 'paper',
+      text: `C${spike.clusterId}`,
+      showarrow: false,
+      yanchor: 'bottom',
+      font: { color: '#f8fafc', size: 9 },
+    }));
+
     if (!data || !data.data || !isActive) {
       return {
         data: [{
@@ -31,7 +54,9 @@ const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeT
           plot_bgcolor: 'rgba(0, 0, 0, 0.2)',
           paper_bgcolor: 'transparent',
           font: { color: '#e0e6ed' },
-          margin: { l: 50, r: 20, t: 20, b: 50 }
+          margin: { l: 50, r: 20, t: 20, b: 50 },
+          shapes: highlightShapes,
+          annotations: highlightAnnotations
         },
         config: {
           displayModeBar: false,
@@ -41,7 +66,6 @@ const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeT
     }
 
     const dataStartTime = data.startTime || 0;
-    const dataEndTime = data.endTime || data.data.length;
     
     const windowStart = Math.floor(timeRange.start);
     const windowEnd = Math.floor(timeRange.end);
@@ -188,14 +212,16 @@ const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeT
         paper_bgcolor: 'transparent',
         font: { color: '#e0e6ed' },
         margin: { l: 50, r: 20, t: 20, b: 50 },
-        showlegend: false
+        showlegend: false,
+        shapes: highlightShapes,
+        annotations: highlightAnnotations
       },
       config: {
         displayModeBar: false,
         responsive: true
       }
     };
-  }, [data, isActive, timeRange, selectedDataType, filteredLineColor]);
+  }, [channelId, data, highlightedSpikes, isActive, timeRange, selectedDataType, filteredLineColor]);
 
   return (
     <div className={`spike-channel ${!isActive ? 'inactive' : ''}`}>
@@ -242,4 +268,3 @@ const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeT
 };
 
 export default SpikeChannel;
-

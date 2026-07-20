@@ -58,13 +58,14 @@ const WaveformSingleChannelView = ({
 
       // Plot all waveforms for this cluster with reduced opacity
       waveforms.forEach((waveform, waveformIdx) => {
+        const waveformSpikeIndex = waveform.spikeIndex ?? waveformIdx;
         const opacity = highlightedSpike &&
-                       highlightedSpike.clusterId === clusterId &&
-                       highlightedSpike.waveformIdx === waveformIdx ? 1.0 : 0.15;
+                       String(highlightedSpike.clusterId) === String(clusterId) &&
+                       highlightedSpike.spikeIndex === waveformSpikeIndex ? 1.0 : 0.15;
 
         const lineWidth = highlightedSpike &&
-                         highlightedSpike.clusterId === clusterId &&
-                         highlightedSpike.waveformIdx === waveformIdx ? 3 : 1;
+                         String(highlightedSpike.clusterId) === String(clusterId) &&
+                         highlightedSpike.spikeIndex === waveformSpikeIndex ? 3 : 1;
 
         traces.push({
           x: waveform.timePoints,
@@ -150,7 +151,7 @@ const WaveformSingleChannelView = ({
       <div className="waveform-plot-container">
         {selectedClusters.length === 0 ? (
           <div className="no-data-message">
-            <p>Select clusters from any linked widget, or open the Cluster Selector.</p>
+            <p>Select clusters from any linked widget, or open the Cluster Curation Table.</p>
           </div>
         ) : waveformPlots.length === 0 ? (
           <div className="no-data-message">

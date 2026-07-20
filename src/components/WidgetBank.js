@@ -5,11 +5,11 @@ import './WidgetBank.css';
 const WIDGET_DEFINITIONS = {
   clusterList: {
     id: 'clusterList',
-    name: 'Cluster Selector',
-    description: 'Optional checklist for selecting clusters across linked widgets',
+    name: 'Cluster Curation Table',
+    description: 'Sort, filter, label, annotate, and select clusters across linked widgets',
     icon: '📋',
     category: 'data',
-    defaultSize: { width: 180, height: 350 }
+    defaultSize: { width: 760, height: 430 }
   },
   spikeList: {
     id: 'spikeList',
@@ -53,8 +53,8 @@ const WIDGET_DEFINITIONS = {
   },
   amplitudeProfile: {
     id: 'amplitudeProfile',
-    name: 'Amplitude Profile',
-    description: 'Amplitude histograms with Gaussian KDE overlays',
+    name: 'Amplitude Distribution',
+    description: 'Waveform amplitude histograms with Gaussian KDE overlays',
     icon: 'A',
     category: 'visualization',
     defaultSize: { width: 620, height: 430 }
@@ -82,6 +82,30 @@ const WIDGET_DEFINITIONS = {
     icon: '|',
     category: 'visualization',
     defaultSize: { width: 760, height: 420 }
+  },
+  correlogram: {
+    id: 'correlogram',
+    name: 'Correlogram Matrix',
+    description: 'Auto- and cross-correlograms with refractory and baseline guides',
+    icon: '▦',
+    category: 'analysis',
+    defaultSize: { width: 820, height: 620 }
+  },
+  isiHistogram: {
+    id: 'isiHistogram',
+    name: 'ISI Histogram',
+    description: 'Inter-spike intervals and refractory-period violation rates',
+    icon: 'Ι',
+    category: 'analysis',
+    defaultSize: { width: 700, height: 430 }
+  },
+  amplitudeTime: {
+    id: 'amplitudeTime',
+    name: 'Amplitude vs Time / Drift',
+    description: 'Track raw spike amplitude through the recording and brush time ranges',
+    icon: '↘',
+    category: 'visualization',
+    defaultSize: { width: 760, height: 440 }
   }
 };
 

@@ -21,6 +21,9 @@ import AmplitudeProfileWidget from '../components/AmplitudeProfileWidget';
 import ClusterComparisonWidget from '../components/ClusterComparisonWidget';
 import CuratorWidget from '../components/CuratorWidget';
 import RasterPlotWidget from '../components/RasterPlotWidget';
+import CorrelogramWidget from '../components/CorrelogramWidget';
+import IsiHistogramWidget from '../components/IsiHistogramWidget';
+import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
 
 /**
  * Built-in widget definitions
@@ -31,12 +34,12 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 const BUILTIN_WIDGETS = [
   {
     id: 'clusterList',
-    name: 'Cluster Selector',
-    description: 'Optional checklist for selecting clusters across linked widgets',
+    name: 'Cluster Curation Table',
+    description: 'Sort, filter, label, annotate, and select clusters across linked widgets',
     icon: '📋',
     category: 'data',
-    defaultSize: { width: 180, height: 350 },
-    minWidth: 150,
+    defaultSize: { width: 760, height: 430 },
+    minWidth: 460,
     minHeight: 200,
     component: ClusterListTable,
     requiredData: ['clusters'],
@@ -115,8 +118,8 @@ const BUILTIN_WIDGETS = [
   },
   {
     id: 'amplitudeProfile',
-    name: 'Amplitude Profile',
-    description: 'Amplitude histograms with Gaussian KDE overlays',
+    name: 'Amplitude Distribution',
+    description: 'Waveform amplitude histograms with Gaussian KDE overlays',
     icon: 'A',
     category: 'visualization',
     defaultSize: { width: 620, height: 430 },
@@ -168,6 +171,48 @@ const BUILTIN_WIDGETS = [
     requiredData: ['spikes'],
     dataContract: WIDGET_DATA_CONTRACTS.rasterPlot,
     order: 10,
+  },
+  {
+    id: 'correlogram',
+    name: 'Correlogram Matrix',
+    description: 'Auto- and cross-correlograms with refractory and baseline guides',
+    icon: '▦',
+    category: 'analysis',
+    defaultSize: { width: 820, height: 620 },
+    minWidth: 420,
+    minHeight: 300,
+    component: CorrelogramWidget,
+    requiredData: ['clusters', 'spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.correlogram,
+    order: 11,
+  },
+  {
+    id: 'isiHistogram',
+    name: 'ISI Histogram',
+    description: 'Inter-spike intervals and refractory-period violation rates',
+    icon: 'Ι',
+    category: 'analysis',
+    defaultSize: { width: 700, height: 430 },
+    minWidth: 360,
+    minHeight: 260,
+    component: IsiHistogramWidget,
+    requiredData: ['clusters', 'spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.isiHistogram,
+    order: 12,
+  },
+  {
+    id: 'amplitudeTime',
+    name: 'Amplitude vs Time / Drift',
+    description: 'Track raw spike amplitude through the recording and brush time ranges',
+    icon: '↘',
+    category: 'visualization',
+    defaultSize: { width: 760, height: 440 },
+    minWidth: 400,
+    minHeight: 280,
+    component: AmplitudeTimeWidget,
+    requiredData: ['clusters', 'spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.amplitudeTime,
+    order: 13,
   },
 ];
 

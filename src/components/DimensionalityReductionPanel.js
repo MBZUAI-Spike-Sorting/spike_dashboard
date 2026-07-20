@@ -449,7 +449,7 @@ const DimensionalityReductionPanel = ({
           />
         ) : selectedClusters.length === 0 ? (
           <div className="no-data-message">
-            <p>Select clusters from any linked widget, or open the Cluster Selector.</p>
+            <p>Select clusters from any linked widget, or open the Cluster Curation Table.</p>
           </div>
         ) : (
           <div className="no-data-message">
