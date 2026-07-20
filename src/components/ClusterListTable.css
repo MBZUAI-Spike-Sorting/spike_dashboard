@@ -1,38 +1,49 @@
-/* ============================================
-   Cluster List Table
-   ============================================ */
-
 .cluster-list-table {
-  background: rgba(30, 30, 60, 0.5);
-  border-radius: var(--radius-md, 8px);
-  padding: var(--dashboard-shell-padding, var(--space-md, 1rem));
+  background: rgba(18, 24, 48, 0.72);
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.cluster-list-header {
-  margin-bottom: var(--space-sm, 0.5rem);
-  border-bottom: 2px solid rgba(64, 224, 208, 0.25);
-  padding-bottom: var(--space-sm, 0.5rem);
+.cluster-curation-toolbar {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto auto;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid rgba(64, 224, 208, 0.18);
+  background: rgba(8, 13, 31, 0.72);
 }
 
-.cluster-list-header h3 {
-  margin: 0;
-  color: var(--color-primary, #40e0d0);
-  font-size: var(--text-base, 1rem);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.cluster-curation-toolbar input,
+.cluster-curation-toolbar select,
+.cluster-group-select,
+.cluster-label-input,
+.cluster-note-input {
+  min-width: 0;
+  height: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
+  background: #11182e;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  padding: 0 7px;
+}
+
+.cluster-selection-summary {
+  grid-column: 1 / -1;
+  color: rgba(226, 232, 240, 0.62);
+  font-size: 0.7rem;
 }
 
 .cluster-list-content {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 .cluster-list-table table {
   width: 100%;
+  min-width: 900px;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -40,81 +51,118 @@
 .cluster-list-table thead {
   position: sticky;
   top: 0;
-  background: rgba(30, 30, 60, 0.97);
-  z-index: 1;
+  z-index: 2;
+  background: rgba(18, 24, 48, 0.98);
+}
+
+.cluster-list-table th,
+.cluster-list-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  color: #dbe5ef;
+  font-size: 0.73rem;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .cluster-list-table th {
-  padding: var(--dashboard-table-cell-pad-y, 7px) var(--dashboard-table-cell-pad-x, 8px);
-  text-align: center;
-  color: var(--color-text-muted, rgba(224, 230, 237, 0.6));
+  color: rgba(226, 232, 240, 0.68);
   font-weight: 600;
-  font-size: var(--dashboard-font-xs, var(--text-xs, 0.75rem));
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(64, 224, 208, 0.2);
+  letter-spacing: 0.03em;
 }
 
-.cluster-list-table td {
-  padding: var(--dashboard-table-cell-pad-y, 7px) var(--dashboard-table-cell-pad-x, 8px);
-  text-align: center;
-  color: var(--color-text-primary, #e0e6ed);
-  border-bottom: 1px solid rgba(64, 224, 208, 0.06);
-  font-size: var(--dashboard-font-sm, var(--text-sm, 0.875rem));
-  transition: background var(--transition-fast, 150ms ease);
+.cluster-list-table th:first-child,
+.cluster-list-table td:first-child,
+.cluster-list-table th:nth-child(2),
+.cluster-list-table td:nth-child(2),
+.cluster-list-table th:nth-child(3),
+.cluster-list-table td:nth-child(3),
+.cluster-list-table th:last-child,
+.cluster-list-table td:last-child {
+  text-align: left;
+}
+
+.cluster-sort-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-transform: inherit;
 }
 
 .cluster-list-table tbody tr {
-  transition: background var(--transition-fast, 150ms ease);
+  transition: background 120ms ease, box-shadow 120ms ease;
+  cursor: pointer;
+}
+
+.cluster-list-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.014);
 }
 
 .cluster-list-table tbody tr:hover {
   background: rgba(64, 224, 208, 0.08);
+}
+
+.cluster-list-table tbody tr.selected {
+  background: rgba(64, 224, 208, 0.12);
+}
+
+.cluster-list-table tbody tr.primary {
+  box-shadow: inset 3px 0 #40e0d0;
+}
+
+.checkbox-cell input {
+  width: 15px;
+  height: 15px;
   cursor: pointer;
-}
-
-.cluster-list-table tbody tr:hover td {
-  border-bottom-color: rgba(64, 224, 208, 0.12);
-}
-
-/* Alternating rows for better readability */
-.cluster-list-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.015);
-}
-
-.cluster-list-table tbody tr:nth-child(even):hover {
-  background: rgba(64, 224, 208, 0.08);
-}
-
-.checkbox-cell input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--color-primary, #40e0d0);
-  border-radius: var(--radius-sm, 4px);
+  accent-color: #40e0d0;
 }
 
 .cluster-id-cell {
-  font-size: var(--dashboard-font-sm, var(--text-sm, 0.875rem));
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  color: #f8fafc !important;
+  font-weight: 700;
 }
 
-/* Scrollbar styling */
-.cluster-list-content::-webkit-scrollbar {
-  width: 5px;
+.cluster-group-select {
+  width: 78px;
+  height: 24px;
+  padding: 0 4px;
 }
 
-.cluster-list-content::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: var(--radius-full, 9999px);
+.cluster-group-select.group-good { color: #6ee7b7; }
+.cluster-group-select.group-mua { color: #fbbf24; }
+.cluster-group-select.group-noise { color: #fb7185; }
+
+.cluster-note-input {
+  width: 110px;
+  height: 24px;
 }
 
-.cluster-list-content::-webkit-scrollbar-thumb {
-  background: rgba(64, 224, 208, 0.25);
-  border-radius: var(--radius-full, 9999px);
+.cluster-label-input {
+  width: 82px;
+  height: 24px;
 }
 
-.cluster-list-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(64, 224, 208, 0.45);
+.metric-warning {
+  color: #fb7185 !important;
+  font-weight: 650;
+}
+
+.cluster-empty-cell {
+  padding: 24px !important;
+  text-align: center !important;
+  color: rgba(226, 232, 240, 0.58) !important;
+  white-space: normal !important;
+}
+
+.cluster-list-content::-webkit-scrollbar { width: 6px; height: 6px; }
+.cluster-list-content::-webkit-scrollbar-thumb { background: rgba(64, 224, 208, 0.28); border-radius: 8px; }
+
+@media (max-width: 720px) {
+  .cluster-curation-toolbar { grid-template-columns: 1fr 1fr; }
+  .cluster-curation-toolbar input { grid-column: 1 / -1; }
 }

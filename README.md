@@ -15,7 +15,7 @@ SpikeScope provides a modern dashboard for exploring raw neural signals, running
 - **Signal Visualization** — Explore raw, filtered, and spike-detected signals across hundreds of channels with interactive zoom and pan.
 - **Spike Sorting** — Run clustering algorithms (Kilosort4, TorchBCI) to classify detected spikes into distinct neural units.
 - **Multi-Panel View** — Arrange and customize multiple analysis panels side-by-side with a flexible dockable widget system.
-- **Cluster Analysis** — Visualize clusters with dimensionality reduction, inspect waveform shapes, and navigate individual spikes on the timeline.
+- **Cluster Curation & Diagnostics** — Sort and label clusters, inspect PCA and waveforms, and use linked correlogram, ISI, amplitude-drift, raster, and signal views. See [`docs/P0_PHY_VIEWS.md`](docs/P0_PHY_VIEWS.md).
 - **Dataset Management** — Upload, switch, and manage multiple neural recording datasets with support for PyTorch tensor (`.pt`), NumPy (`.npy`), and raw binary formats.
 - **Runtime Analytics** — Track and compare algorithm performance metrics to optimize spike sorting pipelines.
 - **Extensible Widgets** — Build custom visualization widgets with a documented plugin API.

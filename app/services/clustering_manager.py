@@ -56,6 +56,7 @@ class ClusteringManager:
         self.config = config
         self.dataset_manager = dataset_manager
         self.clustering_results: Optional[List[List[Dict]]] = None
+        self.clustering_results_source: Optional[str] = None
         self.gpu_backend = gpu_backend  # None → local execution
     
     @staticmethod
@@ -117,6 +118,7 @@ class ClusteringManager:
             data_shape = list(data_tensor.shape)
 
         # Common: save results and build response
+        self.clustering_results_source = 'torchbci_jims'
         self._save_torchbci_results_to_file()
 
         n_spikes = sum(len(c) for c in self.clustering_results)
@@ -262,6 +264,7 @@ class ClusteringManager:
                 pass
 
         # Common: save results and build response
+        self.clustering_results_source = 'kilosort4'
         self._save_kilosort4_results_to_file()
 
         n_spikes = sum(len(c) for c in self.clustering_results)
@@ -507,6 +510,7 @@ class ClusteringManager:
     def clear_results(self) -> None:
         """Clear stored clustering results."""
         self.clustering_results = None
+        self.clustering_results_source = None
 
     # ---- Preprocessed TorchBCI persistence ----
 
@@ -562,6 +566,7 @@ class ClusteringManager:
 
         unique_clusters = np.unique(cluster_ids)
         self.clustering_results = []
+        self.clustering_results_source = 'preprocessed_torchbci'
 
         for cluster_id in unique_clusters:
             mask = cluster_ids == cluster_id
@@ -631,6 +636,7 @@ class ClusteringManager:
 
         unique_clusters = np.unique(cluster_ids)
         self.clustering_results = []
+        self.clustering_results_source = 'preprocessed_kilosort4'
 
         for cluster_id in unique_clusters:
             mask = cluster_ids == cluster_id

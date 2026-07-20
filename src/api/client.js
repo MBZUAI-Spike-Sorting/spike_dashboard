@@ -407,15 +407,83 @@ const apiClient = {
       body: JSON.stringify({ clusterIds, algorithm }),
     });
   },
+
+  /**
+   * Get an auto/cross-correlogram matrix for selected clusters.
+   */
+  async getClusterCorrelograms({
+    clusterIds,
+    algorithm = '',
+    binSizeMs = 1,
+    windowSizeMs = 50,
+    maxSpikesPerCluster = 100000,
+  }) {
+    return request('/api/cluster-correlograms', {
+      method: 'POST',
+      body: JSON.stringify({
+        clusterIds,
+        algorithm,
+        binSizeMs,
+        windowSizeMs,
+        maxSpikesPerCluster,
+      }),
+    });
+  },
+
+  /**
+   * Get per-cluster inter-spike interval histograms.
+   */
+  async getClusterIsiHistograms({
+    clusterIds,
+    algorithm = '',
+    binSizeMs = 0.5,
+    windowSizeMs = 100,
+    refractoryPeriodMs = 2,
+  }) {
+    return request('/api/cluster-isi-histograms', {
+      method: 'POST',
+      body: JSON.stringify({
+        clusterIds,
+        algorithm,
+        binSizeMs,
+        windowSizeMs,
+        refractoryPeriodMs,
+      }),
+    });
+  },
+
+  /**
+   * Get unstandardized peak-to-peak amplitudes through recording time.
+   */
+  async getClusterAmplitudes({
+    clusterIds,
+    algorithm = '',
+    maxSpikesPerCluster = 5000,
+    windowSamples = 15,
+    includeBackground = true,
+    maxBackgroundSpikes = 5000,
+  }) {
+    return request('/api/cluster-amplitudes', {
+      method: 'POST',
+      body: JSON.stringify({
+        clusterIds,
+        algorithm,
+        maxSpikesPerCluster,
+        windowSamples,
+        includeBackground,
+        maxBackgroundSpikes,
+      }),
+    });
+  },
   
   /**
    * Get cluster waveforms
    * @param {Object} params - Request parameters
    */
-  async getClusterWaveforms({ clusterIds, maxWaveforms = 100, windowSize = 30, algorithm = '' }) {
+  async getClusterWaveforms({ clusterIds, maxWaveforms = 100, windowSize = 30, algorithm = '', includeSpikeIndices = [] }) {
     return request('/api/cluster-waveforms', {
       method: 'POST',
-      body: JSON.stringify({ clusterIds, maxWaveforms, windowSize, algorithm }),
+      body: JSON.stringify({ clusterIds, maxWaveforms, windowSize, algorithm, includeSpikeIndices }),
     });
   },
   
