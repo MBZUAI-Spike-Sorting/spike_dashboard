@@ -832,6 +832,9 @@ const MultiPanelView = forwardRef(({
           isMaximized={state.maximized}
           draggable={!isDefaultView ? true : true}
           resizable={!isDefaultView ? true : true}
+          interactionScale={displaySettings.scale}
+          constrainToParent
+          layoutPosition={state.position}
           style={getWidgetStyle(widgetId)}
         >
           {body}

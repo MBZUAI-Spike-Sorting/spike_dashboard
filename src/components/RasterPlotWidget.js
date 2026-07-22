@@ -6,6 +6,7 @@ const LEFT_GUTTER = 72;
 const RIGHT_GUTTER = 16;
 const TOP_GUTTER = 18;
 const BOTTOM_GUTTER = 30;
+const MIN_ROW_HEIGHT = 18;
 
 const toFiniteNumber = (value) => {
   const numberValue = Number(value);
@@ -161,6 +162,32 @@ const formatNumber = (value) => (
   Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString() : '-'
 );
 
+const getDomainSpan = (domain) => Math.max(1, domain.end - domain.start);
+
+const fitDomainWithin = (start, span, fullDomain) => {
+  const fullSpan = getDomainSpan(fullDomain);
+  if (span >= fullSpan) return null;
+
+  const clampedStart = Math.min(
+    Math.max(start, fullDomain.start),
+    fullDomain.end - span
+  );
+  return { start: clampedStart, end: clampedStart + span };
+};
+
+export const zoomTimeDomain = (activeDomain, fullDomain, factor, anchorRatio = 0.5) => {
+  const span = getDomainSpan(activeDomain);
+  const nextSpan = Math.max(1, span * factor);
+  const ratio = Math.min(1, Math.max(0, anchorRatio));
+  const anchor = activeDomain.start + span * ratio;
+
+  return fitDomainWithin(anchor - nextSpan * ratio, nextSpan, fullDomain);
+};
+
+export const panTimeDomain = (activeDomain, fullDomain, delta) => (
+  fitDomainWithin(activeDomain.start + delta, getDomainSpan(activeDomain), fullDomain)
+);
+
 const RasterPlotWidget = ({
   spikes = [],
   selectedClusters = [],
@@ -176,10 +203,14 @@ const RasterPlotWidget = ({
   const canvasRef = useRef(null);
   const shellRef = useRef(null);
   const eventPositionsRef = useRef([]);
+  const panStateRef = useRef(null);
+  const suppressClickRef = useRef(false);
   const [groupBy, setGroupBy] = useState('cluster');
   const [size, setSize] = useState({ width: 600, height: 320 });
   const [timeDomain, setTimeDomain] = useState(null);
   const [hover, setHover] = useState(null);
+  const [rowScrollTop, setRowScrollTop] = useState(0);
+  const [isPanning, setIsPanning] = useState(false);
 
   const events = useMemo(() => buildRasterEvents({
     spikes,
@@ -228,15 +259,19 @@ const RasterPlotWidget = ({
     });
   }, [clusterOrder, events, groupBy]);
 
+  const contentHeight = Math.max(
+    size.height,
+    TOP_GUTTER + BOTTOM_GUTTER + rowValues.length * MIN_ROW_HEIGHT
+  );
+
   useEffect(() => {
     const shell = shellRef.current;
     if (!shell) return undefined;
 
     const updateSize = () => {
-      const rect = shell.getBoundingClientRect();
       setSize({
-        width: Math.max(320, Math.round(rect.width)),
-        height: Math.max(220, Math.round(rect.height))
+        width: Math.max(320, Math.round(shell.clientWidth)),
+        height: Math.max(220, Math.round(shell.clientHeight))
       });
     };
 
@@ -250,6 +285,11 @@ const RasterPlotWidget = ({
   useEffect(() => {
     setTimeDomain(null);
   }, [events]);
+
+  useEffect(() => {
+    if (shellRef.current) shellRef.current.scrollTop = 0;
+    setRowScrollTop(0);
+  }, [groupBy]);
 
   useEffect(() => {
     if (!events.length) return;
@@ -322,7 +362,7 @@ const RasterPlotWidget = ({
     context.fillRect(0, 0, size.width, size.height);
 
     const plotWidth = Math.max(1, size.width - LEFT_GUTTER - RIGHT_GUTTER);
-    const plotHeight = Math.max(1, size.height - TOP_GUTTER - BOTTOM_GUTTER);
+    const plotHeight = Math.max(1, contentHeight - TOP_GUTTER - BOTTOM_GUTTER);
     const domainSpan = Math.max(1, activeDomain.end - activeDomain.start);
     const rowHeight = rowValues.length > 0 ? plotHeight / rowValues.length : plotHeight;
     const rowIndexMap = new Map(rowValues.map((row, index) => [row, index]));
@@ -331,7 +371,8 @@ const RasterPlotWidget = ({
     context.strokeStyle = 'rgba(148, 163, 184, 0.18)';
     context.lineWidth = 1;
     rowValues.forEach((row, rowIndex) => {
-      const y = TOP_GUTTER + rowIndex * rowHeight + rowHeight / 2;
+      const y = TOP_GUTTER + rowIndex * rowHeight + rowHeight / 2 - rowScrollTop;
+      if (y < TOP_GUTTER - rowHeight || y > size.height - BOTTOM_GUTTER + rowHeight) return;
       context.beginPath();
       context.moveTo(LEFT_GUTTER, y);
       context.lineTo(size.width - RIGHT_GUTTER, y);
@@ -359,7 +400,8 @@ const RasterPlotWidget = ({
       if (rowIndex === undefined) return;
 
       const x = LEFT_GUTTER + ((event.time - activeDomain.start) / domainSpan) * plotWidth;
-      const y = TOP_GUTTER + rowIndex * rowHeight + rowHeight / 2;
+      const y = TOP_GUTTER + rowIndex * rowHeight + rowHeight / 2 - rowScrollTop;
+      if (y < TOP_GUTTER || y > size.height - BOTTOM_GUTTER) return;
       const colorKey = groupBy === 'channel' ? event.clusterId : event.channel;
       const isHighlighted = highlightedSet.has(`${event.clusterId}:${event.pointIndex}`);
       const clusterSelected = selectedClusterSet.has(String(event.clusterId));
@@ -379,7 +421,7 @@ const RasterPlotWidget = ({
 
     context.strokeStyle = 'rgba(125, 223, 216, 0.45)';
     context.lineWidth = 1;
-    context.strokeRect(LEFT_GUTTER, TOP_GUTTER, plotWidth, plotHeight);
+    context.strokeRect(LEFT_GUTTER, TOP_GUTTER, plotWidth, size.height - TOP_GUTTER - BOTTOM_GUTTER);
 
     context.fillStyle = 'rgba(226, 232, 240, 0.72)';
     context.font = '11px system-ui, sans-serif';
@@ -390,31 +432,28 @@ const RasterPlotWidget = ({
       const value = activeDomain.start + (domainSpan * tick) / 4;
       context.fillText(formatNumber(value), x, size.height - BOTTOM_GUTTER + 9);
     }
-  }, [activeDomain, events, groupBy, highlightedSet, rowValues, selectedClusterSet, size]);
+  }, [activeDomain, contentHeight, events, groupBy, highlightedSet, rowScrollTop, rowValues, selectedClusterSet, size]);
 
-  const updateZoom = (factor) => {
-    const span = Math.max(1, activeDomain.end - activeDomain.start);
-    const center = activeDomain.start + span / 2;
-    const nextSpan = Math.max(1, span * factor);
-    const fullSpan = Math.max(1, fullDomain.end - fullDomain.start);
-
-    if (nextSpan >= fullSpan) {
-      setTimeDomain(null);
-      return;
-    }
-
-    const start = Math.max(fullDomain.start, center - nextSpan / 2);
-    const end = Math.min(fullDomain.end, start + nextSpan);
-    setTimeDomain({
-      start: Math.max(fullDomain.start, end - nextSpan),
-      end
-    });
+  const updateZoom = (factor, anchorRatio = 0.5) => {
+    setTimeDomain(zoomTimeDomain(activeDomain, fullDomain, factor, anchorRatio));
   };
 
   const handlePointerMove = (event) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
+
+    if (panStateRef.current) {
+      const panState = panStateRef.current;
+      const dx = x - panState.startX;
+      if (Math.abs(dx) > 2) panState.moved = true;
+      const plotWidth = Math.max(1, size.width - LEFT_GUTTER - RIGHT_GUTTER);
+      const delta = -(dx / plotWidth) * getDomainSpan(panState.domain);
+      setTimeDomain(panTimeDomain(panState.domain, fullDomain, delta));
+      setHover(null);
+      return;
+    }
+
     let nearest = null;
     let nearestDistance = Infinity;
 
@@ -439,8 +478,51 @@ const RasterPlotWidget = ({
   };
 
   const handleClick = () => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     if (hover?.event && typeof onEventSelect === 'function') {
       onEventSelect(hover.event);
+    }
+  };
+
+  const handlePointerDown = (event) => {
+    if (event.button !== 0 || !timeDomain) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    panStateRef.current = {
+      startX: event.clientX - rect.left,
+      domain: activeDomain,
+      moved: false
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setIsPanning(true);
+  };
+
+  const handlePointerUp = (event) => {
+    if (!panStateRef.current) return;
+    suppressClickRef.current = panStateRef.current.moved;
+    panStateRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setIsPanning(false);
+  };
+
+  const handleWheel = (event) => {
+    const plotWidth = Math.max(1, size.width - LEFT_GUTTER - RIGHT_GUTTER);
+
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      const rect = canvasRef.current.getBoundingClientRect();
+      const anchorRatio = (event.clientX - rect.left - LEFT_GUTTER) / plotWidth;
+      updateZoom(Math.exp(event.deltaY * 0.002), anchorRatio);
+      return;
+    }
+
+    if (timeDomain && (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY))) {
+      event.preventDefault();
+      const pixels = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const delta = (pixels / plotWidth) * getDomainSpan(activeDomain);
+      setTimeDomain(panTimeDomain(activeDomain, fullDomain, delta));
     }
   };
 
@@ -465,8 +547,8 @@ const RasterPlotWidget = ({
         </div>
 
         <div className="raster-actions">
-          <button type="button" onClick={() => updateZoom(0.5)}>Zoom in</button>
-          <button type="button" onClick={() => updateZoom(2)}>Zoom out</button>
+          <button type="button" onClick={() => updateZoom(0.5)} title="Zoom into the time axis">Zoom in</button>
+          <button type="button" onClick={() => updateZoom(2)} title="Zoom out of the time axis">Zoom out</button>
           <button type="button" onClick={() => setTimeDomain(null)}>Fit</button>
         </div>
 
@@ -476,33 +558,49 @@ const RasterPlotWidget = ({
         </div>
       </div>
 
-      <div className="raster-canvas-shell" ref={shellRef}>
+      <div
+        className="raster-canvas-shell"
+        ref={shellRef}
+        onScroll={(event) => {
+          setRowScrollTop(event.currentTarget.scrollTop);
+          setHover(null);
+        }}
+      >
         {events.length === 0 ? (
           <div className="raster-empty">No spike events available.</div>
         ) : (
-          <>
-            <canvas
-              ref={canvasRef}
-              className="raster-canvas"
-              onMouseMove={handlePointerMove}
-              onMouseLeave={() => setHover(null)}
-              onClick={handleClick}
-            />
-            {hover && (
-              <div
-                className="raster-tooltip"
-                style={{
-                  left: Math.min(size.width - 180, hover.x + 12),
-                  top: Math.max(8, hover.y - 40)
+          <div className="raster-scroll-content" style={{ height: contentHeight }}>
+            <div className="raster-canvas-layer" style={{ height: size.height }}>
+              <canvas
+                ref={canvasRef}
+                className={`raster-canvas ${timeDomain ? 'pannable' : ''} ${isPanning ? 'panning' : ''}`}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onPointerLeave={() => {
+                  if (!panStateRef.current) setHover(null);
                 }}
-              >
-                <strong>Cluster {hover.event.clusterId ?? '-'}</strong>
-                <span>Time {formatNumber(hover.event.time)}</span>
-                <span>Channel {hover.event.channel ?? '-'}</span>
-                <span>Spike {hover.event.pointIndex ?? '-'}</span>
-              </div>
-            )}
-          </>
+                onWheel={handleWheel}
+                onClick={handleClick}
+                title="Scroll rows vertically. Ctrl+wheel to zoom time; Shift+wheel or drag to pan."
+              />
+              {hover && (
+                <div
+                  className="raster-tooltip"
+                  style={{
+                    left: Math.min(size.width - 180, hover.x + 12),
+                    top: Math.max(8, hover.y - 40)
+                  }}
+                >
+                  <strong>Cluster {hover.event.clusterId ?? '-'}</strong>
+                  <span>Time {formatNumber(hover.event.time)}</span>
+                  <span>Channel {hover.event.channel ?? '-'}</span>
+                  <span>Spike {hover.event.pointIndex ?? '-'}</span>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

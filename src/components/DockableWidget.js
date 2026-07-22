@@ -1,6 +1,60 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './DockableWidget.css';
 
+export const normalizeInteractionScale = (scale) => {
+  const numericScale = Number(scale);
+  return Number.isFinite(numericScale) && numericScale > 0 ? numericScale : 1;
+};
+
+export const calculateResizeLayout = (resizeState, clientX, clientY, scale = 1) => {
+  const interactionScale = normalizeInteractionScale(scale);
+  const dx = (clientX - resizeState.startX) / interactionScale;
+  const dy = (clientY - resizeState.startY) / interactionScale;
+
+  let width = resizeState.width;
+  let height = resizeState.height;
+  let left = resizeState.left;
+  let top = resizeState.top;
+
+  if (resizeState.direction.includes('e')) width = Math.max(220, resizeState.width + dx);
+  if (resizeState.direction.includes('s')) height = Math.max(160, resizeState.height + dy);
+
+  if (resizeState.direction.includes('w')) {
+    const nextWidth = Math.max(220, resizeState.width - dx);
+    left = resizeState.left + (resizeState.width - nextWidth);
+    width = nextWidth;
+  }
+
+  if (resizeState.direction.includes('n')) {
+    const nextHeight = Math.max(160, resizeState.height - dy);
+    top = resizeState.top + (resizeState.height - nextHeight);
+    height = nextHeight;
+  }
+
+  return { width, height, left, top };
+};
+
+const MIN_VISIBLE_HEADER_WIDTH = 96;
+
+export const constrainWidgetPosition = ({
+  left,
+  top,
+  widgetWidth,
+  headerHeight,
+  containerWidth,
+  containerHeight
+}) => {
+  const visibleHeaderWidth = Math.min(MIN_VISIBLE_HEADER_WIDTH, widgetWidth);
+  const minLeft = Math.min(0, visibleHeaderWidth - widgetWidth);
+  const maxLeft = Math.max(0, containerWidth - visibleHeaderWidth);
+  const maxTop = Math.max(0, containerHeight - headerHeight);
+
+  return {
+    left: Math.min(maxLeft, Math.max(minLeft, left)),
+    top: Math.min(maxTop, Math.max(0, top))
+  };
+};
+
 const DockableWidget = ({
   id,
   title,
@@ -13,6 +67,9 @@ const DockableWidget = ({
   isMaximized = false,
   draggable = true,
   resizable = true,
+  interactionScale = 1,
+  constrainToParent = false,
+  layoutPosition = null,
   style = {}
 }) => {
   const widgetRef = useRef(null);
@@ -23,6 +80,23 @@ const DockableWidget = ({
   const dragState = useRef(null);
   const resizeState = useRef(null);
 
+  const getConstrainedPosition = (panel, widget, left, top) => {
+    if (!constrainToParent) return { left, top };
+
+    const container = panel.parentElement;
+    const header = widget.querySelector('.widget-header');
+    if (!container || !header) return { left, top };
+
+    return constrainWidgetPosition({
+      left,
+      top,
+      widgetWidth: widget.offsetWidth,
+      headerHeight: header.offsetHeight,
+      containerWidth: container.clientWidth,
+      containerHeight: container.clientHeight
+    });
+  };
+
   const notifyLayoutChange = () => {
     if (!onLayoutChange || !widgetRef.current) return;
 
@@ -31,6 +105,7 @@ const DockableWidget = ({
     if (!panel) return;
 
     const panelStyle = window.getComputedStyle(panel);
+    const scale = normalizeInteractionScale(interactionScale);
     const rect = widget.getBoundingClientRect();
 
     onLayoutChange(id, {
@@ -39,8 +114,10 @@ const DockableWidget = ({
         top: parseFloat(panelStyle.top) || 0
       },
       size: {
-        width: Math.round(rect.width),
-        height: Math.round(rect.height)
+        // offsetWidth/offsetHeight remain in layout pixels when CSS zoom is used.
+        // Keep a rect fallback for DOM implementations that do not expose them.
+        width: Math.round(widget.offsetWidth || rect.width / scale),
+        height: Math.round(widget.offsetHeight || rect.height / scale)
       }
     });
   };
@@ -51,11 +128,19 @@ const DockableWidget = ({
     const panel = widgetRef.current.parentElement;
     if (!panel) return;
 
-    const dx = e.clientX - dragState.current.startX;
-    const dy = e.clientY - dragState.current.startY;
+    const scale = normalizeInteractionScale(interactionScale);
+    const dx = (e.clientX - dragState.current.startX) / scale;
+    const dy = (e.clientY - dragState.current.startY) / scale;
 
-    panel.style.left = `${dragState.current.left + dx}px`;
-    panel.style.top = `${dragState.current.top + dy}px`;
+    const position = getConstrainedPosition(
+      panel,
+      widgetRef.current,
+      dragState.current.left + dx,
+      dragState.current.top + dy
+    );
+
+    panel.style.left = `${position.left}px`;
+    panel.style.top = `${position.top}px`;
   };
 
   const handleDragMouseUp = () => {
@@ -68,7 +153,8 @@ const DockableWidget = ({
 
   const startDrag = (e) => {
     if (!draggable || isMaximized) return;
-    if (!e.target.closest('.widget-header')) return;
+    const isRecoveryDrag = e.altKey;
+    if (!e.target.closest('.widget-header') && !isRecoveryDrag) return;
     if (e.target.closest('.widget-controls')) return;
 
     const widget = widgetRef.current;
@@ -76,6 +162,11 @@ const DockableWidget = ({
     if (!panel) return;
 
     const style = window.getComputedStyle(panel);
+
+    if (isRecoveryDrag) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
     dragState.current = {
       startX: e.clientX,
@@ -97,28 +188,12 @@ const DockableWidget = ({
     if (!panel) return;
 
     const r = resizeState.current;
-    const dx = e.clientX - r.startX;
-    const dy = e.clientY - r.startY;
-
-    let width = r.width;
-    let height = r.height;
-    let left = r.left;
-    let top = r.top;
-
-    if (r.direction.includes('e')) width = Math.max(220, r.width + dx);
-    if (r.direction.includes('s')) height = Math.max(160, r.height + dy);
-
-    if (r.direction.includes('w')) {
-      const nextWidth = Math.max(220, r.width - dx);
-      left = r.left + (r.width - nextWidth);
-      width = nextWidth;
-    }
-
-    if (r.direction.includes('n')) {
-      const nextHeight = Math.max(160, r.height - dy);
-      top = r.top + (r.height - nextHeight);
-      height = nextHeight;
-    }
+    const { width, height, left, top } = calculateResizeLayout(
+      r,
+      e.clientX,
+      e.clientY,
+      interactionScale
+    );
 
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
@@ -145,14 +220,15 @@ const DockableWidget = ({
     const panel = widget?.parentElement;
     if (!widget || !panel) return;
 
+    const scale = normalizeInteractionScale(interactionScale);
     const rect = widget.getBoundingClientRect();
     const panelStyle = window.getComputedStyle(panel);
 
     resizeState.current = {
       startX: e.clientX,
       startY: e.clientY,
-      width: rect.width,
-      height: rect.height,
+      width: widget.offsetWidth || rect.width / scale,
+      height: widget.offsetHeight || rect.height / scale,
       left: parseFloat(panelStyle.left) || 0,
       top: parseFloat(panelStyle.top) || 0,
       direction
@@ -172,14 +248,40 @@ const DockableWidget = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!constrainToParent) return undefined;
+
+    const keepHeaderInView = () => {
+      const widget = widgetRef.current;
+      const panel = widget?.parentElement;
+      if (!widget || !panel) return;
+
+      const panelStyle = window.getComputedStyle(panel);
+      const left = parseFloat(panelStyle.left) || 0;
+      const top = parseFloat(panelStyle.top) || 0;
+      const position = getConstrainedPosition(panel, widget, left, top);
+
+      if (position.left === left && position.top === top) return;
+      panel.style.left = `${position.left}px`;
+      panel.style.top = `${position.top}px`;
+      notifyLayoutChange();
+    };
+
+    keepHeaderInView();
+    window.addEventListener('resize', keepHeaderInView);
+    return () => window.removeEventListener('resize', keepHeaderInView);
+  }, [constrainToParent, layoutPosition?.left, layoutPosition?.top]);
+
   return (
     <div
       ref={widgetRef}
       className={`dockable-widget ${isMinimized ? 'minimized' : ''} ${isMaximized ? 'maximized' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
       data-widget-id={id}
+      onMouseDown={startDrag}
+      title="Drag the header to move. Alt/Option-drag anywhere to recover this widget."
       style={style}
     >
-      <div className="widget-header" onMouseDown={startDrag}>
+      <div className="widget-header">
         <div className="widget-title">{title}</div>
 
         <div className="widget-controls">

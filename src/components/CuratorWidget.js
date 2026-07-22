@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import apiClient from '../api/client';
+import {
+  filterActiveClusters,
+  normalizeMinimumSpikeCount
+} from '../utils/clusterActivity';
 import './CuratorWidget.css';
 
 const KNOWN_CLUSTER_FIELDS = new Set([
@@ -404,6 +408,7 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
   const [notice, setNotice] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
+  const [minimumSpikeCount, setMinimumSpikeCount] = useState(1);
 
   useEffect(() => {
     if (!clusterSetData) {
@@ -422,29 +427,35 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
     }
   }, [dataset, onDatasetChange]);
 
+  const activeClusters = useMemo(() => (
+    filterActiveClusters(dataset.clusters, minimumSpikeCount)
+  ), [dataset.clusters, minimumSpikeCount]);
+
   const summary = useMemo(() => {
     const clusters = dataset.clusters || [];
-    const totalSpikes = clusters.reduce((total, cluster) => total + cluster.spikeCount, 0);
-    const missingPrimary = clusters.filter(
+    const totalSpikes = activeClusters.reduce((total, cluster) => total + cluster.spikeCount, 0);
+    const missingPrimary = activeClusters.filter(
       (cluster) => isMissingPrimaryChannel(cluster.primaryChannel)
     ).length;
 
     return {
       totalClusters: clusters.length,
+      activeClusters: activeClusters.length,
+      filteredClusters: clusters.length - activeClusters.length,
       totalSpikes,
       missingPrimary
     };
-  }, [dataset]);
+  }, [activeClusters, dataset.clusters]);
 
   const sortedClusters = useMemo(() => {
-    return [...(dataset.clusters || [])].sort((left, right) => (
+    return [...activeClusters].sort((left, right) => (
       compareValues(
         getSortValue(left, sortConfig.key),
         getSortValue(right, sortConfig.key),
         sortConfig.direction
       )
     ));
-  }, [dataset, sortConfig]);
+  }, [activeClusters, sortConfig]);
 
   const handleSort = (key) => {
     setSortConfig((current) => ({
@@ -579,6 +590,18 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
             onChange={handleFileUpload}
           />
         </div>
+        <label className="curator-filter-control">
+          <span>Minimum spikes</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={minimumSpikeCount}
+            onChange={(event) => setMinimumSpikeCount(event.target.value)}
+            onBlur={() => setMinimumSpikeCount(normalizeMinimumSpikeCount(minimumSpikeCount))}
+            title="Hide clusters with fewer spikes than this value"
+          />
+        </label>
         <button
           type="button"
           className="curator-action-button"
@@ -613,11 +636,13 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
           <strong>{dataset.name}</strong>
         </div>
         <div className="curator-summary-card">
-          <span>Clusters</span>
-          <strong>{summary.totalClusters}</strong>
+          <span>Active clusters</span>
+          <strong title={`${summary.filteredClusters} filtered out`}>
+            {summary.activeClusters} / {summary.totalClusters}
+          </strong>
         </div>
         <div className="curator-summary-card">
-          <span>Total spikes</span>
+          <span>Active spikes</span>
           <strong>{summary.totalSpikes.toLocaleString()}</strong>
         </div>
         <div className="curator-summary-card">
@@ -647,7 +672,9 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
             {!sortedClusters.length && (
               <tr>
                 <td colSpan={6} className="curator-empty-state">
-                  Load a cluster file to inspect clusters.
+                  {summary.totalClusters
+                    ? `No clusters have at least ${normalizeMinimumSpikeCount(minimumSpikeCount).toLocaleString()} spikes.`
+                    : 'Load a cluster file to inspect clusters.'}
                 </td>
               </tr>
             )}
