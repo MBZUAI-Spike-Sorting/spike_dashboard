@@ -12,7 +12,7 @@
 
 .cluster-comparison-toolbar {
   display: grid;
-  grid-template-columns: minmax(190px, 1fr) minmax(190px, 1fr) minmax(110px, 0.45fr) minmax(190px, 0.8fr);
+  grid-template-columns: minmax(190px, 1fr) minmax(190px, 1fr) minmax(180px, 0.65fr) minmax(190px, 0.8fr);
   gap: 0.65rem;
   align-items: stretch;
   flex-shrink: 0;
@@ -29,6 +29,17 @@
   border: 1px solid rgba(64, 224, 208, 0.22);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
+}
+
+.cluster-numeric-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.cluster-numeric-controls .cluster-window-control {
+  padding: 0.55rem;
 }
 
 .cluster-file-picker span,

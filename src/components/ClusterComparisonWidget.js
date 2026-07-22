@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import apiClient from '../api/client';
+import {
+  filterActiveClusters,
+  normalizeMinimumSpikeCount
+} from '../utils/clusterActivity';
 import './ClusterComparisonWidget.css';
 
 const toNumber = (value) => {
@@ -26,7 +30,6 @@ const normalizeDataset = (dataset, fallbackName) => {
   const clusters = Array.isArray(payload?.clusters)
     ? payload.clusters
         .map(normalizeCluster)
-        .filter((cluster) => cluster.spikeTimes.length > 0)
     : [];
 
   return {
@@ -209,6 +212,7 @@ const ClusterComparisonWidget = ({
   );
   const [reference, setReference] = useState('a');
   const [windowSamples, setWindowSamples] = useState(2);
+  const [minimumSpikeCount, setMinimumSpikeCount] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: 'agreement', direction: 'desc' });
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -225,18 +229,27 @@ const ClusterComparisonWidget = ({
     }
   }, [algorithmBData]);
 
+  const activeAlgorithmA = useMemo(() => ({
+    ...algorithmA,
+    clusters: filterActiveClusters(algorithmA.clusters, minimumSpikeCount)
+  }), [algorithmA, minimumSpikeCount]);
+  const activeAlgorithmB = useMemo(() => ({
+    ...algorithmB,
+    clusters: filterActiveClusters(algorithmB.clusters, minimumSpikeCount)
+  }), [algorithmB, minimumSpikeCount]);
+
   const rows = useMemo(() => {
-    if (algorithmA.clusters.length === 0 || algorithmB.clusters.length === 0) {
+    if (activeAlgorithmA.clusters.length === 0 || activeAlgorithmB.clusters.length === 0) {
       return [];
     }
 
     return compareDatasets({
-      algorithmA,
-      algorithmB,
+      algorithmA: activeAlgorithmA,
+      algorithmB: activeAlgorithmB,
       reference,
       windowSamples: Math.max(0, Number(windowSamples) || 0)
     });
-  }, [algorithmA, algorithmB, reference, windowSamples]);
+  }, [activeAlgorithmA, activeAlgorithmB, reference, windowSamples]);
 
   const summary = useMemo(() => {
     const matchingSpikes = rows.reduce((sum, row) => sum + row.matchingSpikes, 0);
@@ -306,8 +319,8 @@ const ClusterComparisonWidget = ({
     }
   };
 
-  const referenceDataset = reference === 'a' ? algorithmA : algorithmB;
-  const comparisonDataset = reference === 'a' ? algorithmB : algorithmA;
+  const referenceDataset = reference === 'a' ? activeAlgorithmA : activeAlgorithmB;
+  const comparisonDataset = reference === 'a' ? activeAlgorithmB : activeAlgorithmA;
 
   return (
     <div className="cluster-comparison-widget">
@@ -321,7 +334,7 @@ const ClusterComparisonWidget = ({
             disabled={isUploading}
           />
           <strong>{algorithmA.algorithmName}</strong>
-          <em>{algorithmA.clusters.length} clusters</em>
+          <em>{activeAlgorithmA.clusters.length} of {algorithmA.clusters.length} clusters</em>
         </label>
 
         <label className="cluster-file-picker">
@@ -333,19 +346,33 @@ const ClusterComparisonWidget = ({
             disabled={isUploading}
           />
           <strong>{algorithmB.algorithmName}</strong>
-          <em>{algorithmB.clusters.length} clusters</em>
+          <em>{activeAlgorithmB.clusters.length} of {algorithmB.clusters.length} clusters</em>
         </label>
 
-        <label className="cluster-window-control">
-          <span>Window</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={windowSamples}
-            onChange={(event) => setWindowSamples(event.target.value)}
-          />
-        </label>
+        <div className="cluster-numeric-controls">
+          <label className="cluster-window-control">
+            <span>Window</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={windowSamples}
+              onChange={(event) => setWindowSamples(event.target.value)}
+            />
+          </label>
+          <label className="cluster-window-control">
+            <span>Minimum spikes</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={minimumSpikeCount}
+              onChange={(event) => setMinimumSpikeCount(event.target.value)}
+              onBlur={() => setMinimumSpikeCount(normalizeMinimumSpikeCount(minimumSpikeCount))}
+              title="Exclude clusters with fewer spikes than this value"
+            />
+          </label>
+        </div>
 
         <div className="cluster-reference-control">
           <span>Reference</span>
@@ -440,7 +467,9 @@ const ClusterComparisonWidget = ({
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={SORT_COLUMNS.length} className="cluster-comparison-empty">
-                  Load two cluster files to compare.
+                  {algorithmA.clusters.length && algorithmB.clusters.length
+                    ? `No clusters in both files have at least ${normalizeMinimumSpikeCount(minimumSpikeCount).toLocaleString()} spikes.`
+                    : 'Load two cluster files to compare.'}
                 </td>
               </tr>
             ) : (
