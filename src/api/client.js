@@ -480,10 +480,24 @@ const apiClient = {
    * Get cluster waveforms
    * @param {Object} params - Request parameters
    */
-  async getClusterWaveforms({ clusterIds, maxWaveforms = 100, windowSize = 30, algorithm = '', includeSpikeIndices = [] }) {
+  async getClusterWaveforms({
+    clusterIds,
+    clusters = [],
+    maxWaveforms = 100,
+    windowSize = 30,
+    algorithm = '',
+    includeSpikeIndices = []
+  }) {
     return request('/api/cluster-waveforms', {
       method: 'POST',
-      body: JSON.stringify({ clusterIds, maxWaveforms, windowSize, algorithm, includeSpikeIndices }),
+      body: JSON.stringify({
+        clusterIds,
+        clusters,
+        maxWaveforms,
+        windowSize,
+        algorithm,
+        includeSpikeIndices
+      }),
     });
   },
   

@@ -1,8 +1,29 @@
 import {
   calculateResizeLayout,
   constrainWidgetPosition,
+  default as DockableWidget,
   normalizeInteractionScale
 } from './DockableWidget';
+import React, { act, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+
+global.IS_REACT_ACT_ENVIRONMENT = true;
+
+const StatefulContent = () => {
+  const [value, setValue] = useState(0);
+  return (
+    <>
+      <span aria-label="Stateful value">{value}</span>
+      <button
+        type="button"
+        aria-label="Update state"
+        onClick={() => setValue((previous) => previous + 1)}
+      >
+        Update state
+      </button>
+    </>
+  );
+};
 
 test('normalizes invalid interaction scales', () => {
   expect(normalizeInteractionScale(0.85)).toBe(0.85);
@@ -86,4 +107,34 @@ test('keeps enough of an off-screen widget header visible to recover it', () => 
     containerWidth: 1000,
     containerHeight: 700
   })).toEqual({ left: 904, top: 20 });
+});
+
+test('keeps widget content mounted while minimized', () => {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+
+  const renderWidget = (isMinimized) => {
+    root.render(
+      <DockableWidget id="curator" title="Curator" isMinimized={isMinimized}>
+        <StatefulContent />
+      </DockableWidget>
+    );
+  };
+
+  act(() => renderWidget(false));
+  const value = container.querySelector('[aria-label="Stateful value"]');
+
+  act(() => {
+    container.querySelector('[aria-label="Update state"]').click();
+  });
+
+  act(() => renderWidget(true));
+  expect(container.querySelector('.widget-content').classList.contains('hidden')).toBe(true);
+  expect(container.querySelector('[aria-label="Stateful value"]')).toBe(value);
+
+  act(() => renderWidget(false));
+  expect(container.querySelector('[aria-label="Stateful value"]')).toBe(value);
+  expect(value.textContent).toBe('1');
+
+  act(() => root.unmount());
 });
