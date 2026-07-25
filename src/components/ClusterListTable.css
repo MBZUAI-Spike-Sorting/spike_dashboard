@@ -39,6 +39,12 @@
 .cluster-list-content {
   flex: 1;
   overflow: auto;
+  min-height: 0;
+}
+
+/* Keep the horizontal scrollbar above the south resize hit area. */
+.dockable-widget:not(.maximized) .cluster-list-content {
+  margin-bottom: 8px;
 }
 
 .cluster-list-table table {

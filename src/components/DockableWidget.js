@@ -249,6 +249,29 @@ const DockableWidget = ({
   }, []);
 
   useEffect(() => {
+    const widget = widgetRef.current;
+    if (!widget || typeof ResizeObserver === 'undefined') return undefined;
+
+    let animationFrame = null;
+    const observer = new ResizeObserver(() => {
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(() => {
+        // Plotly's responsive handler listens to window resize rather than
+        // arbitrary parent-element changes. Forward the dock resize so plots
+        // and other responsive children recompute their dimensions.
+        window.dispatchEvent(new Event('resize'));
+        animationFrame = null;
+      });
+    });
+
+    observer.observe(widget);
+    return () => {
+      observer.disconnect();
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!constrainToParent) return undefined;
 
     const keepHeaderInView = () => {
@@ -320,11 +343,12 @@ const DockableWidget = ({
         </div>
       </div>
 
-      {!isMinimized && (
-        <div className="widget-content">
-          {children}
-        </div>
-      )}
+      <div
+        className={`widget-content ${isMinimized ? 'hidden' : ''}`}
+        aria-hidden={isMinimized}
+      >
+        {children}
+      </div>
 
       {!isMinimized && !isMaximized && resizable && (
         <>

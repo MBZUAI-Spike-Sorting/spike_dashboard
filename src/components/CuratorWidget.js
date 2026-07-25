@@ -4,6 +4,7 @@ import {
   filterActiveClusters,
   normalizeMinimumSpikeCount
 } from '../utils/clusterActivity';
+import { normalizeCuratorClusterId } from '../utils/curatorDataset';
 import './CuratorWidget.css';
 
 const KNOWN_CLUSTER_FIELDS = new Set([
@@ -15,6 +16,19 @@ const KNOWN_CLUSTER_FIELDS = new Set([
   'spikeTimes',
   'spike_times',
   'times',
+  'spikeChannels',
+  'spike_channels',
+  'channels',
+  'points',
+  'pcaPoints',
+  'pca_points',
+  'embedding',
+  'waveforms',
+  'spikeWaveforms',
+  'spike_waveforms',
+  'amplitudes',
+  'spikeAmplitudes',
+  'spike_amplitudes',
   'primaryChannel',
   'primary_channel',
   'channel'
@@ -53,6 +67,55 @@ const normalizeSpikeTimes = (rawSpikeTimes) => {
     .sort((a, b) => a - b);
 };
 
+const normalizeNumberArray = (values) => (
+  Array.isArray(values)
+    ? values.map(toNumber).filter((value) => value !== null)
+    : []
+);
+
+const normalizePoints = (values) => (
+  Array.isArray(values)
+    ? values.map((point) => {
+        if (Array.isArray(point) && point.length >= 2) {
+          const x = toNumber(point[0]);
+          const y = toNumber(point[1]);
+          return x !== null && y !== null ? [x, y] : null;
+        }
+        if (isPlainObject(point)) {
+          const x = toNumber(point.x ?? point.pc1 ?? point[0]);
+          const y = toNumber(point.y ?? point.pc2 ?? point[1]);
+          return x !== null && y !== null ? [x, y] : null;
+        }
+        return null;
+      }).filter(Boolean)
+    : []
+);
+
+const normalizeWaveforms = (values) => (
+  Array.isArray(values)
+    ? values.map((waveform, index) => {
+        const amplitude = Array.isArray(waveform)
+          ? normalizeNumberArray(waveform)
+          : normalizeNumberArray(
+              waveform?.amplitude ?? waveform?.values ?? waveform?.data
+            );
+        if (amplitude.length === 0) return null;
+
+        const suppliedTimes = normalizeNumberArray(
+          waveform?.timePoints ?? waveform?.time_points
+        );
+        return {
+          ...(isPlainObject(waveform) ? waveform : {}),
+          amplitude,
+          timePoints: suppliedTimes.length === amplitude.length
+            ? suppliedTimes
+            : amplitude.map((_, pointIndex) => pointIndex),
+          spikeIndex: waveform?.spikeIndex ?? waveform?.spike_index ?? index,
+        };
+      }).filter(Boolean)
+    : []
+);
+
 const isDisplayableMetadataValue = (value) => {
   if (value === null || value === undefined) {
     return false;
@@ -80,12 +143,24 @@ const normalizeCluster = (cluster, index) => {
   const spikeTimes = normalizeSpikeTimes(
     source.spikeTimes ?? source.spike_times ?? source.times
   );
+  const spikeChannels = normalizeNumberArray(
+    source.spikeChannels ?? source.spike_channels ?? source.channels
+  );
+  const points = normalizePoints(
+    source.points ?? source.pcaPoints ?? source.pca_points ?? source.embedding
+  );
+  const waveforms = normalizeWaveforms(
+    source.waveforms ?? source.spikeWaveforms ?? source.spike_waveforms
+  );
+  const spikeAmplitudes = normalizeNumberArray(
+    source.spikeAmplitudes ?? source.spike_amplitudes ?? source.amplitudes
+  );
 
-  const id = String(
+  const id = normalizeCuratorClusterId(
     source.id ??
     source.clusterId ??
     source.cluster_id ??
-    source.label ??
+    source.label,
     index
   );
 
@@ -111,12 +186,16 @@ const normalizeCluster = (cluster, index) => {
       source.primaryChannelSource ||
       (primaryChannel === null || primaryChannel === undefined ? null : 'provided'),
     spikeTimes,
+    spikeChannels,
+    points,
+    waveforms,
+    spikeAmplitudes,
     spikeCount: spikeTimes.length,
     metadata
   };
 };
 
-const normalizePrimaryChannelsForDataset = (clusters, sourceName, metadata = {}) => {
+const normalizePrimaryChannelsForDataset = (clusters, metadata = {}) => {
   const hasExplicitPrimaryChannels = (
     metadata.primaryChannelsProvided === true ||
     metadata.primary_channels_provided === true ||
@@ -128,13 +207,12 @@ const normalizePrimaryChannelsForDataset = (clusters, sourceName, metadata = {})
     return clusters;
   }
 
-  const sourceLooksLikeMatlab = /\.mat$/i.test(sourceName || '');
   const allProvidedZeros = clusters.every((cluster) => (
     cluster.primaryChannelSource === 'provided' &&
     Number(cluster.primaryChannel) === 0
   ));
 
-  if (!sourceLooksLikeMatlab || !allProvidedZeros) {
+  if (!allProvidedZeros) {
     return clusters;
   }
 
@@ -152,12 +230,20 @@ const normalizeDataset = (dataset, fallbackName = 'Cluster file') => {
   const clusters = Array.isArray(clustersSource)
     ? clustersSource.map(normalizeCluster)
     : [];
-  const name = metadata.algorithmName || metadata.name || dataset?.name || fallbackName;
+  const name = (
+    metadata.algorithmName ||
+    metadata.name ||
+    payload.algorithmName ||
+    dataset?.algorithmName ||
+    dataset?.name ||
+    fallbackName
+  );
 
   return {
     name,
     metadata,
-    clusters: normalizePrimaryChannelsForDataset(clusters, name, metadata)
+    clusters: normalizePrimaryChannelsForDataset(clusters, metadata),
+    isLoaded: Boolean(dataset)
   };
 };
 
@@ -400,15 +486,24 @@ const compareValues = (left, right, direction) => {
   return String(left ?? '').localeCompare(String(right ?? '')) * multiplier;
 };
 
-const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetChange }) => {
-  const [dataset, setDataset] = useState(() => normalizeDataset(null, 'No file loaded'));
-  const [selectedClusterId, setSelectedClusterId] = useState(null);
+const CuratorWidget = ({
+  clusterSetData,
+  initialDataset,
+  signalData,
+  selectedClusters = [],
+  onClusterSelect,
+  onDatasetChange
+}) => {
+  const [dataset, setDataset] = useState(() => (
+    normalizeDataset(initialDataset, initialDataset?.name || 'No file loaded')
+  ));
   const [sortConfig, setSortConfig] = useState({ key: 'spikeCount', direction: 'desc' });
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
   const [minimumSpikeCount, setMinimumSpikeCount] = useState(1);
+  const [spikeTimeUnit, setSpikeTimeUnit] = useState('auto');
 
   useEffect(() => {
     if (!clusterSetData) {
@@ -416,16 +511,23 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
     }
 
     setDataset(normalizeDataset(clusterSetData, 'Wired cluster set'));
-    setSelectedClusterId(null);
     setError('');
     setNotice('');
   }, [clusterSetData]);
 
   useEffect(() => {
-    if (typeof onDatasetChange === 'function') {
-      onDatasetChange(dataset);
+    if (dataset.isLoaded && typeof onDatasetChange === 'function') {
+      onDatasetChange(spikeTimeUnit === 'auto'
+        ? dataset
+        : {
+            ...dataset,
+            metadata: {
+              ...(dataset.metadata || {}),
+              timeUnit: spikeTimeUnit,
+            },
+          });
     }
-  }, [dataset, onDatasetChange]);
+  }, [dataset, onDatasetChange, spikeTimeUnit]);
 
   const activeClusters = useMemo(() => (
     filterActiveClusters(dataset.clusters, minimumSpikeCount)
@@ -477,7 +579,6 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
     try {
       const response = await apiClient.parseClusterComparisonFile(file);
       setDataset(normalizeDataset(response.data?.dataset, file.name));
-      setSelectedClusterId(null);
     } catch (uploadError) {
       setError(uploadError?.message || 'Unable to load the cluster file.');
     } finally {
@@ -567,14 +668,20 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
     }
   };
 
-  const handleClusterSelect = (cluster) => {
-    setSelectedClusterId(cluster.id);
+  const handleClusterSelect = (cluster, event, forceAdditive = false) => {
     if (typeof onClusterSelect === 'function') {
-      onClusterSelect({
-        ...cluster,
-        datasetName: dataset.name,
-        datasetMetadata: dataset.metadata
-      });
+      onClusterSelect(
+        {
+          ...cluster,
+          datasetName: dataset.name,
+          datasetMetadata: dataset.metadata
+        },
+        {
+          additive: forceAdditive || Boolean(
+            event?.ctrlKey || event?.metaKey || event?.shiftKey
+          )
+        }
+      );
     }
   };
 
@@ -601,6 +708,19 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
             onBlur={() => setMinimumSpikeCount(normalizeMinimumSpikeCount(minimumSpikeCount))}
             title="Hide clusters with fewer spikes than this value"
           />
+        </label>
+        <label className="curator-filter-control">
+          <span>Spike-time unit</span>
+          <select
+            value={spikeTimeUnit}
+            onChange={(event) => setSpikeTimeUnit(event.target.value)}
+            title="Choose how spike timestamps in the cluster file should be interpreted"
+          >
+            <option value="auto">Auto</option>
+            <option value="samples">Samples</option>
+            <option value="seconds">Seconds</option>
+            <option value="milliseconds">Milliseconds</option>
+          </select>
         </label>
         <button
           type="button"
@@ -655,6 +775,7 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
         <table className="curator-table">
           <thead>
             <tr>
+              <th aria-label="Selected" />
               {SORT_COLUMNS.map((column) => (
                 <th key={column.key}>
                   <button type="button" onClick={() => handleSort(column.key)}>
@@ -671,19 +792,33 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
           <tbody>
             {!sortedClusters.length && (
               <tr>
-                <td colSpan={6} className="curator-empty-state">
+                <td colSpan={7} className="curator-empty-state">
                   {summary.totalClusters
                     ? `No clusters have at least ${normalizeMinimumSpikeCount(minimumSpikeCount).toLocaleString()} spikes.`
                     : 'Load a cluster file to inspect clusters.'}
                 </td>
               </tr>
             )}
-            {sortedClusters.map((cluster) => (
-              <tr
-                key={cluster.id}
-                className={selectedClusterId === cluster.id ? 'selected' : ''}
-                onClick={() => handleClusterSelect(cluster)}
-              >
+            {sortedClusters.map((cluster) => {
+              const selected = selectedClusters.some(
+                (clusterId) => String(clusterId) === String(cluster.id)
+              );
+
+              return (
+                <tr
+                  key={cluster.id}
+                  className={selected ? 'selected' : ''}
+                  onClick={(event) => handleClusterSelect(cluster, event)}
+                >
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => handleClusterSelect(cluster, event, true)}
+                    aria-label={`Select cluster ${cluster.id}`}
+                  />
+                </td>
                 <td>{cluster.id}</td>
                 <td>
                   {formatValue(cluster.primaryChannel)}
@@ -696,7 +831,8 @@ const CuratorWidget = ({ clusterSetData, signalData, onClusterSelect, onDatasetC
                 <td>{formatSample(cluster.spikeTimes[cluster.spikeTimes.length - 1])}</td>
                 <td>{getMetadataPreview(cluster.metadata)}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

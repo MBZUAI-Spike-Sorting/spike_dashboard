@@ -8,7 +8,7 @@ const VALID_DENSITIES = new Set(['compact', 'standard', 'comfortable']);
 export const normalizeDisplaySettings = (settings = {}) => {
   const requestedScale = Number(settings.scale);
   const scale = Number.isFinite(requestedScale)
-    ? Math.min(1.25, Math.max(0.85, Math.round(requestedScale * 20) / 20))
+    ? Math.min(2, Math.max(0.35, Math.round(requestedScale * 20) / 20))
     : DEFAULT_DISPLAY_SETTINGS.scale;
   const density = VALID_DENSITIES.has(settings.density)
     ? settings.density
@@ -27,4 +27,3 @@ export const readDisplaySettings = (storage, key) => {
     return { ...DEFAULT_DISPLAY_SETTINGS };
   }
 };
-

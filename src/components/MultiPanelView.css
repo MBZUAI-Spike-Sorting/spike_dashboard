@@ -1,5 +1,7 @@
 .multi-panel-view {
-  --dashboard-ui-scale: 1;
+  --canvas-zoom: 1;
+  --canvas-offset-x: 0px;
+  --canvas-offset-y: 0px;
   --dashboard-container-padding: 8px;
   --dashboard-shell-padding: 10px;
   --dashboard-panel-gap: 8px;
@@ -24,11 +26,72 @@
   position: relative;
   height: 100%;
   width: 100%;
-  padding: var(--dashboard-container-padding);
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background-color: #16213e;
+  background-image:
+    radial-gradient(circle, rgba(148, 163, 184, 0.22) 1px, transparent 1.5px),
+    linear-gradient(135deg, rgba(26, 26, 46, 0.9) 0%, rgba(22, 33, 62, 0.9) 100%);
+  background-position:
+    var(--canvas-offset-x) var(--canvas-offset-y),
+    0 0;
+  background-size:
+    calc(24px * var(--canvas-zoom)) calc(24px * var(--canvas-zoom)),
+    100% 100%;
   overflow: hidden;
   transition: background 0.2s ease;
-  zoom: var(--dashboard-ui-scale);
+  cursor: grab;
+}
+
+.multi-panel-view.canvas-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.dashboard-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  overflow: visible;
+}
+
+.dashboard-overlay {
+  display: contents;
+}
+
+.canvas-zoom-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 3100;
+  display: flex;
+  align-items: center;
+  transform: translateX(-50%);
+  padding: 4px;
+  border: 1px solid rgba(64, 224, 208, 0.28);
+  border-radius: 8px;
+  background: rgba(8, 13, 31, 0.9);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.canvas-zoom-controls button {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #d7f7f3;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.canvas-zoom-controls button:hover {
+  background: rgba(64, 224, 208, 0.14);
+  color: #40e0d0;
 }
 
 .multi-panel-view.density-compact {
@@ -396,7 +459,10 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 1200px) {
+/* Keep the freeform dashboard active on laptop-sized viewports. The previous
+   1200px breakpoint forced every widget to width: 100% !important, overriding
+   the inline dimensions produced by the resize handles. */
+@media (max-width: 640px) {
   .multi-panel-view {
     overflow-x: auto;
     overflow-y: auto;
@@ -411,7 +477,7 @@
   }
 
   .multi-panel-view .dockable-widget {
-    width: 100% !important;
+    width: 100%;
     min-height: 250px;
     position: relative;
   }

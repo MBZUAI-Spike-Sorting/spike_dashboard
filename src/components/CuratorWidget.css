@@ -40,7 +40,8 @@
   text-transform: uppercase;
 }
 
-.curator-filter-control input {
+.curator-filter-control input,
+.curator-filter-control select {
   box-sizing: border-box;
   width: 100%;
   min-height: var(--dashboard-toolbar-control-height, 28px);

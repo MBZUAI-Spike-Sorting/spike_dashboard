@@ -33,9 +33,18 @@ import {
   readDisplaySettings,
 } from '../utils/displaySettings';
 import {
+  createDashboardDataFromCuratorDataset,
+  createWaveformPcaClusterData,
+  normalizeCuratorDatasetTimes,
+} from '../utils/curatorDataset';
+import {
   createDashboardPipelineVariables,
   mergeWidgetInputBindings,
 } from '../widgets/dataContracts';
+import {
+  screenToCanvasPoint,
+  zoomViewportAtPoint,
+} from '../utils/canvasViewport';
 
 const DISPLAY_SETTINGS_STORAGE_KEY = 'spikescope_display_settings:v1';
 const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
@@ -108,10 +117,14 @@ const MultiPanelView = forwardRef(({
   const [focusedTimeRange, setFocusedTimeRange] = useState(null);
   const [clusterAnnotations, setClusterAnnotations] = useState({});
   const [visibleClusterOrder, setVisibleClusterOrder] = useState([]);
+  const [curatorDataset, setCuratorDataset] = useState(null);
   const [waveformViewMode, setWaveformViewMode] = useState('single');
   const [displaySettings, setDisplaySettings] = useState(() => (
     readDisplaySettings(window.localStorage, DISPLAY_SETTINGS_STORAGE_KEY)
   ));
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const [isCanvasPanning, setIsCanvasPanning] = useState(false);
+  const canvasPanRef = useRef(null);
   const [widgetInputBindings, setWidgetInputBindings] = useState(() => {
     try {
       const saved = localStorage.getItem(WIDGET_BINDINGS_STORAGE_KEY);
@@ -150,6 +163,9 @@ const MultiPanelView = forwardRef(({
     }
     return DEFAULT_WIDGET_STATES;
   });
+  const hasMaximizedWidget = Object.values(widgetStates).some(
+    (state) => state.visible && state.maximized
+  );
 
   useEffect(() => {
     const syncCurrentView = () => {
@@ -175,11 +191,9 @@ const MultiPanelView = forwardRef(({
 
     syncCurrentView();
     window.addEventListener('storage', syncCurrentView);
-    window.addEventListener('focus', syncCurrentView);
 
     return () => {
       window.removeEventListener('storage', syncCurrentView);
-      window.removeEventListener('focus', syncCurrentView);
     };
   }, []);
 
@@ -201,13 +215,106 @@ const MultiPanelView = forwardRef(({
     localStorage.setItem(WIDGET_BINDINGS_STORAGE_KEY, JSON.stringify(widgetInputBindings));
   }, [widgetInputBindings]);
 
+  const setCanvasZoom = useCallback((requestedScale, point) => {
+    const nextSettings = normalizeDisplaySettings({
+      ...displaySettings,
+      scale: requestedScale,
+    });
+    const rect = containerRef.current?.getBoundingClientRect();
+    const anchor = point || {
+      x: (rect?.width || 0) / 2,
+      y: (rect?.height || 0) / 2,
+    };
+    const nextView = zoomViewportAtPoint(
+      { ...canvasOffset, zoom: displaySettings.scale },
+      nextSettings.scale,
+      anchor
+    );
+
+    setCanvasOffset({ x: nextView.x, y: nextView.y });
+    setDisplaySettings(nextSettings);
+  }, [canvasOffset, displaySettings]);
+
   const handleDisplaySettingsChange = useCallback((patch) => {
+    if (patch.scale !== undefined) {
+      setCanvasZoom(patch.scale);
+      return;
+    }
     setDisplaySettings((current) => normalizeDisplaySettings({ ...current, ...patch }));
-  }, []);
+  }, [setCanvasZoom]);
 
   const handleResetDisplaySettings = useCallback(() => {
     setDisplaySettings({ ...DEFAULT_DISPLAY_SETTINGS });
+    setCanvasOffset({ x: 0, y: 0 });
   }, []);
+
+  const handleResetCanvasView = useCallback(() => {
+    setDisplaySettings((current) => ({ ...current, scale: 1 }));
+    setCanvasOffset({ x: 0, y: 0 });
+  }, []);
+
+  const handleCanvasMouseMove = useCallback((event) => {
+    const pan = canvasPanRef.current;
+    if (!pan) return;
+    setCanvasOffset({
+      x: pan.offsetX + event.clientX - pan.clientX,
+      y: pan.offsetY + event.clientY - pan.clientY,
+    });
+  }, []);
+
+  const handleCanvasMouseUp = useCallback(() => {
+    canvasPanRef.current = null;
+    setIsCanvasPanning(false);
+    document.removeEventListener('mousemove', handleCanvasMouseMove);
+    document.removeEventListener('mouseup', handleCanvasMouseUp);
+  }, [handleCanvasMouseMove]);
+
+  const handleCanvasMouseDown = useCallback((event) => {
+    const isMiddleButton = event.button === 1;
+    const isCanvasBackground = event.button === 0
+      && !event.target.closest('.dockable-widget')
+      && !event.target.closest('.dashboard-overlay');
+    if (!isMiddleButton && !isCanvasBackground) return;
+
+    event.preventDefault();
+    canvasPanRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      offsetX: canvasOffset.x,
+      offsetY: canvasOffset.y,
+    };
+    setIsCanvasPanning(true);
+    document.addEventListener('mousemove', handleCanvasMouseMove);
+    document.addEventListener('mouseup', handleCanvasMouseUp);
+  }, [canvasOffset, handleCanvasMouseMove, handleCanvasMouseUp]);
+
+  useEffect(() => () => {
+    document.removeEventListener('mousemove', handleCanvasMouseMove);
+    document.removeEventListener('mouseup', handleCanvasMouseUp);
+  }, [handleCanvasMouseMove, handleCanvasMouseUp]);
+
+  const handleCanvasWheel = useCallback((event) => {
+    const overWidget = event.target.closest('.dockable-widget');
+    if (overWidget && !event.ctrlKey && !event.metaKey) return;
+
+    event.preventDefault();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    if (event.ctrlKey || event.metaKey) {
+      const zoomFactor = Math.exp(-event.deltaY * 0.002);
+      setCanvasZoom(displaySettings.scale * zoomFactor, {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
+      return;
+    }
+
+    setCanvasOffset((current) => ({
+      x: current.x - event.deltaX,
+      y: current.y - event.deltaY,
+    }));
+  }, [displaySettings.scale, setCanvasZoom]);
 
   const handleWidgetBindingChange = useCallback((widgetId, inputId, variableId) => {
     setWidgetInputBindings((current) => mergeWidgetInputBindings({
@@ -286,6 +393,7 @@ const MultiPanelView = forwardRef(({
     let cancelled = false;
 
     const clearClusterState = (preserveSelection = false) => {
+      setCuratorDataset(null);
       setClusters([]);
       if (!preserveSelection) setSelectedClusters([]);
       setSpikes([]);
@@ -419,14 +527,31 @@ const MultiPanelView = forwardRef(({
       setSpikes(nextSpikes);
 
       try {
+        const explicitClusters = curatorDataset
+          ? curatorDataset.clusters
+          : [];
         const waveformsData = await apiClient.getClusterWaveforms({
-          clusterIds: selectedClusters,
+          clusterIds: curatorDataset ? [] : selectedClusters,
+          clusters: explicitClusters,
+          maxWaveforms: curatorDataset ? 30 : 100,
           algorithm: selectedAlgorithm,
           includeSpikeIndices: highlightedSpikes,
         });
 
         if (!cancelled) {
-          setClusterWaveforms(waveformsData.waveforms || {});
+          const embeddedWaveforms = createDashboardDataFromCuratorDataset(
+            curatorDataset
+          ).clusterWaveforms;
+          const extractedWaveforms = waveformsData.waveforms || {};
+          const nonEmptyExtracted = Object.fromEntries(
+            Object.entries(extractedWaveforms).filter(([, waveforms]) => (
+              Array.isArray(waveforms) && waveforms.length > 0
+            ))
+          );
+          setClusterWaveforms({
+            ...nonEmptyExtracted,
+            ...embeddedWaveforms,
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -439,10 +564,11 @@ const MultiPanelView = forwardRef(({
     return () => {
       cancelled = true;
     };
-  }, [demoMode, selectedClusters, clusterData, selectedAlgorithm, highlightedSpikes]);
+  }, [demoMode, selectedClusters, clusterData, selectedAlgorithm, highlightedSpikes, curatorDataset]);
 
   useEffect(() => {
     if (demoMode) return undefined;
+    if (curatorDataset) return undefined;
     const clusterIds = clusterData?.clusterIds || [];
     if (clusterIds.length === 0) {
       setClusterStats({});
@@ -459,7 +585,7 @@ const MultiPanelView = forwardRef(({
       });
 
     return () => { cancelled = true; };
-  }, [clusterData, demoMode, selectedAlgorithm]);
+  }, [clusterData, curatorDataset, demoMode, selectedAlgorithm]);
 
   const handleClusterSelect = useCallback((clusterId, options = {}) => {
     const additive = Boolean(options.additive);
@@ -471,6 +597,32 @@ const MultiPanelView = forwardRef(({
         : [...previous, clusterId];
     });
   }, []);
+
+  const handleCuratorDatasetChange = useCallback((dataset) => {
+    if (!dataset || !Array.isArray(dataset.clusters)) return;
+
+    const normalizedDataset = normalizeCuratorDatasetTimes(dataset, datasetInfo);
+    const dashboardData = createDashboardDataFromCuratorDataset(normalizedDataset);
+    const clusterIds = dashboardData.clusterData.clusterIds;
+
+    setCuratorDataset(normalizedDataset);
+    setClusters(dashboardData.clusters);
+    setClusterData(dashboardData.clusterData);
+    setClusterStats(dashboardData.clusterStats);
+    setSpikes([]);
+    setSelectedSpike(null);
+    setClusterWaveforms(dashboardData.clusterWaveforms);
+    setHighlightedSpikes([]);
+    setFocusedTimeRange(null);
+    setVisibleClusterOrder(clusterIds);
+    setSelectedClusters(clusterIds);
+  }, [datasetInfo]);
+
+  const pcaClusterData = useMemo(() => (
+    curatorDataset
+      ? createWaveformPcaClusterData(clusterData, clusterWaveforms)
+      : clusterData
+  ), [clusterData, clusterWaveforms, curatorDataset]);
 
   const handleClusterPairSelect = useCallback((primaryClusterId, secondaryClusterId) => {
     setSelectedClusters(String(primaryClusterId) === String(secondaryClusterId)
@@ -588,8 +740,6 @@ const MultiPanelView = forwardRef(({
   }, [widgetStates, persistCurrentView, isDefaultView]);
 
   const handleWidgetLayoutChange = useCallback((widgetId, layout) => {
-    if (isDefaultView) return;
-
     setWidgetStates((prev) => ({
       ...prev,
       [widgetId]: {
@@ -598,7 +748,7 @@ const MultiPanelView = forwardRef(({
         size: layout.size ? { ...layout.size } : prev[widgetId].size
       }
     }));
-  }, [isDefaultView]);
+  }, []);
 
   const handleToggleWidget = useCallback((widgetId) => {
     setWidgetStates((prev) => {
@@ -707,12 +857,19 @@ const MultiPanelView = forwardRef(({
 
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
+      const canvasPoint = screenToCanvasPoint({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      }, {
+        ...canvasOffset,
+        zoom: displaySettings.scale,
+      });
       setDropPosition({
-        top: e.clientY - rect.top - 25,
-        left: e.clientX - rect.left - 100
+        top: canvasPoint.top - 25,
+        left: canvasPoint.left - 100,
       });
     }
-  }, [isDefaultView]);
+  }, [canvasOffset, displaySettings.scale, isDefaultView]);
 
   const handleDragLeave = useCallback((e) => {
     e.preventDefault();
@@ -761,8 +918,6 @@ const MultiPanelView = forwardRef(({
   ]);
 
   const getPanelStyle = useCallback((widgetId) => {
-    if (isDefaultView) return {};
-
     const state = widgetStates[widgetId];
     if (!state?.position) return {};
 
@@ -770,11 +925,9 @@ const MultiPanelView = forwardRef(({
       top: `${state.position.top}px`,
       left: `${state.position.left}px`
     };
-  }, [isDefaultView, widgetStates]);
+  }, [widgetStates]);
 
   const getWidgetStyle = useCallback((widgetId) => {
-    if (isDefaultView) return {};
-
     const state = widgetStates[widgetId];
     if (!state?.size) return {};
 
@@ -783,7 +936,7 @@ const MultiPanelView = forwardRef(({
       height: `${state.size.height}px`,
       flex: 'none'
     };
-  }, [isDefaultView, widgetStates]);
+  }, [widgetStates]);
 
   const pipelineVariables = useMemo(() => createDashboardPipelineVariables({
     clusters,
@@ -832,8 +985,7 @@ const MultiPanelView = forwardRef(({
           isMaximized={state.maximized}
           draggable={!isDefaultView ? true : true}
           resizable={!isDefaultView ? true : true}
-          interactionScale={displaySettings.scale}
-          constrainToParent
+          interactionScale={state.maximized ? 1 : displaySettings.scale}
           layoutPosition={state.position}
           style={getWidgetStyle(widgetId)}
         >
@@ -845,78 +997,98 @@ const MultiPanelView = forwardRef(({
 
   return (
     <div
-      className={`multi-panel-view density-${displaySettings.density} ${isDragOver ? 'drag-over' : ''}`}
+      className={`multi-panel-view density-${displaySettings.density} ${isDragOver ? 'drag-over' : ''} ${isCanvasPanning ? 'canvas-panning' : ''}`}
       ref={containerRef}
       style={{
-        '--dashboard-ui-scale': displaySettings.scale,
-        width: `${100 / displaySettings.scale}%`,
-        height: `${100 / displaySettings.scale}%`,
+        '--canvas-zoom': displaySettings.scale,
+        '--canvas-offset-x': `${canvasOffset.x}px`,
+        '--canvas-offset-y': `${canvasOffset.y}px`,
       }}
+      onMouseDown={handleCanvasMouseDown}
+      onWheel={handleCanvasWheel}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {!isDefaultView && isDragOver && dropPosition && (
-        <div
-          className="drop-indicator"
-          style={{
-            top: dropPosition.top,
-            left: dropPosition.left
-          }}
+      <div className="dashboard-overlay">
+        <button
+          className={`widget-bank-floating-toggle ${isWidgetBankOpen ? 'active' : ''}`}
+          onClick={() => setIsWidgetBankOpen((prev) => !prev)}
+          type="button"
+          title="Open widgets"
         >
-          <span className="drop-indicator-icon">📥</span>
-          <span>Drop widget here</span>
+          <span className="widget-bank-floating-icon">+</span>
+          <span className="widget-bank-floating-text">Widgets</span>
+        </button>
+
+        <WidgetBank
+          isOpen={isWidgetBankOpen}
+          onClose={() => setIsWidgetBankOpen(false)}
+          widgetStates={widgetStates}
+          onAddWidget={handleAddWidget}
+          onToggleWidget={handleToggleWidget}
+        />
+
+        <RightSideMenu
+          isWidgetBankOpen={isWidgetBankOpen}
+          onWidgetBankToggle={() => setIsWidgetBankOpen(!isWidgetBankOpen)}
+          widgetStates={widgetStates}
+          onViewChange={handleViewChange}
+          getWidgetPositionsAndSizes={getWidgetPositionsAndSizes}
+          algorithms={algorithms}
+          selectedAlgorithm={selectedAlgorithm}
+          onAlgorithmChange={onAlgorithmChange}
+          onRunAlgorithm={onRunAlgorithm}
+          onStopAlgorithm={onStopAlgorithm}
+          isRunningAlgorithm={isRunningAlgorithm}
+          pipelineJob={pipelineJob}
+          pipelineStatus={pipelineStatus}
+          pipelineMessage={pipelineMessage}
+          pipelineError={pipelineError}
+          onOpenParameters={onOpenParameters}
+          pipelineVariables={pipelineVariables}
+          widgetInputBindings={widgetInputBindings}
+          onWidgetBindingChange={handleWidgetBindingChange}
+          displaySettings={displaySettings}
+          onDisplaySettingsChange={handleDisplaySettingsChange}
+          onResetDisplaySettings={handleResetDisplaySettings}
+          customPipelines={customPipelines}
+          isLoadingCustomPipelines={isLoadingCustomPipelines}
+          customPipelineError={customPipelineError}
+          onAddCustomPipeline={onAddCustomPipeline}
+          onDeleteCustomPipeline={onDeleteCustomPipeline}
+          canManageCustomPipelines={canManageCustomPipelines}
+        />
+
+        <div className="canvas-zoom-controls" aria-label="Canvas zoom controls">
+          <button type="button" onClick={() => setCanvasZoom(displaySettings.scale - 0.1)} aria-label="Zoom out">−</button>
+          <button type="button" onClick={handleResetCanvasView} title="Reset canvas position and zoom">
+            {Math.round(displaySettings.scale * 100)}%
+          </button>
+          <button type="button" onClick={() => setCanvasZoom(displaySettings.scale + 0.1)} aria-label="Zoom in">+</button>
         </div>
-      )}
+      </div>
 
-      <button
-        className={`widget-bank-floating-toggle ${isWidgetBankOpen ? 'active' : ''}`}
-        onClick={() => setIsWidgetBankOpen((prev) => !prev)}
-        type="button"
-        title="Open widgets"
+      <div
+        className="dashboard-canvas"
+        style={{
+          transform: hasMaximizedWidget
+            ? 'translate(0, 0) scale(1)'
+            : `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${displaySettings.scale})`,
+        }}
       >
-        <span className="widget-bank-floating-icon">+</span>
-        <span className="widget-bank-floating-text">Widgets</span>
-      </button>
-
-      <WidgetBank
-        isOpen={isWidgetBankOpen}
-        onClose={() => setIsWidgetBankOpen(false)}
-        widgetStates={widgetStates}
-        onAddWidget={handleAddWidget}
-        onToggleWidget={handleToggleWidget}
-      />
-
-      <RightSideMenu
-        isWidgetBankOpen={isWidgetBankOpen}
-        onWidgetBankToggle={() => setIsWidgetBankOpen(!isWidgetBankOpen)}
-        widgetStates={widgetStates}
-        onViewChange={handleViewChange}
-        getWidgetPositionsAndSizes={getWidgetPositionsAndSizes}
-        algorithms={algorithms}
-        selectedAlgorithm={selectedAlgorithm}
-        onAlgorithmChange={onAlgorithmChange}
-        onRunAlgorithm={onRunAlgorithm}
-        onStopAlgorithm={onStopAlgorithm}
-        isRunningAlgorithm={isRunningAlgorithm}
-        pipelineJob={pipelineJob}
-        pipelineStatus={pipelineStatus}
-        pipelineMessage={pipelineMessage}
-        pipelineError={pipelineError}
-        onOpenParameters={onOpenParameters}
-        pipelineVariables={pipelineVariables}
-        widgetInputBindings={widgetInputBindings}
-        onWidgetBindingChange={handleWidgetBindingChange}
-        displaySettings={displaySettings}
-        onDisplaySettingsChange={handleDisplaySettingsChange}
-        onResetDisplaySettings={handleResetDisplaySettings}
-        customPipelines={customPipelines}
-        isLoadingCustomPipelines={isLoadingCustomPipelines}
-        customPipelineError={customPipelineError}
-        onAddCustomPipeline={onAddCustomPipeline}
-        onDeleteCustomPipeline={onDeleteCustomPipeline}
-        canManageCustomPipelines={canManageCustomPipelines}
-      />
+        {!isDefaultView && isDragOver && dropPosition && (
+          <div
+            className="drop-indicator"
+            style={{
+              top: dropPosition.top,
+              left: dropPosition.left
+            }}
+          >
+            <span className="drop-indicator-icon">📥</span>
+            <span>Drop widget here</span>
+          </div>
+        )}
 
       {renderDockable(
         'clusterList',
@@ -938,7 +1110,8 @@ const MultiPanelView = forwardRef(({
   <AmplitudeProfileWidget
     selectedClusters={selectedClusters}
     clusterWaveforms={clusterWaveforms}
-    clusteringResults={clusteringResults}
+    clusterData={clusterData}
+    clusteringResults={curatorDataset ? null : clusteringResults}
     selectedAlgorithm={selectedAlgorithm}
     demoMode={demoMode}
   />,
@@ -962,13 +1135,10 @@ const MultiPanelView = forwardRef(({
   'curator',
   'Curator',
   <CuratorWidget
-    selectedDataset={selectedDataset}
-    clusteringResults={clusteringResults}
-    selectedAlgorithm={selectedAlgorithm}
+    initialDataset={curatorDataset}
+    onDatasetChange={handleCuratorDatasetChange}
     selectedClusters={selectedClusters}
-    clusterStats={clusterStats}
-    spikes={spikes}
-    demoMode={demoMode}
+    onClusterSelect={(cluster, options) => handleClusterSelect(cluster.id, options)}
   />,
   'panel-curator'
 )}
@@ -982,6 +1152,7 @@ const MultiPanelView = forwardRef(({
     selectedAlgorithm={selectedAlgorithm}
     clusteringResults={clusteringResults}
     clusterData={clusterData}
+    curatorDataset={curatorDataset}
     visibleClusterIds={visibleClusterOrder}
     clusterOrder={visibleClusterOrder}
     highlightedSpikes={highlightedSpikes}
@@ -1090,9 +1261,9 @@ const MultiPanelView = forwardRef(({
         'dimReduction',
         'Dimensionality Reduction Plot View (PCA)',
         <DimensionalityReductionPanel
-          clusterData={clusterData}
+          clusterData={pcaClusterData}
           selectedClusters={selectedClusters}
-          clusteringResults={clusteringResults}
+          clusteringResults={curatorDataset ? null : clusteringResults}
           selectedAlgorithm={selectedAlgorithm}
           selectedSpike={highlightedSpikes.length > 0 ? {
             clusterId: highlightedSpikes[0].clusterId,
@@ -1142,6 +1313,7 @@ const MultiPanelView = forwardRef(({
         </>,
         'panel-waveform'
       )}
+      </div>
     </div>
   );
 });

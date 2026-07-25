@@ -36,7 +36,7 @@ const queryValue = (row, field) => {
   const aliases = {
     id: 'id', cluster: 'id', cluster_id: 'id',
     n_spikes: 'size', spikes: 'size', count: 'size',
-    channel: 'peakChannel', peak_channel: 'peakChannel', depth: 'depth',
+    ch: 'peakChannel', channel: 'peakChannel', peak_channel: 'peakChannel', depth: 'depth',
     fr: 'firingRateHz', firing_rate: 'firingRateHz', firing_rate_hz: 'firingRateHz',
     isi: 'isiViolationRate', isi_violations: 'isiViolationRate', isi_violation_rate: 'isiViolationRate',
     amp: 'meanAmplitude', amplitude: 'meanAmplitude', mean_amplitude: 'meanAmplitude',
@@ -45,11 +45,9 @@ const queryValue = (row, field) => {
   return row[aliases[field.toLowerCase()]];
 };
 
-const matchesQuery = (row, rawQuery) => {
-  const query = rawQuery.trim();
-  if (!query) return true;
-
-  const expression = query.match(/^([a-z_]+)\s*(<=|>=|!=|=|<|>)\s*(.+)$/i);
+const matchesClause = (row, rawClause) => {
+  const clause = rawClause.trim();
+  const expression = clause.match(/^([a-z_]+)\s*(<=|>=|!=|=|<|>)\s*(.+)$/i);
   if (expression) {
     const [, field, operator, rawExpected] = expression;
     const actual = queryValue(row, field);
@@ -70,7 +68,22 @@ const matchesQuery = (row, rawQuery) => {
   const haystack = [row.id, row.group, row.label, row.note, row.peakChannel, row.depth]
     .join(' ')
     .toLowerCase();
-  return query.toLowerCase().split(/\s+/).every((term) => haystack.includes(term));
+  return clause.toLowerCase().split(/\s+/).every((term) => haystack.includes(term));
+};
+
+export const matchesQuery = (row, rawQuery) => {
+  const query = rawQuery.trim();
+  if (!query) return true;
+
+  return query
+    .split(/\s+(?:or)\s+|\|\|/i)
+    .filter((orGroup) => orGroup.trim())
+    .some((orGroup) => {
+      const clauses = orGroup
+        .split(/\s+(?:and)\s+|&&|,/i)
+        .filter((clause) => clause.trim());
+      return clauses.length > 0 && clauses.every((clause) => matchesClause(row, clause));
+    });
 };
 
 const formatMetric = (value, digits = 2) => (
@@ -138,8 +151,9 @@ const ClusterListTable = ({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Filter or n_spikes > 100"
+          placeholder="ch=30 and spikes>500, or use “or”"
           aria-label="Filter clusters"
+          title="Combine filters with and/or, for example: ch=30 or spikes>500"
         />
         <select value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)} aria-label="Filter by group">
           <option value="all">All groups</option>

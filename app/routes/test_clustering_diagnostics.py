@@ -4,7 +4,12 @@ from types import SimpleNamespace
 import numpy as np
 from flask import Flask
 
-from app.routes.clustering import _ensure_requested_clustering_results, clustering_bp
+from app.routes.clustering import (
+    _ensure_requested_clustering_results,
+    _infer_peak_channel_from_dataset,
+    _normalize_cluster_payload,
+    clustering_bp,
+)
 
 
 class ClusterDiagnosticRouteTests(unittest.TestCase):
@@ -79,6 +84,30 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         self.assertEqual([waveform['spikeIndex'] for waveform in waveforms], [0, 2])
         self.assertAlmostEqual(waveforms[0]['timePoints'][1] - waveforms[0]['timePoints'][0], 1.0)
 
+    def test_curator_waveforms_use_explicit_cluster_times_and_infer_peak_channel(self):
+        data = np.zeros((3, 100), dtype=np.float32)
+        data[0, :] = 500
+        data[1, :] = -81
+        data[2, 37:44] = [-1, -3, 2, 9, 3, -2, 0]
+        self.client.application.config['dataset_manager'].data_array = data
+
+        payload = self.client.post('/api/cluster-waveforms', json={
+            'clusterIds': [],
+            'clusters': [{
+                'id': 515,
+                'primaryChannel': None,
+                'spikeTimes': [40],
+            }],
+            'maxWaveforms': 10,
+            'windowSize': 5,
+        }).get_json()
+
+        waveforms = payload['waveforms']['515']
+        self.assertEqual(len(waveforms), 1)
+        self.assertEqual(waveforms[0]['time'], 40)
+        self.assertEqual(waveforms[0]['channel'], 3)
+        self.assertGreater(np.ptp(waveforms[0]['amplitude']), 0)
+
     def test_preprocessed_source_switch_reloads_requested_results(self):
         calls = []
         manager = SimpleNamespace(
@@ -90,6 +119,39 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         _ensure_requested_clustering_results(manager, 'preprocessed_kilosort4')
 
         self.assertEqual(calls, ['kilosort4'])
+
+    def test_peak_channel_inference_ignores_constant_dc_offsets(self):
+        data = np.zeros((3, 80), dtype=np.float32)
+        data[0, :] = 500
+        data[1, :] = -120
+        data[2, 36:45] = [0, 2, -5, -20, 35, 12, -4, 1, 0]
+        manager = SimpleNamespace(data_array=data)
+
+        channel_index, channel_label = _infer_peak_channel_from_dataset(
+            manager,
+            [40],
+        )
+
+        self.assertEqual(channel_index, 2)
+        self.assertEqual(channel_label, 3)
+
+    def test_curator_parser_preserves_visualization_data(self):
+        payload = _normalize_cluster_payload({
+            'clusters': [{
+                'id': 12,
+                'spikeTimes': [100, 200],
+                'spikeChannels': [4, 5],
+                'points': [[-1, 2], [3, 4]],
+                'waveforms': [[-2, 0, 3], [-1, 0, 4]],
+                'spikeAmplitudes': [5, 6],
+            }],
+        })
+        cluster = payload['clusters'][0]
+
+        self.assertEqual(cluster['points'], [[-1.0, 2.0], [3.0, 4.0]])
+        self.assertEqual(cluster['spikeChannels'], [4.0, 5.0])
+        self.assertEqual(len(cluster['waveforms']), 2)
+        self.assertEqual(cluster['spikeAmplitudes'], [5.0, 6.0])
 
 
 if __name__ == '__main__':

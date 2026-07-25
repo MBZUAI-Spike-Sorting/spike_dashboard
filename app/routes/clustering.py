@@ -458,13 +458,17 @@ def _infer_peak_channel_from_dataset(dataset_manager, spike_times):
         if spike_time < 0 or spike_time >= num_samples:
             continue
 
-        start_idx = max(0, spike_time - 1)
-        end_idx = min(num_samples, spike_time + 2)
-        sample_window = data_array[:, start_idx:end_idx]
-        if sample_window.size == 0:
+        start_idx = max(0, spike_time - 15)
+        end_idx = min(num_samples, spike_time + 16)
+        sample_window = np.asarray(data_array[:, start_idx:end_idx], dtype=float)
+        if sample_window.size == 0 or sample_window.shape[1] < 2:
             continue
 
-        channel_scores += np.mean(np.abs(sample_window), axis=1)
+        # Raw channels can have large, stable DC offsets. Scoring absolute sample
+        # values incorrectly chooses the channel with the largest offset and can
+        # yield constant waveforms. Peak-to-peak activity is baseline-independent
+        # and identifies the channel carrying the spike transient.
+        channel_scores += np.ptp(sample_window, axis=1)
         usable_spikes += 1
 
     if usable_spikes == 0 or not np.any(channel_scores):
@@ -758,6 +762,91 @@ def _to_number_list(value):
     return [float(item) for item in numeric if np.isfinite(item)]
 
 
+def _to_point_pairs(value):
+    """Convert PCA/embedding values to JSON-safe [x, y] pairs."""
+    if value is None:
+        return []
+
+    if isinstance(value, (list, tuple)) and value and isinstance(value[0], dict):
+        points = []
+        for point in value:
+            x = _to_scalar(_pick(point, ['x', 'pc1', '0']))
+            y = _to_scalar(_pick(point, ['y', 'pc2', '1']))
+            try:
+                x = float(x)
+                y = float(y)
+            except (TypeError, ValueError):
+                continue
+            if np.isfinite(x) and np.isfinite(y):
+                points.append([x, y])
+        return points
+
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError):
+        return []
+
+    if array.ndim == 1 and array.size >= 2:
+        array = array.reshape((-1, 2)) if array.size % 2 == 0 else array[:2].reshape((1, 2))
+    elif array.ndim == 2 and array.shape[0] == 2 and array.shape[1] != 2:
+        array = array.T
+
+    if array.ndim != 2 or array.shape[1] < 2:
+        return []
+
+    return [
+        [float(row[0]), float(row[1])]
+        for row in array
+        if np.isfinite(row[0]) and np.isfinite(row[1])
+    ]
+
+
+def _normalize_embedded_waveforms(value):
+    """Convert embedded waveform arrays/objects to the frontend waveform contract."""
+    if value is None:
+        return []
+
+    if isinstance(value, (list, tuple)) and value and isinstance(value[0], dict):
+        waveforms = []
+        for index, waveform in enumerate(value):
+            amplitude = _to_number_list(
+                _pick(waveform, ['amplitude', 'values', 'data'])
+            )
+            if not amplitude:
+                continue
+            time_points = _to_number_list(
+                _pick(waveform, ['timePoints', 'time_points'])
+            )
+            waveforms.append({
+                'amplitude': amplitude,
+                'timePoints': time_points if len(time_points) == len(amplitude) else list(range(len(amplitude))),
+                'spikeIndex': int(_to_scalar(
+                    _pick(waveform, ['spikeIndex', 'spike_index']),
+                    index
+                )),
+            })
+        return waveforms
+
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError):
+        return []
+
+    if array.ndim == 1:
+        array = array.reshape((1, -1))
+    if array.ndim != 2:
+        return []
+
+    return [
+        {
+            'amplitude': [float(item) for item in row if np.isfinite(item)],
+            'timePoints': list(range(array.shape[1])),
+            'spikeIndex': index,
+        }
+        for index, row in enumerate(array)
+    ]
+
+
 def _to_string(value, default=''):
     scalar = _to_scalar(value, default)
     return str(scalar or default).strip()
@@ -822,8 +911,18 @@ def _normalize_cluster_payload(payload, fallback_name='Uploaded clusters'):
     if not isinstance(payload, dict):
         raise ValueError('Cluster file must contain an object/dictionary')
 
-    metadata = payload.get('metadata') if isinstance(payload.get('metadata'), dict) else {}
+    metadata = dict(payload.get('metadata')) if isinstance(payload.get('metadata'), dict) else {}
     payload_data = payload.get('data') if isinstance(payload.get('data'), dict) else payload
+    if 'units' not in metadata and isinstance(payload_data.get('units'), dict):
+        metadata['units'] = payload_data['units']
+    for source_key, target_key in (
+        ('timeUnit', 'timeUnit'),
+        ('time_unit', 'timeUnit'),
+        ('spikeTimeUnit', 'spikeTimeUnit'),
+        ('spike_time_unit', 'spikeTimeUnit'),
+    ):
+        if target_key not in metadata and payload_data.get(source_key) is not None:
+            metadata[target_key] = payload_data[source_key]
 
     algorithm_name = _to_string(
         _pick(
@@ -851,16 +950,33 @@ def _normalize_cluster_payload(payload, fallback_name='Uploaded clusters'):
                 continue
 
             primary_channel = _pick(cluster, ['primaryChannel', 'primary_channel', 'channel'])
+            spike_channels = _to_number_list(
+                _pick(cluster, ['spikeChannels', 'spike_channels', 'channels'])
+            )
+            points = _to_point_pairs(
+                _pick(cluster, ['points', 'pcaPoints', 'pca_points', 'embedding'])
+            )
+            waveforms = _normalize_embedded_waveforms(
+                _pick(cluster, ['waveforms', 'spikeWaveforms', 'spike_waveforms'])
+            )
+            spike_amplitudes = _to_number_list(
+                _pick(cluster, ['spikeAmplitudes', 'spike_amplitudes', 'amplitudes'])
+            )
 
             clusters.append({
                 'id': str(cluster_id),
                 'primaryChannel': _to_scalar(primary_channel, None),
-                'spikeTimes': spike_times
+                'spikeTimes': spike_times,
+                'spikeChannels': spike_channels,
+                'points': points,
+                'waveforms': waveforms,
+                'spikeAmplitudes': spike_amplitudes,
             })
 
         if clusters:
             return {
                 'algorithmName': algorithm_name,
+                'metadata': metadata,
                 'clusters': clusters
             }
 
@@ -905,6 +1021,7 @@ def _normalize_cluster_payload(payload, fallback_name='Uploaded clusters'):
 
     return {
         'algorithmName': algorithm_name,
+        'metadata': metadata,
         'clusters': clusters
     }
 

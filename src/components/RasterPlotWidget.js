@@ -88,7 +88,7 @@ const normalizeEventsFromClusters = (clusters = [], filterSet, filterIsActive = 
   return events;
 };
 
-const buildRasterEvents = ({
+export const buildRasterEvents = ({
   spikes,
   selectedClusters,
   visibleClusterIds,
@@ -96,7 +96,7 @@ const buildRasterEvents = ({
   clusterData,
   curatorDataset
 }) => {
-  const filterIsActive = Array.isArray(visibleClusterIds);
+  const filterIsActive = Array.isArray(visibleClusterIds) && visibleClusterIds.length > 0;
   const filterSet = selectedSetFrom(filterIsActive ? visibleClusterIds : selectedClusters);
   let events = [];
 

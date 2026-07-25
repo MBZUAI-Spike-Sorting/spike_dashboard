@@ -1,4 +1,4 @@
-import { panTimeDomain, zoomTimeDomain } from './RasterPlotWidget';
+import { buildRasterEvents, panTimeDomain, zoomTimeDomain } from './RasterPlotWidget';
 
 const fullDomain = { start: 0, end: 1000 };
 
@@ -37,4 +37,17 @@ test('pans a zoomed time window and clamps at either recording edge', () => {
 
 test('returns to the full domain when zooming all the way out', () => {
   expect(zoomTimeDomain({ start: 250, end: 750 }, fullDomain, 2)).toBeNull();
+});
+
+test('does not treat an empty visible-cluster order as an active filter', () => {
+  const events = buildRasterEvents({
+    spikes: [],
+    selectedClusters: [12],
+    visibleClusterIds: [],
+    clusterData: {
+      clusters: [{ clusterId: 12, spikeTimes: [100, 200] }],
+    },
+  });
+
+  expect(events.map((event) => event.clusterId)).toEqual([12, 12]);
 });

@@ -142,14 +142,14 @@ const RightSideMenu = ({
             <div className="display-controls">
               <label className="display-control">
                 <div className="display-control-row">
-                  <span>UI scale</span>
-                  <strong>{displaySettings.scale.toFixed(2)}x</strong>
+                  <span>Canvas zoom</span>
+                  <strong>{Math.round(displaySettings.scale * 100)}%</strong>
                 </div>
                 <input
                   className="display-scale-slider"
                   type="range"
-                  min="0.85"
-                  max="1.25"
+                  min="0.35"
+                  max="2"
                   step="0.05"
                   value={displaySettings.scale}
                   onChange={(e) => onDisplaySettingsChange?.({ scale: Number(e.target.value) })}
