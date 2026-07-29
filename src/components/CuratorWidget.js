@@ -5,6 +5,10 @@ import {
   normalizeMinimumSpikeCount
 } from '../utils/clusterActivity';
 import { normalizeCuratorClusterId } from '../utils/curatorDataset';
+import {
+  loadCuratorSessionDataset,
+  saveCuratorSessionDataset,
+} from '../utils/curatorSessionStore';
 import './CuratorWidget.css';
 
 const KNOWN_CLUSTER_FIELDS = new Set([
@@ -486,13 +490,20 @@ const compareValues = (left, right, direction) => {
   return String(left ?? '').localeCompare(String(right ?? '')) * multiplier;
 };
 
+export const getCuratorClusterIds = (clusters = []) => (
+  clusters.map((cluster) => cluster.id)
+);
+
 const CuratorWidget = ({
   clusterSetData,
   initialDataset,
   signalData,
   selectedClusters = [],
   onClusterSelect,
-  onDatasetChange
+  onDatasetChange,
+  onSelectedClustersChange,
+  onLoadingChange,
+  sessionCacheScope = 'default',
 }) => {
   const [dataset, setDataset] = useState(() => (
     normalizeDataset(initialDataset, initialDataset?.name || 'No file loaded')
@@ -502,8 +513,45 @@ const CuratorWidget = ({
   const [notice, setNotice] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [minimumSpikeCount, setMinimumSpikeCount] = useState(1);
   const [spikeTimeUnit, setSpikeTimeUnit] = useState('auto');
+
+  useEffect(() => {
+    onLoadingChange?.(
+      'curator',
+      isUploading || isPredicting || isRestoring,
+      isUploading
+        ? 'Loading cluster file…'
+        : isRestoring
+        ? 'Restoring session file…'
+        : 'Predicting primary channels…'
+    );
+  }, [isPredicting, isRestoring, isUploading, onLoadingChange]);
+
+  useEffect(() => {
+    if (initialDataset?.clusters?.length) return undefined;
+
+    let active = true;
+    setIsRestoring(true);
+    loadCuratorSessionDataset({ scope: sessionCacheScope })
+      .then((cachedDataset) => {
+        if (!active || !cachedDataset) return;
+        setDataset(normalizeDataset(cachedDataset, cachedDataset.name || 'Session file'));
+        setNotice(`Restored ${cachedDataset.name || 'the curator file'} from this tab session.`);
+        setError('');
+      })
+      .catch(() => {
+        // A cache miss should behave exactly like a fresh curator widget.
+      })
+      .finally(() => {
+        if (active) setIsRestoring(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [initialDataset, sessionCacheScope]);
 
   useEffect(() => {
     if (!clusterSetData) {
@@ -517,7 +565,7 @@ const CuratorWidget = ({
 
   useEffect(() => {
     if (dataset.isLoaded && typeof onDatasetChange === 'function') {
-      onDatasetChange(spikeTimeUnit === 'auto'
+      const effectiveDataset = spikeTimeUnit === 'auto'
         ? dataset
         : {
             ...dataset,
@@ -525,9 +573,11 @@ const CuratorWidget = ({
               ...(dataset.metadata || {}),
               timeUnit: spikeTimeUnit,
             },
-          });
+          };
+      onDatasetChange(effectiveDataset);
+      saveCuratorSessionDataset(effectiveDataset, { scope: sessionCacheScope });
     }
-  }, [dataset, onDatasetChange, spikeTimeUnit]);
+  }, [dataset, onDatasetChange, sessionCacheScope, spikeTimeUnit]);
 
   const activeClusters = useMemo(() => (
     filterActiveClusters(dataset.clusters, minimumSpikeCount)
@@ -578,6 +628,7 @@ const CuratorWidget = ({
 
     try {
       const response = await apiClient.parseClusterComparisonFile(file);
+      onSelectedClustersChange?.([]);
       setDataset(normalizeDataset(response.data?.dataset, file.name));
     } catch (uploadError) {
       setError(uploadError?.message || 'Unable to load the cluster file.');
@@ -729,6 +780,26 @@ const CuratorWidget = ({
           disabled={!summary.totalClusters || isPredicting || !summary.missingPrimary}
         >
           Predict Primary Channels
+        </button>
+      </div>
+
+      <div className="curator-selection-controls">
+        <span>
+          {selectedClusters.length.toLocaleString()} selected
+        </span>
+        <button
+          type="button"
+          onClick={() => onSelectedClustersChange?.(getCuratorClusterIds(activeClusters))}
+          disabled={!activeClusters.length}
+        >
+          Select all
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelectedClustersChange?.([])}
+          disabled={!selectedClusters.length}
+        >
+          Deselect all
         </button>
       </div>
 

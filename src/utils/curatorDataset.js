@@ -12,6 +12,14 @@ export const normalizeCuratorClusterId = (value, fallback) => {
     : String(resolved);
 };
 
+export const reconcileCuratorClusterSelection = (
+  selectedClusters = [],
+  availableClusterIds = []
+) => {
+  const availableIds = new Set(availableClusterIds.map(String));
+  return selectedClusters.filter((clusterId) => availableIds.has(String(clusterId)));
+};
+
 const getDeclaredTimeUnit = (metadata = {}) => (
   metadata?.units?.time ??
   metadata?.timeUnit ??
@@ -203,7 +211,7 @@ const principalComponent = (centeredRows, dimension, previousComponent = null) =
   return vector;
 };
 
-export const createWaveformPcaClusterData = (clusterData, clusterWaveforms) => {
+const computeWaveformPcaClusterData = (clusterData, clusterWaveforms) => {
   if (!Array.isArray(clusterData?.clusters)) return clusterData;
 
   const observations = [];
@@ -279,4 +287,28 @@ export const createWaveformPcaClusterData = (clusterData, clusterWaveforms) => {
       };
     }),
   };
+};
+
+const waveformPcaCache = new WeakMap();
+
+export const createWaveformPcaClusterData = (clusterData, clusterWaveforms) => {
+  if (
+    !clusterData ||
+    typeof clusterData !== 'object' ||
+    !clusterWaveforms ||
+    typeof clusterWaveforms !== 'object'
+  ) {
+    return computeWaveformPcaClusterData(clusterData, clusterWaveforms);
+  }
+
+  let waveformCache = waveformPcaCache.get(clusterData);
+  if (!waveformCache) {
+    waveformCache = new WeakMap();
+    waveformPcaCache.set(clusterData, waveformCache);
+  }
+  if (waveformCache.has(clusterWaveforms)) return waveformCache.get(clusterWaveforms);
+
+  const result = computeWaveformPcaClusterData(clusterData, clusterWaveforms);
+  waveformCache.set(clusterWaveforms, result);
+  return result;
 };

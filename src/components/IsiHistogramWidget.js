@@ -8,6 +8,11 @@ import {
   reconcileDiagnosticClusterIds,
 } from '../utils/diagnosticClusterSelection';
 import DiagnosticClusterPicker from './DiagnosticClusterPicker';
+import {
+  createSessionCacheKey,
+  getOrLoadSessionCache,
+  getSessionObjectId,
+} from '../utils/sessionCache';
 import './ClusterDiagnosticWidgets.css';
 
 const colorFor = (clusterId) => `hsl(${(Number(clusterId) * 137) % 360}, 72%, 64%)`;
@@ -23,6 +28,8 @@ const IsiHistogramWidget = ({
   datasetInfo = null,
   demoMode = false,
   onClusterSelect,
+  dataCacheScope = '',
+  onLoadingChange,
 }) => {
   const [binSizeMs, setBinSizeMs] = useState(0.5);
   const [windowSizeMs, setWindowSizeMs] = useState(100);
@@ -38,6 +45,10 @@ const IsiHistogramWidget = ({
   }), [availableClusterIds, clusterData, clusteringResults]);
   const [clusterIds, setClusterIds] = useState([]);
   const sampleRateHz = Number(datasetInfo?.sampleRateHz ?? datasetInfo?.samplingRate ?? 30000);
+
+  useEffect(() => {
+    onLoadingChange?.('isiHistogram', loading, 'Calculating ISIs…');
+  }, [loading, onLoadingChange]);
 
   useEffect(() => {
     setClusterIds([]);
@@ -63,7 +74,17 @@ const IsiHistogramWidget = ({
     setError('');
     const load = async () => {
       try {
-        const next = demoMode
+        const cacheKey = createSessionCacheKey('widget-data', [
+          dataCacheScope,
+          'isi',
+          clusterIds,
+          binSizeMs,
+          windowSizeMs,
+          refractoryPeriodMs,
+          sampleRateHz,
+          demoMode ? getSessionObjectId(clusterData || clusteringResults || spikes) : 'api',
+        ]);
+        const next = await getOrLoadSessionCache(cacheKey, () => demoMode
           ? buildLocalIsiHistograms({
               events: collectClusterEvents({ spikes, clusterData, clusteringResults, selectedClusters: clusterIds }),
               clusterIds,
@@ -72,13 +93,13 @@ const IsiHistogramWidget = ({
               windowSizeMs,
               refractoryPeriodMs,
             })
-          : await apiClient.getClusterIsiHistograms({
+          : apiClient.getClusterIsiHistograms({
               clusterIds,
               algorithm: selectedAlgorithm,
               binSizeMs,
               windowSizeMs,
               refractoryPeriodMs,
-            });
+            }));
         if (!cancelled) setResult(next);
       } catch (loadError) {
         if (!cancelled) setError(loadError.message || 'Unable to calculate ISI histograms.');
@@ -88,7 +109,7 @@ const IsiHistogramWidget = ({
     };
     load();
     return () => { cancelled = true; };
-  }, [binSizeMs, clusterData, clusterIds, clusteringResults, demoMode, refractoryPeriodMs, sampleRateHz, selectedAlgorithm, spikes, windowSizeMs]);
+  }, [binSizeMs, clusterData, clusterIds, clusteringResults, dataCacheScope, demoMode, refractoryPeriodMs, sampleRateHz, selectedAlgorithm, spikes, windowSizeMs]);
 
   const traces = useMemo(() => (result?.series || []).map((series) => ({
     x: result.binCentersMs || [],

@@ -3,9 +3,15 @@ import {
   createWaveformPcaClusterData,
   normalizeCuratorClusterId,
   normalizeCuratorDatasetTimes,
+  reconcileCuratorClusterSelection,
 } from './curatorDataset';
 
 describe('curator dataset dashboard wiring', () => {
+  test('does not select every cluster when a curator dataset is loaded', () => {
+    expect(reconcileCuratorClusterSelection([], [1, 2, 3])).toEqual([]);
+    expect(reconcileCuratorClusterSelection([2, 9], [1, 2, 3])).toEqual([2]);
+  });
+
   test('preserves arbitrary numeric cluster IDs', () => {
     expect(normalizeCuratorClusterId('12', 0)).toBe(12);
     expect(normalizeCuratorClusterId(19, 0)).toBe(19);

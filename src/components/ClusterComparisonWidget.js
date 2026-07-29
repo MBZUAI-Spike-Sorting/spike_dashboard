@@ -202,7 +202,8 @@ const getSortValue = (row, key) => {
 
 const ClusterComparisonWidget = ({
   algorithmAData,
-  algorithmBData
+  algorithmBData,
+  onLoadingChange,
 }) => {
   const [algorithmA, setAlgorithmA] = useState(() =>
     normalizeDataset(algorithmAData, 'Algorithm 1')
@@ -216,6 +217,10 @@ const ClusterComparisonWidget = ({
   const [sortConfig, setSortConfig] = useState({ key: 'agreement', direction: 'desc' });
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    onLoadingChange?.('clusterComparison', isUploading, 'Loading cluster file…');
+  }, [isUploading, onLoadingChange]);
 
   useEffect(() => {
     if (algorithmAData) {

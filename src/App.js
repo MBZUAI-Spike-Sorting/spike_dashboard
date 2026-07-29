@@ -96,7 +96,39 @@ const buildDemoClusteringResults = () => {
 };
 
 function App({ demoMode = false }) {
-  const { hasAlgorithmAccess, canLinkCustomPipelines } = useAuth();
+  const {
+    canLinkCustomPipelines,
+    hasAlgorithmAccess,
+    isAuthenticated,
+    profile,
+    updateProfile,
+    user,
+  } = useAuth();
+  const layoutStorageScope = useMemo(() => {
+    if (demoMode) return 'demo';
+    const accountKey = user?.id ?? user?.username ?? user?.email;
+    return accountKey ? `user_${accountKey}` : 'guest';
+  }, [demoMode, user?.email, user?.id, user?.username]);
+  const layoutPersistTimeoutRef = React.useRef(null);
+  const persistDashboardViews = React.useCallback((views, currentViewId) => {
+    if (demoMode || !isAuthenticated) return;
+    if (layoutPersistTimeoutRef.current) clearTimeout(layoutPersistTimeoutRef.current);
+    layoutPersistTimeoutRef.current = setTimeout(() => {
+      updateProfile({
+        preferences: {
+          ...(profile?.preferences || {}),
+          dashboardViews: views,
+          currentDashboardViewId: currentViewId,
+        },
+      }).catch((error) => {
+        console.error('Unable to save dashboard layout:', error);
+      });
+    }, 500);
+  }, [demoMode, isAuthenticated, profile?.preferences, updateProfile]);
+
+  useEffect(() => () => {
+    if (layoutPersistTimeoutRef.current) clearTimeout(layoutPersistTimeoutRef.current);
+  }, []);
 
   const [selectedChannels, setSelectedChannels] = useState(DEFAULT_CHANNELS);
   const [channelScrollOffset, setChannelScrollOffset] = useState(0);
@@ -785,6 +817,10 @@ function App({ demoMode = false }) {
             onAddCustomPipeline={handleAddCustomPipeline}
             onDeleteCustomPipeline={handleDeleteCustomPipeline}
             canManageCustomPipelines={canLinkCustomPipelines()}
+            savedViews={profile?.preferences?.dashboardViews}
+            savedCurrentViewId={profile?.preferences?.currentDashboardViewId}
+            onPersistViews={persistDashboardViews}
+            layoutStorageScope={layoutStorageScope}
             demoClusterPlotData={demoClusterPlotData}
             demoSpikeTable={demoSpikeTable}
             demoClusterStats={demoClusterStats}

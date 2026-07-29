@@ -185,8 +185,25 @@ class UserProfile(db.Model):
                 'position': self._clean_layout_pair(state.get('position'), ('left', 'top')),
                 'size': self._clean_layout_pair(state.get('size'), ('width', 'height')),
             }
+            if clean_widget_id == 'clusterList':
+                normalized_state['clusterGroups'] = self._normalize_cluster_groups(
+                    state.get('clusterGroups')
+                )
             normalized[clean_widget_id] = normalized_state
 
+        return normalized
+
+    def _normalize_cluster_groups(self, groups):
+        if not isinstance(groups, dict):
+            return {}
+
+        normalized = {}
+        allowed_groups = {'unsorted', 'good', 'mua', 'noise'}
+        for cluster_id, group in list(groups.items())[:5000]:
+            clean_cluster_id = self._clean_text(cluster_id, 80)
+            clean_group = self._clean_text(group, 20).lower()
+            if clean_cluster_id and clean_group in allowed_groups:
+                normalized[clean_cluster_id] = clean_group
         return normalized
 
     def _clean_widget_id(self, value):

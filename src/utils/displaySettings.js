@@ -1,6 +1,7 @@
 export const DEFAULT_DISPLAY_SETTINGS = Object.freeze({
   scale: 1,
   density: 'standard',
+  minimapAlwaysVisible: false,
 });
 
 const VALID_DENSITIES = new Set(['compact', 'standard', 'comfortable']);
@@ -13,8 +14,9 @@ export const normalizeDisplaySettings = (settings = {}) => {
   const density = VALID_DENSITIES.has(settings.density)
     ? settings.density
     : DEFAULT_DISPLAY_SETTINGS.density;
+  const minimapAlwaysVisible = settings.minimapAlwaysVisible === true;
 
-  return { scale, density };
+  return { scale, density, minimapAlwaysVisible };
 };
 
 export const readDisplaySettings = (storage, key) => {
