@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Plot from 'react-plotly.js';
+import {
+  createSessionCacheKey,
+  getOrLoadSessionCache,
+} from '../utils/sessionCache';
 import './WaveformNeighboringChannelsView.css';
 
 const EMPTY_DEMO_WAVEFORMS = Object.freeze({});
@@ -9,11 +13,17 @@ const WaveformNeighboringChannelsView = ({
   selectedAlgorithm,
   demoMode = false,
   demoWaveforms = EMPTY_DEMO_WAVEFORMS,
-  clusterLookup = null
+  clusterLookup = null,
+  dataCacheScope = 'default',
+  onLoadingChange,
 }) => {
   const [selectedClusterId, setSelectedClusterId] = useState(null);
   const [multiChannelData, setMultiChannelData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    onLoadingChange?.('waveform', isLoading, 'Loading neighboring waveforms…');
+  }, [isLoading, onLoadingChange]);
 
   useEffect(() => {
     if (selectedClusters.length > 0 && selectedClusterId === null) {
@@ -27,17 +37,56 @@ const WaveformNeighboringChannelsView = ({
   }, [selectedClusters, selectedClusterId]);
 
   useEffect(() => {
-    if (selectedClusterId === null) return;
+    if (selectedClusterId === null) {
+      setIsLoading(false);
+      return undefined;
+    }
 
     if (demoMode) {
+      setIsLoading(false);
       buildDemoMultiChannelWaveforms(selectedClusterId);
       return undefined;
     }
 
     const controller = new AbortController();
-    fetchMultiChannelWaveforms(selectedClusterId, controller.signal);
-    return () => controller.abort();
-  }, [selectedClusterId, selectedAlgorithm, demoMode, demoWaveforms, clusterLookup]);
+    let active = true;
+    const explicitCluster = clusterLookup?.get?.(String(selectedClusterId));
+    const cacheKey = createSessionCacheKey('widget-data', [{
+      kind: 'multi-channel-waveforms',
+      scope: dataCacheScope,
+      clusterId: selectedClusterId,
+      algorithm: selectedAlgorithm,
+      primaryChannel: explicitCluster?.primaryChannel ?? explicitCluster?.channel ?? null,
+    }]);
+
+    setIsLoading(true);
+    getOrLoadSessionCache(cacheKey, () =>
+      fetchMultiChannelWaveforms(selectedClusterId, explicitCluster, controller.signal)
+    )
+      .then((data) => {
+        if (active) setMultiChannelData(data);
+      })
+      .catch((error) => {
+        if (!active || error.name === 'AbortError') return;
+        console.error('Error fetching multi-channel waveforms:', error);
+        setMultiChannelData(null);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [
+    selectedClusterId,
+    selectedAlgorithm,
+    demoMode,
+    demoWaveforms,
+    clusterLookup,
+    dataCacheScope,
+  ]);
 
   const getClusterColor = (clusterId) => {
     return `hsl(${(clusterId * 137) % 360}, 70%, 60%)`;
@@ -103,44 +152,32 @@ const WaveformNeighboringChannelsView = ({
     });
   };
 
-  const fetchMultiChannelWaveforms = async (clusterId, signal) => {
-    setIsLoading(true);
-    try {
-      const apiUrl = process.env.REACT_APP_API_URL || '';
-      const explicitCluster = clusterLookup?.get?.(String(clusterId));
-      const response = await fetch(`${apiUrl}/api/cluster-multi-channel-waveforms`, {
-        method: 'POST',
-        signal,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          clusterId: clusterId,
-          cluster: explicitCluster ? {
-            id: explicitCluster.id ?? clusterId,
-            spikeTimes: explicitCluster.spikeTimes || [],
-            primaryChannel: explicitCluster.primaryChannel ?? explicitCluster.channel ?? null
-          } : null,
-          maxWaveforms: 50,
-          windowSize: 30,
-          algorithm: selectedAlgorithm
-        })
-      });
+  const fetchMultiChannelWaveforms = async (clusterId, explicitCluster, signal) => {
+    const apiUrl = process.env.REACT_APP_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/cluster-multi-channel-waveforms`, {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        clusterId,
+        cluster: explicitCluster ? {
+          id: explicitCluster.id ?? clusterId,
+          spikeTimes: explicitCluster.spikeTimes || [],
+          primaryChannel: explicitCluster.primaryChannel ?? explicitCluster.channel ?? null
+        } : null,
+        maxWaveforms: 50,
+        windowSize: 30,
+        algorithm: selectedAlgorithm
+      })
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        setMultiChannelData(data);
-        console.log(`Loaded multi-channel waveforms for cluster ${clusterId}`, data);
-      } else {
-        setMultiChannelData(null);
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') return;
-      console.error('Error fetching multi-channel waveforms:', error);
-      setMultiChannelData(null);
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      throw new Error(`Waveform request failed with status ${response.status}`);
     }
+
+    return response.json();
   };
 
   const channelPlots = useMemo(() => {

@@ -73,6 +73,19 @@
   background: rgba(8, 13, 31, 0.9);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 240ms ease, visibility 0s linear 240ms;
+}
+
+.canvas-zoom-controls.is-visible,
+.canvas-zoom-controls:hover,
+.canvas-zoom-controls:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition-delay: 0s;
 }
 
 .canvas-zoom-controls button {
@@ -92,6 +105,91 @@
 .canvas-zoom-controls button:hover {
   background: rgba(64, 224, 208, 0.14);
   color: #40e0d0;
+}
+
+.canvas-minimap {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3100;
+  box-sizing: border-box;
+  width: 232px;
+  padding: 8px;
+  border: 1px solid rgba(64, 224, 208, 0.3);
+  border-radius: 9px;
+  color: #d7f7f3;
+  background: rgba(8, 13, 31, 0.9);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 240ms ease, visibility 0s linear 240ms;
+}
+
+.canvas-minimap.is-visible,
+.canvas-minimap:hover,
+.canvas-minimap:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.canvas-minimap-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 2px 6px;
+  color: #baf4ee;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.canvas-minimap-coordinates {
+  color: #8295ad;
+  font-weight: 600;
+}
+
+.canvas-minimap svg {
+  display: block;
+  width: 100%;
+  height: 132px;
+}
+
+.canvas-minimap-world {
+  fill: rgba(15, 23, 42, 0.72);
+  stroke: rgba(148, 163, 184, 0.2);
+}
+
+.canvas-minimap-widget {
+  fill: rgba(125, 223, 216, 0.28);
+  stroke: rgba(125, 223, 216, 0.72);
+  stroke-width: 1;
+}
+
+.canvas-minimap-viewport {
+  fill: rgba(56, 189, 248, 0.12);
+  stroke: #38bdf8;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.canvas-minimap-persistence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 2px 0;
+  color: #a7b6c8;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.canvas-minimap-persistence input {
+  margin: 0;
+  accent-color: #40e0d0;
 }
 
 .multi-panel-view.density-compact {

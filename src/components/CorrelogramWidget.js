@@ -8,6 +8,11 @@ import {
   reconcileDiagnosticClusterIds,
 } from '../utils/diagnosticClusterSelection';
 import DiagnosticClusterPicker from './DiagnosticClusterPicker';
+import {
+  createSessionCacheKey,
+  getOrLoadSessionCache,
+  getSessionObjectId,
+} from '../utils/sessionCache';
 import './ClusterDiagnosticWidgets.css';
 
 const PLOT_COLORS = ['#40e0d0', '#a78bfa', '#fb7185', '#fbbf24'];
@@ -23,6 +28,8 @@ const CorrelogramWidget = ({
   demoMode = false,
   onClusterSelect,
   onClusterPairSelect,
+  dataCacheScope = '',
+  onLoadingChange,
 }) => {
   const [binSizeMs, setBinSizeMs] = useState(1);
   const [windowSizeMs, setWindowSizeMs] = useState(50);
@@ -39,6 +46,10 @@ const CorrelogramWidget = ({
   }), [availableClusterIds, clusterData, clusteringResults]);
   const [clusterIds, setClusterIds] = useState([]);
   const sampleRateHz = Number(datasetInfo?.sampleRateHz ?? datasetInfo?.samplingRate ?? 30000);
+
+  useEffect(() => {
+    onLoadingChange?.('correlogram', loading, 'Calculating correlograms…');
+  }, [loading, onLoadingChange]);
 
   useEffect(() => {
     setClusterIds([]);
@@ -66,7 +77,17 @@ const CorrelogramWidget = ({
 
     const load = async () => {
       try {
-        const next = demoMode
+        const cacheKey = createSessionCacheKey('widget-data', [
+          dataCacheScope,
+          'correlogram',
+          clusterIds,
+          binSizeMs,
+          windowSizeMs,
+          maxSpikesPerCluster,
+          sampleRateHz,
+          demoMode ? getSessionObjectId(clusterData || clusteringResults || spikes) : 'api',
+        ]);
+        const next = await getOrLoadSessionCache(cacheKey, () => demoMode
           ? buildLocalCorrelograms({
               events: collectClusterEvents({ spikes, clusterData, clusteringResults, selectedClusters: clusterIds }),
               clusterIds,
@@ -74,13 +95,13 @@ const CorrelogramWidget = ({
               binSizeMs,
               windowSizeMs,
             })
-          : await apiClient.getClusterCorrelograms({
+          : apiClient.getClusterCorrelograms({
               clusterIds,
               algorithm: selectedAlgorithm,
               binSizeMs,
               windowSizeMs,
               maxSpikesPerCluster,
-            });
+            }));
         if (!cancelled) setResult(next);
       } catch (loadError) {
         if (!cancelled) setError(loadError.message || 'Unable to calculate correlograms.');
@@ -91,7 +112,7 @@ const CorrelogramWidget = ({
 
     load();
     return () => { cancelled = true; };
-  }, [binSizeMs, clusterData, clusterIds, clusteringResults, demoMode, maxSpikesPerCluster, sampleRateHz, selectedAlgorithm, spikes, windowSizeMs]);
+  }, [binSizeMs, clusterData, clusterIds, clusteringResults, dataCacheScope, demoMode, maxSpikesPerCluster, sampleRateHz, selectedAlgorithm, spikes, windowSizeMs]);
 
   const pairLookup = useMemo(() => new Map(
     (result?.pairs || []).map((pair) => [`${pair.row}:${pair.column}`, pair])

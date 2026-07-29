@@ -70,7 +70,9 @@ const DockableWidget = ({
   interactionScale = 1,
   constrainToParent = false,
   layoutPosition = null,
-  style = {}
+  style = {},
+  isLoading = false,
+  loadingLabel = 'Updating…'
 }) => {
   const widgetRef = useRef(null);
 
@@ -349,6 +351,13 @@ const DockableWidget = ({
       >
         {children}
       </div>
+
+      {!isMinimized && isLoading && (
+        <div className="widget-loading-overlay" role="status" aria-live="polite">
+          <span className="widget-loading-spinner" aria-hidden="true" />
+          <span>{loadingLabel || 'Updating…'}</span>
+        </div>
+      )}
 
       {!isMinimized && !isMaximized && resizable && (
         <>

@@ -8,6 +8,11 @@ import {
   reconcileDiagnosticClusterIds,
 } from '../utils/diagnosticClusterSelection';
 import DiagnosticClusterPicker from './DiagnosticClusterPicker';
+import {
+  createSessionCacheKey,
+  getOrLoadSessionCache,
+  getSessionObjectId,
+} from '../utils/sessionCache';
 import './ClusterDiagnosticWidgets.css';
 
 const colorFor = (clusterId) => `hsl(${(Number(clusterId) * 137) % 360}, 72%, 64%)`;
@@ -27,6 +32,8 @@ const AmplitudeTimeWidget = ({
   onTimeRangeSelect,
   onSpikeSelect,
   onSummaryChange,
+  dataCacheScope = '',
+  onLoadingChange,
 }) => {
   const [maxSpikes, setMaxSpikes] = useState(5000);
   const [result, setResult] = useState(null);
@@ -39,6 +46,10 @@ const AmplitudeTimeWidget = ({
   }), [availableClusterIds, clusterData, clusteringResults]);
   const [clusterIds, setClusterIds] = useState([]);
   const sampleRateHz = Number(datasetInfo?.sampleRateHz ?? datasetInfo?.samplingRate ?? 30000);
+
+  useEffect(() => {
+    onLoadingChange?.('amplitudeTime', loading, 'Extracting amplitudes…');
+  }, [loading, onLoadingChange]);
 
   useEffect(() => {
     setClusterIds([]);
@@ -64,20 +75,28 @@ const AmplitudeTimeWidget = ({
     setError('');
     const load = async () => {
       try {
-        const next = demoMode
+        const cacheKey = createSessionCacheKey('widget-data', [
+          dataCacheScope,
+          'amplitude-time',
+          clusterIds,
+          maxSpikes,
+          sampleRateHz,
+          demoMode ? getSessionObjectId(clusterWaveforms || clusterData || spikes) : 'api',
+        ]);
+        const next = await getOrLoadSessionCache(cacheKey, () => demoMode
           ? buildLocalAmplitudeSeries({
               clusterWaveforms,
               events: collectClusterEvents({ spikes, clusterData, clusteringResults, selectedClusters: clusterIds }),
               clusterIds,
               sampleRateHz,
             })
-          : await apiClient.getClusterAmplitudes({
+          : apiClient.getClusterAmplitudes({
               clusterIds,
               algorithm: selectedAlgorithm,
               maxSpikesPerCluster: maxSpikes,
               includeBackground: true,
               maxBackgroundSpikes: 5000,
-            });
+            }));
         if (!cancelled) setResult(next);
       } catch (loadError) {
         if (!cancelled) setError(loadError.message || 'Unable to extract spike amplitudes.');
@@ -87,7 +106,7 @@ const AmplitudeTimeWidget = ({
     };
     load();
     return () => { cancelled = true; };
-  }, [clusterData, clusterIds, clusterWaveforms, clusteringResults, demoMode, maxSpikes, sampleRateHz, selectedAlgorithm, spikes]);
+  }, [clusterData, clusterIds, clusterWaveforms, clusteringResults, dataCacheScope, demoMode, maxSpikes, sampleRateHz, selectedAlgorithm, spikes]);
 
   useEffect(() => {
     if (!result?.series || !onSummaryChange) return;

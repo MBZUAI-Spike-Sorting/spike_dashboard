@@ -17,6 +17,35 @@
   position: relative;
 }
 
+.widget-loading-overlay {
+  position: absolute;
+  inset: var(--dashboard-widget-header-height, 36px) 0 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #d7f7f3;
+  background: rgba(8, 13, 31, 0.72);
+  backdrop-filter: blur(2px);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.widget-loading-spinner {
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 3px solid rgba(64, 224, 208, 0.22);
+  border-top-color: #40e0d0;
+  border-radius: 50%;
+  animation: widget-loading-spin 700ms linear infinite;
+}
+
+@keyframes widget-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
 .dockable-widget:hover {
   border-color: var(--color-border-hover, rgba(64, 224, 208, 0.35));
   box-shadow:

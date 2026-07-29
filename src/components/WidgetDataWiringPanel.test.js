@@ -2,6 +2,11 @@ import {
   getSelectableWiringWidgetIds,
   resolveSelectedWiringWidgetId
 } from './WidgetDataWiringPanel';
+import {
+  createDashboardPipelineVariables,
+  createDefaultWidgetInputBindings,
+  validateWidgetBindings,
+} from '../widgets/dataContracts';
 
 const widgetStates = {
   clusterList: { visible: true },
@@ -28,4 +33,22 @@ test('selection falls back only when the selected view is unavailable', () => {
   expect(resolveSelectedWiringWidgetId('unknownWidget', widgetStates)).toBe(
     'clusterList'
   );
+});
+
+test('amplitude distribution is wired to selected clusters and waveforms by default', () => {
+  const bindings = createDefaultWidgetInputBindings();
+  const variables = createDashboardPipelineVariables({
+    selectedClusters: [],
+    clusterWaveforms: {},
+  });
+
+  expect(bindings.amplitudeProfile).toMatchObject({
+    selectedClusters: 'selectedClusters',
+    waveforms: 'clusterWaveforms',
+  });
+  expect(validateWidgetBindings(
+    'amplitudeProfile',
+    bindings.amplitudeProfile,
+    variables
+  ).valid).toBe(true);
 });

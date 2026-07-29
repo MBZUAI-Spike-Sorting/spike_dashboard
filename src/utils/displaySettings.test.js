@@ -8,10 +8,16 @@ test('normalizes UI scale and density to supported display values', () => {
   expect(normalizeDisplaySettings({ scale: 1.13, density: 'compact' })).toEqual({
     scale: 1.15,
     density: 'compact',
+    minimapAlwaysVisible: false,
   });
-  expect(normalizeDisplaySettings({ scale: 3, density: 'unknown' })).toEqual({
+  expect(normalizeDisplaySettings({
+    scale: 3,
+    density: 'unknown',
+    minimapAlwaysVisible: true,
+  })).toEqual({
     scale: 2,
     density: 'standard',
+    minimapAlwaysVisible: true,
   });
 });
 

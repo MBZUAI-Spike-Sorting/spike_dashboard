@@ -138,3 +138,28 @@ test('keeps widget content mounted while minimized', () => {
 
   act(() => root.unmount());
 });
+
+test('covers widget content with an accessible loading status', () => {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+
+  act(() => {
+    root.render(
+      <DockableWidget
+        id="waveform"
+        title="Waveform"
+        isLoading
+        loadingLabel="Loading waveforms…"
+      >
+        <span>Existing waveform</span>
+      </DockableWidget>
+    );
+  });
+
+  const status = container.querySelector('[role="status"]');
+  expect(status).not.toBeNull();
+  expect(status.textContent).toContain('Loading waveforms…');
+  expect(container.textContent).toContain('Existing waveform');
+
+  act(() => root.unmount());
+});

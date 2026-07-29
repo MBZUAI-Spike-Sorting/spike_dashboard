@@ -2,6 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Plot from 'react-plotly.js';
 import PropTypes from 'prop-types';
 import { getClusterColor } from '../utils/colors';
+import {
+  createSessionCacheKey,
+  getSessionCacheValue,
+  getSessionObjectId,
+  setSessionCacheValue,
+} from '../utils/sessionCache';
 import './AmplitudeProfileWidget.css';
 
 const AUTO_BIN_COUNT = 'auto';
@@ -195,7 +201,7 @@ const profilesFromWaveforms = (clusterWaveforms, selectedClusters) => {
     .filter(Boolean);
 };
 
-const getProfiles = ({
+export const getProfiles = ({
   amplitudes,
   amplitudeGroups,
   clusterIds,
@@ -228,6 +234,10 @@ const getProfiles = ({
 
   return profilesFromClusterData(clusterData, selectedClusters);
 };
+
+export const resolveAmplitudeWaveforms = (waveforms, clusterWaveforms) => (
+  waveforms ?? clusterWaveforms ?? {}
+);
 
 const createRange = (values) => {
   const min = Math.min(...values);
@@ -410,7 +420,8 @@ const AmplitudeProfileWidget = ({
   clusterLabels,
   spikeTimestamps,
   selectedClusters = [],
-  clusterWaveforms = {},
+  waveforms,
+  clusterWaveforms,
   clusterData,
   clusteringResults
 }) => {
@@ -419,25 +430,43 @@ const AmplitudeProfileWidget = ({
   const [traceMode, setTraceMode] = useState(TRACE_BOTH);
   const [mergeSelection, setMergeSelection] = useState([]);
   const [mergeGroups, setMergeGroups] = useState([]);
+  const connectedWaveforms = resolveAmplitudeWaveforms(waveforms, clusterWaveforms);
 
-  const baseProfiles = useMemo(() => getProfiles({
+  const baseProfiles = useMemo(() => {
+    const cacheKey = createSessionCacheKey('widget-data', [
+      'amplitude-profiles',
+      getSessionObjectId(amplitudes),
+      getSessionObjectId(amplitudeGroups),
+      getSessionObjectId(connectedWaveforms),
+      getSessionObjectId(clusterData),
+      getSessionObjectId(clusteringResults),
+      getSessionObjectId(spikeTimestamps),
+      clusterIds,
+      clusterLabels,
+      selectedClusters,
+    ]);
+    const cached = getSessionCacheValue(cacheKey);
+    if (cached !== undefined) return cached;
+
+    return setSessionCacheValue(cacheKey, getProfiles({
+      amplitudes,
+      amplitudeGroups,
+      clusterIds,
+      clusterLabels,
+      spikeTimestamps,
+      selectedClusters,
+      clusterWaveforms: connectedWaveforms,
+      clusterData,
+      clusteringResults
+    }));
+  }, [
     amplitudes,
     amplitudeGroups,
     clusterIds,
     clusterLabels,
     spikeTimestamps,
     selectedClusters,
-    clusterWaveforms,
-    clusterData,
-    clusteringResults
-  }), [
-    amplitudes,
-    amplitudeGroups,
-    clusterIds,
-    clusterLabels,
-    spikeTimestamps,
-    selectedClusters,
-    clusterWaveforms,
+    connectedWaveforms,
     clusterData,
     clusteringResults
   ]);
@@ -654,20 +683,22 @@ const AmplitudeProfileWidget = ({
                     plot_bgcolor: 'rgba(0, 0, 0, 0.24)',
                     font: { color: '#e0e6ed', size: 10 },
                     xaxis: {
-                      title: 'Spike amplitude',
+                      title: { text: 'Spike amplitude', standoff: 4 },
+                      automargin: true,
                       gridcolor: 'rgba(64, 224, 208, 0.14)',
                       zerolinecolor: 'rgba(64, 224, 208, 0.32)',
                       color: '#e0e6ed'
                     },
                     yaxis: {
-                      title: 'Spike count',
+                      title: { text: 'Spike count', standoff: 4 },
+                      automargin: true,
                       gridcolor: 'rgba(64, 224, 208, 0.14)',
                       zerolinecolor: 'rgba(64, 224, 208, 0.32)',
                       color: '#e0e6ed'
                     },
                     hovermode: 'closest',
                     showlegend: false,
-                    margin: { l: 52, r: 16, t: 8, b: 48 },
+                    margin: { l: 42, r: 12, t: 8, b: 40 },
                     uirevision: `amplitude-profile-${figure.id}`
                   }}
                   config={{
@@ -693,13 +724,15 @@ const AmplitudeProfileWidget = ({
               plot_bgcolor: 'rgba(0, 0, 0, 0.3)',
               font: { color: '#e0e6ed', size: 11 },
               xaxis: {
-                title: 'Spike amplitude',
+                title: { text: 'Spike amplitude', standoff: 4 },
+                automargin: true,
                 gridcolor: 'rgba(64, 224, 208, 0.16)',
                 zerolinecolor: 'rgba(64, 224, 208, 0.35)',
                 color: '#e0e6ed'
               },
               yaxis: {
-                title: 'Spike count',
+                title: { text: 'Spike count', standoff: 4 },
+                automargin: true,
                 gridcolor: 'rgba(64, 224, 208, 0.16)',
                 zerolinecolor: 'rgba(64, 224, 208, 0.35)',
                 color: '#e0e6ed'
@@ -717,7 +750,7 @@ const AmplitudeProfileWidget = ({
                 borderwidth: 1,
                 font: { size: 10 }
               },
-              margin: { l: 58, r: 20, t: 26, b: 58 },
+              margin: { l: 44, r: 14, t: 26, b: 42 },
               uirevision: 'amplitude-profile'
             }}
             config={{
@@ -759,6 +792,7 @@ AmplitudeProfileWidget.propTypes = {
   clusterLabels: PropTypes.array,
   spikeTimestamps: PropTypes.array,
   selectedClusters: PropTypes.array,
+  waveforms: PropTypes.object,
   clusterWaveforms: PropTypes.object,
   clusterData: PropTypes.object,
   clusteringResults: PropTypes.object

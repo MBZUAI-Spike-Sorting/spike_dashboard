@@ -166,20 +166,22 @@ const WaveformSingleChannelView = ({
               plot_bgcolor: 'rgba(0, 0, 0, 0.3)',
               font: { color: '#e0e6ed', size: 11 },
               xaxis: {
-                title: 'Time (ms)',
+                title: { text: 'Time (ms)', standoff: 4 },
+                automargin: true,
                 gridcolor: 'rgba(64, 224, 208, 0.2)',
                 zerolinecolor: 'rgba(64, 224, 208, 0.4)',
                 color: '#e0e6ed'
               },
               yaxis: {
-                title: 'Waveforms',
+                title: { text: 'Waveforms', standoff: 4 },
+                automargin: true,
                 gridcolor: 'rgba(64, 224, 208, 0.2)',
                 zerolinecolor: 'rgba(64, 224, 208, 0.4)',
                 color: '#e0e6ed'
               },
               hovermode: 'closest',
               showlegend: false,
-              margin: { l: 60, r: 20, t: 20, b: 60 },
+              margin: { l: 44, r: 14, t: 20, b: 42 },
               updatemenus: visibilityButtons.length > 0 ? [{
                 type: 'dropdown',
                 direction: 'down',

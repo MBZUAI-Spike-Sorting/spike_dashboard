@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import SpikeGrid from './SpikeGrid';
 import Timeline from './Timeline';
 import { synthesizeChannelTrace, applyDemoFilter } from '../data/demoDashboardData';
+import {
+  createSessionCacheKey,
+  getOrLoadSessionCache,
+  getSessionCacheValue,
+  setSessionCacheValue,
+} from '../utils/sessionCache';
 import './SignalViewPanel.css';
 
 const SignalViewPanel = ({
@@ -11,6 +17,8 @@ const SignalViewPanel = ({
   onTimeRangeChange,
   datasetInfo,
   demoSignalData,
+  dataCacheScope = '',
+  onLoadingChange,
 }) => {
   // State management - exact copy from App.js pattern
   const [selectedChannels, setSelectedChannels] = useState([179, 181, 183]);
@@ -31,8 +39,11 @@ const SignalViewPanel = ({
   const totalDataPoints = datasetInfo?.totalDataPoints || 3500000;
   const totalChannels = datasetInfo?.totalChannels || 385;
 
-  const dataCache = useRef({});
   const windowSizeRef = useRef(windowSize);
+
+  useEffect(() => {
+    onLoadingChange?.('signalView', isLoading, 'Loading signal data…');
+  }, [isLoading, onLoadingChange]);
 
   useEffect(() => {
     windowSizeRef.current = windowSize;
@@ -125,12 +136,20 @@ const SignalViewPanel = ({
       const fetchEnd = Math.min(totalDataPoints, Math.ceil(timeRange.end) + buffer);
 
       const cacheKey = `${fetchStart}-${fetchEnd}-${spikeThreshold}-${invertData}-${usePrecomputedSpikes}-${selectedDataType}-${filterType}`;
-      const needsFetch = selectedChannels.some(ch => !dataCache.current[`${ch}-${cacheKey}`]);
+      const channelCacheKey = (channelId) => createSessionCacheKey('widget-data', [
+        dataCacheScope,
+        'signal-channel',
+        channelId,
+        cacheKey,
+      ]);
+      const needsFetch = selectedChannels.some(
+        (channelId) => getSessionCacheValue(channelCacheKey(channelId)) === undefined
+      );
 
       if (!needsFetch) {
         const cachedData = {};
-        selectedChannels.forEach(ch => {
-          cachedData[ch] = dataCache.current[`${ch}-${cacheKey}`];
+        selectedChannels.forEach((channelId) => {
+          cachedData[channelId] = getSessionCacheValue(channelCacheKey(channelId));
         });
         setSpikeData(cachedData);
         return;
@@ -139,32 +158,38 @@ const SignalViewPanel = ({
       setIsLoading(true);
       try {
         const apiUrl = process.env.REACT_APP_API_URL || '';
-        const response = await fetch(`${apiUrl}/api/spike-data`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            channels: selectedChannels,
-            spikeThreshold: spikeThreshold,
-            invertData: invertData,
-            startTime: fetchStart,
-            endTime: fetchEnd,
-            usePrecomputed: usePrecomputedSpikes,
-            dataType: selectedDataType,
-            filterType: filterType
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          selectedChannels.forEach(ch => {
-            if (data[ch]) {
-              dataCache.current[`${ch}-${cacheKey}`] = data[ch];
-            }
+        const requestKey = createSessionCacheKey('widget-data', [
+          dataCacheScope,
+          'signal-request',
+          [...selectedChannels].sort((a, b) => Number(a) - Number(b)),
+          cacheKey,
+        ]);
+        const data = await getOrLoadSessionCache(requestKey, async () => {
+          const response = await fetch(`${apiUrl}/api/spike-data`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              channels: selectedChannels,
+              spikeThreshold,
+              invertData,
+              startTime: fetchStart,
+              endTime: fetchEnd,
+              usePrecomputed: usePrecomputedSpikes,
+              dataType: selectedDataType,
+              filterType
+            })
           });
-          setSpikeData(data);
-        }
+          if (!response.ok) throw new Error(`Unable to load signal data (${response.status})`);
+          return response.json();
+        });
+        selectedChannels.forEach((channelId) => {
+          if (data[channelId]) {
+            setSessionCacheValue(channelCacheKey(channelId), data[channelId]);
+          }
+        });
+        setSpikeData(data);
       } catch (error) {
         console.error('Error fetching signal data:', error);
       } finally {
@@ -174,7 +199,8 @@ const SignalViewPanel = ({
 
     fetchSignalData();
   }, [selectedChannels, timeRange.start, timeRange.end, spikeThreshold, invertData,
-      usePrecomputedSpikes, selectedDataType, filterType, totalDataPoints, windowSize, demoMode]);
+      usePrecomputedSpikes, selectedDataType, filterType, totalDataPoints, windowSize, demoMode,
+      dataCacheScope]);
 
   const handleChannelToggle = (channelId) => {
     setSelectedChannels(prev => {

@@ -17,7 +17,11 @@ import WaveformNeighboringChannelsView from './WaveformNeighboringChannelsView';
 import DockableWidget from './DockableWidget';
 import WidgetBank, { WIDGET_DEFINITIONS } from './WidgetBank';
 import RightSideMenu from './RightSideMenu';
-import { STORAGE_KEY, CURRENT_VIEW_KEY } from './ViewManager';
+import {
+  STORAGE_KEY,
+  CURRENT_VIEW_KEY,
+  getScopedStorageKey,
+} from './ViewManager';
 import './MultiPanelView.css';
 import AmplitudeProfileWidget from './AmplitudeProfileWidget';
 import ClusterComparisonWidget from './ClusterComparisonWidget';
@@ -26,6 +30,7 @@ import RasterPlotWidget from './RasterPlotWidget';
 import CorrelogramWidget from './CorrelogramWidget';
 import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
+import CanvasMinimap from './CanvasMinimap';
 import apiClient from '../api/client';
 import {
   DEFAULT_DISPLAY_SETTINGS,
@@ -36,18 +41,31 @@ import {
   createDashboardDataFromCuratorDataset,
   createWaveformPcaClusterData,
   normalizeCuratorDatasetTimes,
+  reconcileCuratorClusterSelection,
 } from '../utils/curatorDataset';
 import {
   createDashboardPipelineVariables,
   mergeWidgetInputBindings,
 } from '../widgets/dataContracts';
 import {
+  getViewportCenteredWidgetPosition,
   screenToCanvasPoint,
   zoomViewportAtPoint,
 } from '../utils/canvasViewport';
+import {
+  CANVAS_WHEEL_ACTIONS,
+  getCanvasWheelAction,
+} from '../utils/canvasWheel';
+import {
+  clearSessionCache,
+  createSessionCacheKey,
+  getOrLoadSessionCache,
+  getSessionObjectId,
+} from '../utils/sessionCache';
 
 const DISPLAY_SETTINGS_STORAGE_KEY = 'spikescope_display_settings:v1';
 const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
+const CANVAS_OVERLAY_IDLE_MS = 3000;
 
 const DEFAULT_WIDGET_STATES = {
   clusterList: { visible: true, minimized: false, maximized: false, order: 1, position: null, size: null, type: 'clusterList' },
@@ -98,6 +116,10 @@ const MultiPanelView = forwardRef(({
   onAddCustomPipeline,
   onDeleteCustomPipeline,
   canManageCustomPipelines = false,
+  savedViews,
+  savedCurrentViewId,
+  onPersistViews,
+  layoutStorageScope,
   demoClusterPlotData = [],
   demoSpikeTable = [],
   demoClusterStats = [],
@@ -125,6 +147,23 @@ const MultiPanelView = forwardRef(({
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
   const [isCanvasPanning, setIsCanvasPanning] = useState(false);
   const canvasPanRef = useRef(null);
+  const dashboardCanvasRef = useRef(null);
+  const zoomIndicatorTimerRef = useRef(null);
+  const minimapTimerRef = useRef(null);
+  const [isZoomIndicatorVisible, setIsZoomIndicatorVisible] = useState(true);
+  const [isMinimapVisible, setIsMinimapVisible] = useState(true);
+  const [canvasGeometry, setCanvasGeometry] = useState({
+    width: 0,
+    height: 0,
+    widgets: [],
+  });
+  const [widgetLoading, setWidgetLoading] = useState({});
+  const sessionCacheInputsRef = useRef({
+    clusteringResults,
+    curatorDataset,
+    selectedAlgorithm,
+    selectedDataset,
+  });
   const [widgetInputBindings, setWidgetInputBindings] = useState(() => {
     try {
       const saved = localStorage.getItem(WIDGET_BINDINGS_STORAGE_KEY);
@@ -142,18 +181,46 @@ const MultiPanelView = forwardRef(({
   const [isWidgetBankOpen, setIsWidgetBankOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropPosition, setDropPosition] = useState(null);
-  const [currentViewId, setCurrentViewId] = useState(() => localStorage.getItem(CURRENT_VIEW_KEY) || 'default');
+  const [currentViewId, setCurrentViewId] = useState(() => (
+    savedCurrentViewId ||
+    localStorage.getItem(getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope)) ||
+    'default'
+  ));
 
   const isDefaultView = currentViewId === 'default';
+  const dataCacheScope = useMemo(() => createSessionCacheKey('data-scope', [
+    selectedDataset?.id || selectedDataset?.name || selectedDataset || (demoMode ? 'demo' : 'default'),
+    selectedAlgorithm || 'none',
+    getSessionObjectId(clusteringResults),
+    getSessionObjectId(curatorDataset),
+  ]), [
+    clusteringResults,
+    curatorDataset,
+    demoMode,
+    selectedAlgorithm,
+    selectedDataset,
+  ]);
 
   const [widgetStates, setWidgetStates] = useState(() => {
-    const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY) || 'default';
-    const savedViews = localStorage.getItem(STORAGE_KEY);
+    const localCurrentView =
+      localStorage.getItem(getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope)) ||
+      'default';
+    const initialCurrentView = savedCurrentViewId || localCurrentView;
+    const accountViews = Array.isArray(savedViews) ? savedViews : [];
+    const accountView = accountViews.find((view) => view.id === initialCurrentView);
 
-    if (savedCurrentView && savedViews) {
+    if (accountView?.widgetStates) {
+      return mergeWidgetStateDefaults(accountView.widgetStates);
+    }
+
+    const localViews = localStorage.getItem(
+      getScopedStorageKey(STORAGE_KEY, layoutStorageScope)
+    );
+
+    if (initialCurrentView && localViews) {
       try {
-        const views = JSON.parse(savedViews);
-        const currentView = views.find(v => v.id === savedCurrentView);
+        const views = JSON.parse(localViews);
+        const currentView = views.find((view) => view.id === initialCurrentView);
         if (currentView?.widgetStates) {
           return mergeWidgetStateDefaults(currentView.widgetStates);
         }
@@ -168,44 +235,22 @@ const MultiPanelView = forwardRef(({
   );
 
   useEffect(() => {
-    const syncCurrentView = () => {
-      const id = localStorage.getItem(CURRENT_VIEW_KEY) || 'default';
-      setCurrentViewId(id);
-
-      const savedViews = localStorage.getItem(STORAGE_KEY);
-      if (id && savedViews) {
-        try {
-          const views = JSON.parse(savedViews);
-          const currentView = views.find(v => v.id === id);
-          if (currentView?.widgetStates) {
-            setWidgetStates(mergeWidgetStateDefaults(currentView.widgetStates));
-            return;
-          }
-        } catch (e) {
-          console.error('Error syncing widget states:', e);
-        }
-      }
-
-      setWidgetStates(DEFAULT_WIDGET_STATES);
-    };
-
-    syncCurrentView();
-    window.addEventListener('storage', syncCurrentView);
-
-    return () => {
-      window.removeEventListener('storage', syncCurrentView);
-    };
-  }, []);
-
-  useEffect(() => {
     try {
       const saved = localStorage.getItem(annotationStorageKey);
-      setClusterAnnotations(saved ? JSON.parse(saved) : {});
+      const annotations = saved ? JSON.parse(saved) : {};
+      const layoutGroups = widgetStates.clusterList?.clusterGroups || {};
+      Object.entries(layoutGroups).forEach(([clusterId, group]) => {
+        annotations[clusterId] = {
+          ...(annotations[clusterId] || {}),
+          group,
+        };
+      });
+      setClusterAnnotations(annotations);
     } catch (error) {
       console.error('Error loading cluster annotations:', error);
       setClusterAnnotations({});
     }
-  }, [annotationStorageKey]);
+  }, [annotationStorageKey, widgetStates.clusterList?.clusterGroups]);
 
   useEffect(() => {
     localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify(displaySettings));
@@ -215,7 +260,125 @@ const MultiPanelView = forwardRef(({
     localStorage.setItem(WIDGET_BINDINGS_STORAGE_KEY, JSON.stringify(widgetInputBindings));
   }, [widgetInputBindings]);
 
+  const handleWidgetLoadingChange = useCallback((widgetId, loading, label = '') => {
+    setWidgetLoading((current) => {
+      const nextValue = loading ? { loading: true, label } : null;
+      if (
+        current[widgetId]?.loading === Boolean(nextValue?.loading) &&
+        current[widgetId]?.label === (nextValue?.label || '')
+      ) {
+        return current;
+      }
+      return { ...current, [widgetId]: nextValue };
+    });
+  }, []);
+
+  useEffect(() => {
+    const previous = sessionCacheInputsRef.current;
+    const dataChanged =
+      previous.clusteringResults !== clusteringResults ||
+      previous.curatorDataset !== curatorDataset ||
+      previous.selectedAlgorithm !== selectedAlgorithm ||
+      previous.selectedDataset !== selectedDataset;
+
+    sessionCacheInputsRef.current = {
+      clusteringResults,
+      curatorDataset,
+      selectedAlgorithm,
+      selectedDataset,
+    };
+
+    if (dataChanged) clearSessionCache('widget-data');
+  }, [clusteringResults, curatorDataset, selectedAlgorithm, selectedDataset]);
+
+  const revealZoomIndicator = useCallback(() => {
+    setIsZoomIndicatorVisible(true);
+    if (zoomIndicatorTimerRef.current) {
+      clearTimeout(zoomIndicatorTimerRef.current);
+    }
+    zoomIndicatorTimerRef.current = setTimeout(() => {
+      setIsZoomIndicatorVisible(false);
+    }, CANVAS_OVERLAY_IDLE_MS);
+  }, []);
+
+  const revealMinimap = useCallback(() => {
+    setIsMinimapVisible(true);
+    if (minimapTimerRef.current) {
+      clearTimeout(minimapTimerRef.current);
+    }
+    minimapTimerRef.current = setTimeout(() => {
+      setIsMinimapVisible(false);
+    }, CANVAS_OVERLAY_IDLE_MS);
+  }, []);
+
+  useEffect(() => {
+    revealZoomIndicator();
+    revealMinimap();
+
+    return () => {
+      if (zoomIndicatorTimerRef.current) clearTimeout(zoomIndicatorTimerRef.current);
+      if (minimapTimerRef.current) clearTimeout(minimapTimerRef.current);
+    };
+  }, [revealMinimap, revealZoomIndicator]);
+
+  const measureCanvasGeometry = useCallback(() => {
+    const container = containerRef.current;
+    const canvas = dashboardCanvasRef.current;
+    if (!container || !canvas) return;
+
+    const widgets = Array.from(canvas.querySelectorAll('.panel')).map((panel) => {
+      const widget = panel.querySelector('.dockable-widget');
+      if (!widget) return null;
+      const panelStyle = window.getComputedStyle(panel);
+      const widgetRect = widget.getBoundingClientRect();
+
+      return {
+        id: widget.dataset.widgetId,
+        x: Number.isFinite(panel.offsetLeft)
+          ? panel.offsetLeft
+          : parseFloat(panelStyle.left) || 0,
+        y: Number.isFinite(panel.offsetTop)
+          ? panel.offsetTop
+          : parseFloat(panelStyle.top) || 0,
+        width: widget.offsetWidth || widgetRect.width / displaySettings.scale,
+        height: widget.offsetHeight || widgetRect.height / displaySettings.scale,
+      };
+    }).filter(Boolean);
+    const nextGeometry = {
+      width: container.clientWidth || container.getBoundingClientRect().width,
+      height: container.clientHeight || container.getBoundingClientRect().height,
+      widgets,
+    };
+
+    setCanvasGeometry((current) => (
+      JSON.stringify(current) === JSON.stringify(nextGeometry)
+        ? current
+        : nextGeometry
+    ));
+  }, [displaySettings.scale]);
+
+  useEffect(() => {
+    measureCanvasGeometry();
+    const container = containerRef.current;
+    const canvas = dashboardCanvasRef.current;
+    if (!container || !canvas) return undefined;
+
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(measureCanvasGeometry);
+    observer?.observe(container);
+    canvas.querySelectorAll('.dockable-widget').forEach((widget) => observer?.observe(widget));
+    window.addEventListener('resize', measureCanvasGeometry);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measureCanvasGeometry);
+    };
+  }, [measureCanvasGeometry, widgetStates]);
+
   const setCanvasZoom = useCallback((requestedScale, point) => {
+    revealZoomIndicator();
+    revealMinimap();
     const nextSettings = normalizeDisplaySettings({
       ...displaySettings,
       scale: requestedScale,
@@ -233,7 +396,7 @@ const MultiPanelView = forwardRef(({
 
     setCanvasOffset({ x: nextView.x, y: nextView.y });
     setDisplaySettings(nextSettings);
-  }, [canvasOffset, displaySettings]);
+  }, [canvasOffset, displaySettings, revealMinimap, revealZoomIndicator]);
 
   const handleDisplaySettingsChange = useCallback((patch) => {
     if (patch.scale !== undefined) {
@@ -246,21 +409,26 @@ const MultiPanelView = forwardRef(({
   const handleResetDisplaySettings = useCallback(() => {
     setDisplaySettings({ ...DEFAULT_DISPLAY_SETTINGS });
     setCanvasOffset({ x: 0, y: 0 });
-  }, []);
+    revealZoomIndicator();
+    revealMinimap();
+  }, [revealMinimap, revealZoomIndicator]);
 
   const handleResetCanvasView = useCallback(() => {
     setDisplaySettings((current) => ({ ...current, scale: 1 }));
     setCanvasOffset({ x: 0, y: 0 });
-  }, []);
+    revealZoomIndicator();
+    revealMinimap();
+  }, [revealMinimap, revealZoomIndicator]);
 
   const handleCanvasMouseMove = useCallback((event) => {
     const pan = canvasPanRef.current;
     if (!pan) return;
+    revealMinimap();
     setCanvasOffset({
       x: pan.offsetX + event.clientX - pan.clientX,
       y: pan.offsetY + event.clientY - pan.clientY,
     });
-  }, []);
+  }, [revealMinimap]);
 
   const handleCanvasMouseUp = useCallback(() => {
     canvasPanRef.current = null;
@@ -277,6 +445,7 @@ const MultiPanelView = forwardRef(({
     if (!isMiddleButton && !isCanvasBackground) return;
 
     event.preventDefault();
+    revealMinimap();
     canvasPanRef.current = {
       clientX: event.clientX,
       clientY: event.clientY,
@@ -286,7 +455,7 @@ const MultiPanelView = forwardRef(({
     setIsCanvasPanning(true);
     document.addEventListener('mousemove', handleCanvasMouseMove);
     document.addEventListener('mouseup', handleCanvasMouseUp);
-  }, [canvasOffset, handleCanvasMouseMove, handleCanvasMouseUp]);
+  }, [canvasOffset, handleCanvasMouseMove, handleCanvasMouseUp, revealMinimap]);
 
   useEffect(() => () => {
     document.removeEventListener('mousemove', handleCanvasMouseMove);
@@ -294,14 +463,17 @@ const MultiPanelView = forwardRef(({
   }, [handleCanvasMouseMove, handleCanvasMouseUp]);
 
   const handleCanvasWheel = useCallback((event) => {
-    const overWidget = event.target.closest('.dockable-widget');
-    if (overWidget && !event.ctrlKey && !event.metaKey) return;
+    const action = getCanvasWheelAction(event);
+    if (action === CANVAS_WHEEL_ACTIONS.IGNORE) return;
 
     event.preventDefault();
+    if (action === CANVAS_WHEEL_ACTIONS.PREVENT_BROWSER_ZOOM) return;
+    revealMinimap();
+
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    if (event.ctrlKey || event.metaKey) {
+    if (action === CANVAS_WHEEL_ACTIONS.ZOOM) {
       const zoomFactor = Math.exp(-event.deltaY * 0.002);
       setCanvasZoom(displaySettings.scale * zoomFactor, {
         x: event.clientX - rect.left,
@@ -314,7 +486,15 @@ const MultiPanelView = forwardRef(({
       x: current.x - event.deltaX,
       y: current.y - event.deltaY,
     }));
-  }, [displaySettings.scale, setCanvasZoom]);
+  }, [displaySettings.scale, revealMinimap, setCanvasZoom]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+
+    container.addEventListener('wheel', handleCanvasWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleCanvasWheel);
+  }, [handleCanvasWheel]);
 
   const handleWidgetBindingChange = useCallback((widgetId, inputId, variableId) => {
     setWidgetInputBindings((current) => mergeWidgetInputBindings({
@@ -391,6 +571,8 @@ const MultiPanelView = forwardRef(({
     if (demoMode) return undefined;
 
     let cancelled = false;
+    handleWidgetLoadingChange('clusterList', true, 'Loading clusters…');
+    handleWidgetLoadingChange('dimReduction', true, 'Updating cluster projection…');
 
     const clearClusterState = (preserveSelection = false) => {
       setCuratorDataset(null);
@@ -482,6 +664,11 @@ const MultiPanelView = forwardRef(({
           console.error('Error fetching cluster list:', error);
           clearClusterState(false);
         }
+      } finally {
+        if (!cancelled) {
+          handleWidgetLoadingChange('clusterList', false);
+          handleWidgetLoadingChange('dimReduction', false);
+        }
       }
     };
 
@@ -489,7 +676,13 @@ const MultiPanelView = forwardRef(({
     return () => {
       cancelled = true;
     };
-  }, [demoMode, selectedDataset, selectedAlgorithm, clusteringResults]);
+  }, [
+    clusteringResults,
+    demoMode,
+    handleWidgetLoadingChange,
+    selectedAlgorithm,
+    selectedDataset,
+  ]);
 
   useEffect(() => {
     if (demoMode) return undefined;
@@ -497,10 +690,18 @@ const MultiPanelView = forwardRef(({
     if (selectedClusters.length === 0) {
       setSpikes([]);
       setClusterWaveforms({});
+      handleWidgetLoadingChange('waveform', false);
+      handleWidgetLoadingChange('amplitudeProfile', false);
+      if (curatorDataset) handleWidgetLoadingChange('dimReduction', false);
       return undefined;
     }
 
     let cancelled = false;
+    handleWidgetLoadingChange('waveform', true, 'Loading waveforms…');
+    handleWidgetLoadingChange('amplitudeProfile', true, 'Updating amplitudes…');
+    if (curatorDataset) {
+      handleWidgetLoadingChange('dimReduction', true, 'Updating cluster projection…');
+    }
 
     const loadSelectedClusterDetails = async () => {
       const clusterLookup = new Map(
@@ -527,16 +728,29 @@ const MultiPanelView = forwardRef(({
       setSpikes(nextSpikes);
 
       try {
+        const selectedIds = new Set(selectedClusters.map(String));
         const explicitClusters = curatorDataset
-          ? curatorDataset.clusters
+          ? curatorDataset.clusters.filter((cluster) => selectedIds.has(String(cluster.id)))
           : [];
-        const waveformsData = await apiClient.getClusterWaveforms({
+        const requestParams = {
           clusterIds: curatorDataset ? [] : selectedClusters,
           clusters: explicitClusters,
           maxWaveforms: curatorDataset ? 30 : 100,
           algorithm: selectedAlgorithm,
           includeSpikeIndices: highlightedSpikes,
-        });
+        };
+        const cacheKey = createSessionCacheKey('widget-data', [
+          dataCacheScope,
+          'waveforms',
+          selectedClusters,
+          requestParams.maxWaveforms,
+          selectedAlgorithm,
+          highlightedSpikes,
+        ]);
+        const waveformsData = await getOrLoadSessionCache(
+          cacheKey,
+          () => apiClient.getClusterWaveforms(requestParams)
+        );
 
         if (!cancelled) {
           const embeddedWaveforms = createDashboardDataFromCuratorDataset(
@@ -557,6 +771,12 @@ const MultiPanelView = forwardRef(({
         if (!cancelled) {
           console.error('Error fetching selected cluster details:', error);
         }
+      } finally {
+        if (!cancelled) {
+          handleWidgetLoadingChange('waveform', false);
+          handleWidgetLoadingChange('amplitudeProfile', false);
+          if (curatorDataset) handleWidgetLoadingChange('dimReduction', false);
+        }
       }
     };
 
@@ -564,7 +784,16 @@ const MultiPanelView = forwardRef(({
     return () => {
       cancelled = true;
     };
-  }, [demoMode, selectedClusters, clusterData, selectedAlgorithm, highlightedSpikes, curatorDataset]);
+  }, [
+    clusterData,
+    curatorDataset,
+    dataCacheScope,
+    demoMode,
+    handleWidgetLoadingChange,
+    highlightedSpikes,
+    selectedAlgorithm,
+    selectedClusters,
+  ]);
 
   useEffect(() => {
     if (demoMode) return undefined;
@@ -572,20 +801,31 @@ const MultiPanelView = forwardRef(({
     const clusterIds = clusterData?.clusterIds || [];
     if (clusterIds.length === 0) {
       setClusterStats({});
+      handleWidgetLoadingChange('clusterStats', false);
       return undefined;
     }
 
     let cancelled = false;
+    handleWidgetLoadingChange('clusterStats', true, 'Loading statistics…');
     apiClient.getClusterStatistics(clusterIds, selectedAlgorithm)
       .then((statisticsData) => {
         if (!cancelled) setClusterStats(statisticsData.statistics || {});
       })
       .catch((error) => {
         if (!cancelled) console.error('Error fetching cluster statistics:', error);
+      })
+      .finally(() => {
+        if (!cancelled) handleWidgetLoadingChange('clusterStats', false);
       });
 
     return () => { cancelled = true; };
-  }, [clusterData, curatorDataset, demoMode, selectedAlgorithm]);
+  }, [
+    clusterData,
+    curatorDataset,
+    demoMode,
+    handleWidgetLoadingChange,
+    selectedAlgorithm,
+  ]);
 
   const handleClusterSelect = useCallback((clusterId, options = {}) => {
     const additive = Boolean(options.additive);
@@ -615,8 +855,14 @@ const MultiPanelView = forwardRef(({
     setHighlightedSpikes([]);
     setFocusedTimeRange(null);
     setVisibleClusterOrder(clusterIds);
-    setSelectedClusters(clusterIds);
+    setSelectedClusters((previous) => (
+      reconcileCuratorClusterSelection(previous, clusterIds)
+    ));
   }, [datasetInfo]);
+
+  const handleCuratorSelectionChange = useCallback((clusterIds) => {
+    setSelectedClusters(Array.isArray(clusterIds) ? clusterIds : []);
+  }, []);
 
   const pcaClusterData = useMemo(() => (
     curatorDataset
@@ -666,6 +912,18 @@ const MultiPanelView = forwardRef(({
       localStorage.setItem(annotationStorageKey, JSON.stringify(next));
       return next;
     });
+    if (patch.group) {
+      setWidgetStates((previous) => ({
+        ...previous,
+        clusterList: {
+          ...previous.clusterList,
+          clusterGroups: {
+            ...(previous.clusterList?.clusterGroups || {}),
+            [String(clusterId)]: patch.group,
+          },
+        },
+      }));
+    }
   }, [annotationStorageKey]);
 
   const handleVisibleClusterOrderChange = useCallback((clusterIds) => {
@@ -709,37 +967,8 @@ const MultiPanelView = forwardRef(({
     });
   }, []);
 
-  const persistCurrentView = useCallback((nextWidgetStates) => {
-    const savedCurrentView = localStorage.getItem(CURRENT_VIEW_KEY) || 'default';
-    if (!savedCurrentView || savedCurrentView === 'default') return;
-
-    try {
-      const savedViews = localStorage.getItem(STORAGE_KEY);
-      if (!savedViews) return;
-
-      const views = JSON.parse(savedViews);
-      const viewIndex = views.findIndex(v => v.id === savedCurrentView);
-      if (viewIndex === -1) return;
-
-      views[viewIndex] = {
-        ...views[viewIndex],
-        widgetStates: nextWidgetStates,
-        updatedAt: new Date().toISOString()
-      };
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
-    } catch (e) {
-      console.error('Error saving widget states:', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isDefaultView) {
-      persistCurrentView(widgetStates);
-    }
-  }, [widgetStates, persistCurrentView, isDefaultView]);
-
   const handleWidgetLayoutChange = useCallback((widgetId, layout) => {
+    revealMinimap();
     setWidgetStates((prev) => ({
       ...prev,
       [widgetId]: {
@@ -748,7 +977,7 @@ const MultiPanelView = forwardRef(({
         size: layout.size ? { ...layout.size } : prev[widgetId].size
       }
     }));
-  }, []);
+  }, [revealMinimap]);
 
   const handleToggleWidget = useCallback((widgetId) => {
     setWidgetStates((prev) => {
@@ -815,18 +1044,35 @@ const MultiPanelView = forwardRef(({
     });
   }, [isDefaultView]);
 
-  const handleViewChange = useCallback((newWidgetStates) => {
+  const handleViewChange = useCallback((newWidgetStates, nextViewId) => {
     setWidgetStates(mergeWidgetStateDefaults(JSON.parse(JSON.stringify(newWidgetStates))));
-    const id = localStorage.getItem(CURRENT_VIEW_KEY) || 'default';
-    setCurrentViewId(id);
-  }, []);
+    setCurrentViewId(
+      nextViewId ||
+      localStorage.getItem(getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope)) ||
+      'default'
+    );
+  }, [layoutStorageScope]);
 
   const handleAddWidget = useCallback((widget) => {
     const definition = WIDGET_DEFINITIONS[widget.id];
-    const fallbackPosition = dropPosition || { top: 80, left: 80 };
+    const container = containerRef.current;
 
     setWidgetStates((prev) => {
       const existing = prev[widget.id] || {};
+      const size = existing.size || definition?.defaultSize || { width: 300, height: 220 };
+      const rect = container?.getBoundingClientRect();
+      const focusedPosition = rect
+        ? getViewportCenteredWidgetPosition({
+            containerWidth: rect.width,
+            containerHeight: rect.height,
+            widgetWidth: size.width,
+            widgetHeight: size.height,
+            viewport: {
+              ...canvasOffset,
+              zoom: displaySettings.scale,
+            },
+          })
+        : { top: 80, left: 80 };
       return {
         ...prev,
         [widget.id]: {
@@ -834,18 +1080,14 @@ const MultiPanelView = forwardRef(({
           visible: true,
           minimized: false,
           maximized: false,
-          position: isDefaultView
-            ? existing.position || null
-            : existing.position || fallbackPosition,
-          size: isDefaultView
-            ? existing.size || null
-            : existing.size || definition?.defaultSize || { width: 300, height: 220 }
+          position: dropPosition || focusedPosition,
+          size
         }
       };
     });
 
     setDropPosition(null);
-  }, [dropPosition, isDefaultView]);
+  }, [canvasOffset, displaySettings.scale, dropPosition]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -967,6 +1209,23 @@ const MultiPanelView = forwardRef(({
     spikes,
     visibleClusterOrder,
   ]);
+  const minimapViewport = useMemo(() => {
+    const zoom = hasMaximizedWidget ? 1 : displaySettings.scale;
+    const offset = hasMaximizedWidget ? { x: 0, y: 0 } : canvasOffset;
+
+    return {
+      x: -offset.x / zoom,
+      y: -offset.y / zoom,
+      width: canvasGeometry.width / zoom,
+      height: canvasGeometry.height / zoom,
+    };
+  }, [
+    canvasGeometry.height,
+    canvasGeometry.width,
+    canvasOffset,
+    displaySettings.scale,
+    hasMaximizedWidget,
+  ]);
 
   const renderDockable = (widgetId, title, body, panelClassName) => {
     const state = widgetStates[widgetId];
@@ -988,6 +1247,8 @@ const MultiPanelView = forwardRef(({
           interactionScale={state.maximized ? 1 : displaySettings.scale}
           layoutPosition={state.position}
           style={getWidgetStyle(widgetId)}
+          isLoading={Boolean(widgetLoading[widgetId]?.loading)}
+          loadingLabel={widgetLoading[widgetId]?.label}
         >
           {body}
         </DockableWidget>
@@ -1005,7 +1266,6 @@ const MultiPanelView = forwardRef(({
         '--canvas-offset-y': `${canvasOffset.y}px`,
       }}
       onMouseDown={handleCanvasMouseDown}
-      onWheel={handleCanvasWheel}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1030,6 +1290,7 @@ const MultiPanelView = forwardRef(({
         />
 
         <RightSideMenu
+          demoMode={demoMode}
           isWidgetBankOpen={isWidgetBankOpen}
           onWidgetBankToggle={() => setIsWidgetBankOpen(!isWidgetBankOpen)}
           widgetStates={widgetStates}
@@ -1058,19 +1319,40 @@ const MultiPanelView = forwardRef(({
           onAddCustomPipeline={onAddCustomPipeline}
           onDeleteCustomPipeline={onDeleteCustomPipeline}
           canManageCustomPipelines={canManageCustomPipelines}
+          savedViews={savedViews}
+          savedCurrentViewId={savedCurrentViewId}
+          onPersistViews={onPersistViews}
+          layoutStorageScope={layoutStorageScope}
         />
 
-        <div className="canvas-zoom-controls" aria-label="Canvas zoom controls">
+        <div
+          className={`canvas-zoom-controls ${isZoomIndicatorVisible ? 'is-visible' : ''}`}
+          aria-label="Canvas zoom controls"
+          onMouseEnter={revealZoomIndicator}
+        >
           <button type="button" onClick={() => setCanvasZoom(displaySettings.scale - 0.1)} aria-label="Zoom out">−</button>
           <button type="button" onClick={handleResetCanvasView} title="Reset canvas position and zoom">
             {Math.round(displaySettings.scale * 100)}%
           </button>
           <button type="button" onClick={() => setCanvasZoom(displaySettings.scale + 0.1)} aria-label="Zoom in">+</button>
         </div>
+
+        <CanvasMinimap
+          viewport={minimapViewport}
+          widgets={canvasGeometry.widgets}
+          isVisible={isMinimapVisible}
+          alwaysVisible={displaySettings.minimapAlwaysVisible}
+          onActivity={revealMinimap}
+          onAlwaysVisibleChange={(minimapAlwaysVisible) => {
+            handleDisplaySettingsChange({ minimapAlwaysVisible });
+            revealMinimap();
+          }}
+        />
       </div>
 
       <div
         className="dashboard-canvas"
+        ref={dashboardCanvasRef}
         style={{
           transform: hasMaximizedWidget
             ? 'translate(0, 0) scale(1)'
@@ -1109,7 +1391,7 @@ const MultiPanelView = forwardRef(({
   'Amplitude Distribution',
   <AmplitudeProfileWidget
     selectedClusters={selectedClusters}
-    clusterWaveforms={clusterWaveforms}
+    waveforms={clusterWaveforms}
     clusterData={clusterData}
     clusteringResults={curatorDataset ? null : clusteringResults}
     selectedAlgorithm={selectedAlgorithm}
@@ -1127,6 +1409,7 @@ const MultiPanelView = forwardRef(({
     selectedAlgorithm={selectedAlgorithm}
     selectedClusters={selectedClusters}
     demoMode={demoMode}
+    onLoadingChange={handleWidgetLoadingChange}
   />,
   'panel-cluster-comparison'
 )}
@@ -1139,6 +1422,9 @@ const MultiPanelView = forwardRef(({
     onDatasetChange={handleCuratorDatasetChange}
     selectedClusters={selectedClusters}
     onClusterSelect={(cluster, options) => handleClusterSelect(cluster.id, options)}
+    onSelectedClustersChange={handleCuratorSelectionChange}
+    onLoadingChange={handleWidgetLoadingChange}
+    sessionCacheScope={layoutStorageScope}
   />,
   'panel-curator'
 )}
@@ -1176,6 +1462,8 @@ const MultiPanelView = forwardRef(({
           demoMode={demoMode}
           onClusterSelect={handleClusterSelect}
           onClusterPairSelect={handleClusterPairSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-correlogram'
       )}
@@ -1193,6 +1481,8 @@ const MultiPanelView = forwardRef(({
           datasetInfo={datasetInfo}
           demoMode={demoMode}
           onClusterSelect={handleClusterSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-isi-histogram'
       )}
@@ -1215,6 +1505,8 @@ const MultiPanelView = forwardRef(({
           onTimeRangeSelect={handleTimeRangeSelect}
           onSpikeSelect={handleSpikeHighlight}
           onSummaryChange={handleAmplitudeSummaries}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-amplitude-time'
       )}
@@ -1253,6 +1545,8 @@ const MultiPanelView = forwardRef(({
           onTimeRangeChange={handleTimeRangeSelect}
           datasetInfo={datasetInfo}
           demoSignalData={demoSignalData}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-signal-view'
       )}
@@ -1308,6 +1602,9 @@ const MultiPanelView = forwardRef(({
               selectedAlgorithm={selectedAlgorithm}
               demoMode={demoMode}
               demoWaveforms={demoWaveforms}
+              clusterLookup={curatorDataset?.clusterLookup}
+              dataCacheScope={dataCacheScope}
+              onLoadingChange={handleWidgetLoadingChange}
             />
           )}
         </>,
