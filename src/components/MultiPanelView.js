@@ -57,6 +57,14 @@ import {
   getCanvasWheelAction,
 } from '../utils/canvasWheel';
 import {
+  WIDGET_SELECTION_DRAG_THRESHOLD,
+  getWidgetIdsInSelectionRect,
+  mergeWidgetSelection,
+  normalizeSelectionRect,
+  offsetWidgetPositions,
+  resolveWidgetSelection,
+} from '../utils/canvasSelection';
+import {
   clearSessionCache,
   createSessionCacheKey,
   getOrLoadSessionCache,
@@ -66,6 +74,27 @@ import {
 const DISPLAY_SETTINGS_STORAGE_KEY = 'spikescope_display_settings:v1';
 const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
 const CANVAS_OVERLAY_IDLE_MS = 3000;
+
+const getPanelPosition = (panel) => {
+  const computedStyle = window.getComputedStyle(panel);
+  const inlineLeft = parseFloat(panel.style.left);
+  const inlineTop = parseFloat(panel.style.top);
+  const computedLeft = parseFloat(computedStyle.left);
+  const computedTop = parseFloat(computedStyle.top);
+
+  return {
+    left: Number.isFinite(computedLeft)
+      ? computedLeft
+      : Number.isFinite(inlineLeft)
+      ? inlineLeft
+      : panel.offsetLeft || 0,
+    top: Number.isFinite(computedTop)
+      ? computedTop
+      : Number.isFinite(inlineTop)
+      ? inlineTop
+      : panel.offsetTop || 0,
+  };
+};
 
 const DEFAULT_WIDGET_STATES = {
   clusterList: { visible: true, minimized: false, maximized: false, order: 1, position: null, size: null, type: 'clusterList' },
@@ -146,7 +175,14 @@ const MultiPanelView = forwardRef(({
   ));
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
   const [isCanvasPanning, setIsCanvasPanning] = useState(false);
+  const [isCanvasSelecting, setIsCanvasSelecting] = useState(false);
+  const [selectionBox, setSelectionBox] = useState(null);
+  const [selectedWidgetIds, setSelectedWidgetIds] = useState([]);
+  const [groupDraggingWidgetIds, setGroupDraggingWidgetIds] = useState([]);
   const canvasPanRef = useRef(null);
+  const canvasSelectionRef = useRef(null);
+  const selectedWidgetIdsRef = useRef([]);
+  const widgetGroupDragRef = useRef(null);
   const dashboardCanvasRef = useRef(null);
   const zoomIndicatorTimerRef = useRef(null);
   const minimapTimerRef = useRef(null);
@@ -157,6 +193,9 @@ const MultiPanelView = forwardRef(({
     height: 0,
     widgets: [],
   });
+  const isCompactCanvas = (
+    canvasGeometry.width || (typeof window === 'undefined' ? 0 : window.innerWidth)
+  ) <= 640;
   const [widgetLoading, setWidgetLoading] = useState({});
   const sessionCacheInputsRef = useRef({
     clusteringResults,
@@ -230,9 +269,33 @@ const MultiPanelView = forwardRef(({
     }
     return DEFAULT_WIDGET_STATES;
   });
+  const updateSelectedWidgetIds = useCallback((widgetIds) => {
+    const nextSelection = mergeWidgetSelection([], widgetIds);
+    selectedWidgetIdsRef.current = nextSelection;
+    setSelectedWidgetIds(nextSelection);
+  }, []);
+  const handleWidgetSelect = useCallback((widgetId, { additive = false } = {}) => {
+    const nextSelection = resolveWidgetSelection(
+      selectedWidgetIdsRef.current,
+      widgetId,
+      additive
+    );
+    selectedWidgetIdsRef.current = nextSelection;
+    setSelectedWidgetIds(nextSelection);
+  }, []);
   const hasMaximizedWidget = Object.values(widgetStates).some(
     (state) => state.visible && state.maximized
   );
+
+  useEffect(() => {
+    const visibleSelection = selectedWidgetIdsRef.current.filter((widgetId) => {
+      const state = widgetStates[widgetId];
+      return state?.visible && !state.maximized;
+    });
+    if (visibleSelection.length !== selectedWidgetIdsRef.current.length) {
+      updateSelectedWidgetIds(visibleSelection);
+    }
+  }, [updateSelectedWidgetIds, widgetStates]);
 
   useEffect(() => {
     try {
@@ -421,6 +484,24 @@ const MultiPanelView = forwardRef(({
   }, [revealMinimap, revealZoomIndicator]);
 
   const handleCanvasMouseMove = useCallback((event) => {
+    const selection = canvasSelectionRef.current;
+    if (selection) {
+      const currentPoint = {
+        x: Math.min(
+          selection.containerWidth,
+          Math.max(0, event.clientX - selection.containerLeft)
+        ),
+        y: Math.min(
+          selection.containerHeight,
+          Math.max(0, event.clientY - selection.containerTop)
+        ),
+      };
+      const nextBox = normalizeSelectionRect(selection.startPoint, currentPoint);
+      selection.currentPoint = currentPoint;
+      setSelectionBox(nextBox);
+      return;
+    }
+
     const pan = canvasPanRef.current;
     if (!pan) return;
     revealMinimap();
@@ -430,36 +511,120 @@ const MultiPanelView = forwardRef(({
     });
   }, [revealMinimap]);
 
-  const handleCanvasMouseUp = useCallback(() => {
+  const handleCanvasMouseUp = useCallback((event) => {
+    const selection = canvasSelectionRef.current;
+    const cancelled = event?.type === 'blur';
+    if (selection && !cancelled) {
+      const currentPoint = event ? {
+        x: Math.min(
+          selection.containerWidth,
+          Math.max(0, event.clientX - selection.containerLeft)
+        ),
+        y: Math.min(
+          selection.containerHeight,
+          Math.max(0, event.clientY - selection.containerTop)
+        ),
+      } : selection.currentPoint;
+      const finalBox = normalizeSelectionRect(selection.startPoint, currentPoint);
+      const isMarquee = Math.max(finalBox.width, finalBox.height)
+        >= WIDGET_SELECTION_DRAG_THRESHOLD;
+
+      if (isMarquee) {
+        const widgets = Array.from(
+          dashboardCanvasRef.current?.querySelectorAll('.dockable-widget') || []
+        )
+          .filter((widget) => !widget.classList.contains('maximized'))
+          .map((widget) => {
+            const rect = widget.getBoundingClientRect();
+            return {
+              id: widget.dataset.widgetId,
+              rect: {
+                left: rect.left - selection.containerLeft,
+                top: rect.top - selection.containerTop,
+                right: rect.right - selection.containerLeft,
+                bottom: rect.bottom - selection.containerTop,
+              },
+            };
+          });
+        const matchedWidgetIds = getWidgetIdsInSelectionRect(widgets, finalBox);
+        updateSelectedWidgetIds(mergeWidgetSelection(
+          selection.initialSelection,
+          matchedWidgetIds,
+          selection.additive
+        ));
+      } else if (!selection.additive) {
+        updateSelectedWidgetIds([]);
+      }
+    }
+
     canvasPanRef.current = null;
+    canvasSelectionRef.current = null;
     setIsCanvasPanning(false);
+    setIsCanvasSelecting(false);
+    setSelectionBox(null);
     document.removeEventListener('mousemove', handleCanvasMouseMove);
     document.removeEventListener('mouseup', handleCanvasMouseUp);
-  }, [handleCanvasMouseMove]);
+    window.removeEventListener('blur', handleCanvasMouseUp);
+  }, [handleCanvasMouseMove, updateSelectedWidgetIds]);
 
   const handleCanvasMouseDown = useCallback((event) => {
     const isMiddleButton = event.button === 1;
-    const isCanvasBackground = event.button === 0
-      && !event.target.closest('.dockable-widget')
+    const isCanvasBackground = !event.target.closest('.dockable-widget')
       && !event.target.closest('.dashboard-overlay');
-    if (!isMiddleButton && !isCanvasBackground) return;
+    const isAlternatePan = event.button === 0 && event.altKey && isCanvasBackground;
+    const isSelectionStart = event.button === 0 && !event.altKey && isCanvasBackground;
+    if (!isMiddleButton && !isAlternatePan && !isSelectionStart) return;
+    if (hasMaximizedWidget) return;
 
     event.preventDefault();
-    revealMinimap();
-    canvasPanRef.current = {
-      clientX: event.clientX,
-      clientY: event.clientY,
-      offsetX: canvasOffset.x,
-      offsetY: canvasOffset.y,
-    };
-    setIsCanvasPanning(true);
+    if (isSelectionStart && !isCompactCanvas) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const startPoint = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+      canvasSelectionRef.current = {
+        containerLeft: rect.left,
+        containerTop: rect.top,
+        containerWidth: rect.width,
+        containerHeight: rect.height,
+        startPoint,
+        currentPoint: startPoint,
+        additive: event.ctrlKey || event.metaKey,
+        initialSelection: [...selectedWidgetIdsRef.current],
+      };
+      setSelectionBox(normalizeSelectionRect(startPoint, startPoint));
+      setIsCanvasSelecting(true);
+    } else {
+      revealMinimap();
+      canvasPanRef.current = {
+        clientX: event.clientX,
+        clientY: event.clientY,
+        offsetX: canvasOffset.x,
+        offsetY: canvasOffset.y,
+      };
+      setIsCanvasPanning(true);
+    }
+
     document.addEventListener('mousemove', handleCanvasMouseMove);
     document.addEventListener('mouseup', handleCanvasMouseUp);
-  }, [canvasOffset, handleCanvasMouseMove, handleCanvasMouseUp, revealMinimap]);
+    window.addEventListener('blur', handleCanvasMouseUp);
+  }, [
+    canvasOffset,
+    handleCanvasMouseMove,
+    handleCanvasMouseUp,
+    hasMaximizedWidget,
+    isCompactCanvas,
+    revealMinimap,
+  ]);
 
   useEffect(() => () => {
+    canvasPanRef.current = null;
+    canvasSelectionRef.current = null;
     document.removeEventListener('mousemove', handleCanvasMouseMove);
     document.removeEventListener('mouseup', handleCanvasMouseUp);
+    window.removeEventListener('blur', handleCanvasMouseUp);
   }, [handleCanvasMouseMove, handleCanvasMouseUp]);
 
   const handleCanvasWheel = useCallback((event) => {
@@ -967,6 +1132,128 @@ const MultiPanelView = forwardRef(({
     });
   }, []);
 
+  const getWidgetPanelRecords = useCallback((widgetIds) => {
+    const requestedIds = new Set((widgetIds || []).map(String));
+    const records = {};
+
+    dashboardCanvasRef.current?.querySelectorAll('.dockable-widget').forEach((widget) => {
+      const widgetId = widget.dataset.widgetId;
+      const panel = widget.parentElement;
+      if (
+        !widgetId ||
+        !requestedIds.has(String(widgetId)) ||
+        !panel ||
+        widget.classList.contains('maximized')
+      ) {
+        return;
+      }
+
+      records[widgetId] = {
+        panel,
+        position: getPanelPosition(panel),
+        inlineLeft: panel.style.left,
+        inlineTop: panel.style.top,
+      };
+    });
+
+    return records;
+  }, []);
+
+  const cancelWidgetGroupDrag = useCallback(() => {
+    const drag = widgetGroupDragRef.current;
+    Object.values(drag?.records || {}).forEach((record) => {
+      record.panel.style.left = record.inlineLeft;
+      record.panel.style.top = record.inlineTop;
+    });
+    widgetGroupDragRef.current = null;
+    setGroupDraggingWidgetIds([]);
+  }, []);
+
+  const handleWidgetDragStart = useCallback((widgetId) => {
+    const isPartOfSelection = selectedWidgetIdsRef.current.some(
+      (candidate) => String(candidate) === String(widgetId)
+    );
+    const requestedIds = isPartOfSelection
+      ? selectedWidgetIdsRef.current
+      : [widgetId];
+    const records = getWidgetPanelRecords(requestedIds);
+    if (!records[widgetId]) {
+      widgetGroupDragRef.current = null;
+      return;
+    }
+
+    widgetGroupDragRef.current = {
+      leaderId: widgetId,
+      records,
+      positions: Object.fromEntries(Object.entries(records).map(([id, record]) => [
+        id,
+        record.position,
+      ])),
+      lastDelta: { x: 0, y: 0 },
+    };
+    setGroupDraggingWidgetIds(Object.keys(records));
+  }, [getWidgetPanelRecords]);
+
+  const handleWidgetDragMove = useCallback((widgetId, { delta, position }) => {
+    const drag = widgetGroupDragRef.current;
+    if (!drag || String(drag.leaderId) !== String(widgetId)) return;
+
+    const leaderStart = drag.positions[widgetId];
+    const effectiveDelta = position && leaderStart
+      ? {
+          x: position.left - leaderStart.left,
+          y: position.top - leaderStart.top,
+        }
+      : delta;
+    drag.lastDelta = effectiveDelta;
+    const nextPositions = offsetWidgetPositions(drag.positions, effectiveDelta);
+    Object.entries(nextPositions).forEach(([id, position]) => {
+      if (String(id) === String(widgetId)) return;
+      const panel = drag.records[id]?.panel;
+      if (!panel) return;
+      panel.style.left = `${position.left}px`;
+      panel.style.top = `${position.top}px`;
+    });
+  }, []);
+
+  const handleWidgetDragEnd = useCallback((
+    widgetId,
+    { moved = true, cancelled = false } = {}
+  ) => {
+    const drag = widgetGroupDragRef.current;
+    if (cancelled) {
+      cancelWidgetGroupDrag();
+      return true;
+    }
+
+    if (!moved) {
+      widgetGroupDragRef.current = null;
+      setGroupDraggingWidgetIds([]);
+      updateSelectedWidgetIds([widgetId]);
+      return true;
+    }
+
+    if (!drag || String(drag.leaderId) !== String(widgetId)) return false;
+
+    const finalPositions = offsetWidgetPositions(drag.positions, drag.lastDelta);
+    setWidgetStates((previous) => {
+      const next = { ...previous };
+      Object.entries(finalPositions).forEach(([id, position]) => {
+        if (!previous[id]) return;
+        next[id] = {
+          ...previous[id],
+          position,
+        };
+      });
+      return next;
+    });
+
+    widgetGroupDragRef.current = null;
+    setGroupDraggingWidgetIds([]);
+    revealMinimap();
+    return true;
+  }, [cancelWidgetGroupDrag, revealMinimap, updateSelectedWidgetIds]);
+
   const handleWidgetLayoutChange = useCallback((widgetId, layout) => {
     revealMinimap();
     setWidgetStates((prev) => ({
@@ -980,6 +1267,7 @@ const MultiPanelView = forwardRef(({
   }, [revealMinimap]);
 
   const handleToggleWidget = useCallback((widgetId) => {
+    cancelWidgetGroupDrag();
     setWidgetStates((prev) => {
       const next = {
         ...prev,
@@ -991,9 +1279,10 @@ const MultiPanelView = forwardRef(({
       };
       return next;
     });
-  }, []);
+  }, [cancelWidgetGroupDrag]);
 
   const handleMinimizeWidget = useCallback((widgetId) => {
+    cancelWidgetGroupDrag();
     setWidgetStates((prev) => ({
       ...prev,
       [widgetId]: {
@@ -1002,9 +1291,10 @@ const MultiPanelView = forwardRef(({
         maximized: false
       }
     }));
-  }, []);
+  }, [cancelWidgetGroupDrag]);
 
   const handleMaximizeWidget = useCallback((widgetId) => {
+    cancelWidgetGroupDrag();
     setWidgetStates((prev) => ({
       ...prev,
       [widgetId]: {
@@ -1013,9 +1303,10 @@ const MultiPanelView = forwardRef(({
         minimized: false
       }
     }));
-  }, []);
+  }, [cancelWidgetGroupDrag]);
 
   const handleCloseWidget = useCallback((widgetId) => {
+    cancelWidgetGroupDrag();
     setWidgetStates((prev) => ({
       ...prev,
       [widgetId]: {
@@ -1023,9 +1314,11 @@ const MultiPanelView = forwardRef(({
         visible: false
       }
     }));
-  }, []);
+  }, [cancelWidgetGroupDrag]);
 
   const handleResetLayout = useCallback(() => {
+    cancelWidgetGroupDrag();
+    updateSelectedWidgetIds([]);
     if (isDefaultView) {
       setWidgetStates(DEFAULT_WIDGET_STATES);
       return;
@@ -1042,16 +1335,18 @@ const MultiPanelView = forwardRef(({
       });
       return next;
     });
-  }, [isDefaultView]);
+  }, [cancelWidgetGroupDrag, isDefaultView, updateSelectedWidgetIds]);
 
   const handleViewChange = useCallback((newWidgetStates, nextViewId) => {
+    cancelWidgetGroupDrag();
+    updateSelectedWidgetIds([]);
     setWidgetStates(mergeWidgetStateDefaults(JSON.parse(JSON.stringify(newWidgetStates))));
     setCurrentViewId(
       nextViewId ||
       localStorage.getItem(getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope)) ||
       'default'
     );
-  }, [layoutStorageScope]);
+  }, [cancelWidgetGroupDrag, layoutStorageScope, updateSelectedWidgetIds]);
 
   const handleAddWidget = useCallback((widget) => {
     const definition = WIDGET_DEFINITIONS[widget.id];
@@ -1230,9 +1525,19 @@ const MultiPanelView = forwardRef(({
   const renderDockable = (widgetId, title, body, panelClassName) => {
     const state = widgetStates[widgetId];
     if (!state?.visible) return null;
+    const isSelectedWidget = selectedWidgetIds.some(
+      (candidate) => String(candidate) === String(widgetId)
+    );
+    const isGroupedDrag = groupDraggingWidgetIds.some(
+      (candidate) => String(candidate) === String(widgetId)
+    );
 
     return (
-      <div className={`panel ${panelClassName}`} style={getPanelStyle(widgetId)}>
+      <div
+        className={`panel ${panelClassName} ${isSelectedWidget ? 'widget-selected' : ''} ${isGroupedDrag ? 'widget-group-dragging' : ''}`}
+        data-widget-panel-id={widgetId}
+        style={getPanelStyle(widgetId)}
+      >
         <DockableWidget
           id={widgetId}
           title={title}
@@ -1242,13 +1547,19 @@ const MultiPanelView = forwardRef(({
           onLayoutChange={handleWidgetLayoutChange}
           isMinimized={state.minimized}
           isMaximized={state.maximized}
-          draggable={!isDefaultView ? true : true}
-          resizable={!isDefaultView ? true : true}
+          draggable={!isCompactCanvas}
+          resizable={!isCompactCanvas}
           interactionScale={state.maximized ? 1 : displaySettings.scale}
           layoutPosition={state.position}
           style={getWidgetStyle(widgetId)}
           isLoading={Boolean(widgetLoading[widgetId]?.loading)}
           loadingLabel={widgetLoading[widgetId]?.label}
+          isSelected={isSelectedWidget}
+          isGroupDragging={isGroupedDrag}
+          onSelect={handleWidgetSelect}
+          onDragStart={handleWidgetDragStart}
+          onDragMove={handleWidgetDragMove}
+          onDragEnd={handleWidgetDragEnd}
         >
           {body}
         </DockableWidget>
@@ -1258,7 +1569,7 @@ const MultiPanelView = forwardRef(({
 
   return (
     <div
-      className={`multi-panel-view density-${displaySettings.density} ${isDragOver ? 'drag-over' : ''} ${isCanvasPanning ? 'canvas-panning' : ''}`}
+      className={`multi-panel-view density-${displaySettings.density} ${isDragOver ? 'drag-over' : ''} ${isCanvasPanning ? 'canvas-panning' : ''} ${isCanvasSelecting ? 'canvas-selecting' : ''} ${groupDraggingWidgetIds.length ? 'group-dragging' : ''}`}
       ref={containerRef}
       style={{
         '--canvas-zoom': displaySettings.scale,
@@ -1348,6 +1659,25 @@ const MultiPanelView = forwardRef(({
             revealMinimap();
           }}
         />
+      </div>
+
+      {selectionBox && (
+        <div
+          className="widget-selection-box"
+          aria-hidden="true"
+          style={{
+            left: selectionBox.left,
+            top: selectionBox.top,
+            width: selectionBox.width,
+            height: selectionBox.height,
+          }}
+        />
+      )}
+
+      <div className="widget-selection-status" role="status" aria-live="polite">
+        {selectedWidgetIds.length === 1
+          ? '1 widget selected'
+          : `${selectedWidgetIds.length} widgets selected`}
       </div>
 
       <div
