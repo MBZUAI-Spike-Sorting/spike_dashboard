@@ -1748,6 +1748,8 @@ const MultiPanelView = forwardRef(({
   'curator',
   'Curator',
   <CuratorWidget
+    clusterAnnotations={clusterAnnotations}
+    onAnnotationChange={handleAnnotationChange}
     initialDataset={curatorDataset}
     onDatasetChange={handleCuratorDatasetChange}
     selectedClusters={selectedClusters}

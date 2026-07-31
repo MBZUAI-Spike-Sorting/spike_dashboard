@@ -76,12 +76,12 @@ export function AuthProvider({ children }) {
   /**
    * Save authentication data
    */
-  const saveAuthData = useCallback((authToken, userData, algorithms) => {
+  const saveAuthData = useCallback((authToken, userData, algorithms, profileData = null) => {
     localStorage.setItem(TOKEN_KEY, authToken);
     localStorage.setItem(USER_KEY, JSON.stringify(userData));
     setToken(authToken);
     setUser(userData);
-    setProfile(null);
+    setProfile(profileData);
     setAllowedAlgorithms(algorithms || []);
     setIsAuthenticated(true);
   }, []);
@@ -110,7 +110,8 @@ export function AuthProvider({ children }) {
       saveAuthData(
         response.data.token,
         response.data.user,
-        response.data.allowed_algorithms
+        response.data.allowed_algorithms,
+        response.data.profile
       );
       return response.data;
     } else {
@@ -128,7 +129,8 @@ export function AuthProvider({ children }) {
       saveAuthData(
         response.data.token,
         response.data.user,
-        response.data.allowed_algorithms
+        response.data.allowed_algorithms,
+        response.data.profile
       );
       return response.data;
     } else {

@@ -80,11 +80,13 @@ def register():
         
         # Generate token
         token = generate_token(user)
+        profile = UserProfile.get_or_create(user)
         
         logger.info(f'New user registered: {username}')
         
         return success_response({
             'user': user.to_dict(),
+            'profile': profile.to_dict(),
             'token': token,
             'allowed_algorithms': user.get_allowed_algorithms()
         }, message='Registration successful')
@@ -174,11 +176,13 @@ def login():
         
         # Generate token
         token = generate_token(user)
+        profile = UserProfile.get_or_create(user)
         
         logger.info(f'User logged in: {username}')
         
         return success_response({
             'user': user.to_dict(),
+            'profile': profile.to_dict(),
             'token': token,
             'allowed_algorithms': user.get_allowed_algorithms()
         }, message='Login successful')

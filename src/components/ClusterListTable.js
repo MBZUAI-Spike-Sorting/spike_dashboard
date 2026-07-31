@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { CLUSTER_GROUPS, getClusterGroup } from '../utils/clusterGroups';
 import './ClusterListTable.css';
-
-const GROUPS = ['unsorted', 'good', 'mua', 'noise'];
 
 const metricValue = (cluster, stats, annotations) => {
   const clusterId = cluster.id;
@@ -17,7 +16,7 @@ const metricValue = (cluster, stats, annotations) => {
     meanAmplitude: values.meanAmplitude === null || values.meanAmplitude === undefined
       ? null
       : Number(values.meanAmplitude),
-    group: annotation.group || 'unsorted',
+    group: getClusterGroup(annotations, clusterId),
     label: annotation.label || '',
     note: annotation.note || '',
   };
@@ -157,7 +156,7 @@ const ClusterListTable = ({
         />
         <select value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)} aria-label="Filter by group">
           <option value="all">All groups</option>
-          {GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
+          {CLUSTER_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
         </select>
         <select
           value=""
@@ -168,7 +167,7 @@ const ClusterListTable = ({
           aria-label="Set group for selected clusters"
         >
           <option value="">Label selected…</option>
-          {GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
+          {CLUSTER_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
         </select>
         <span className="cluster-selection-summary">{selectedClusters.length} selected · {rows.length}/{clusters.length}</span>
       </div>
@@ -218,7 +217,7 @@ const ClusterListTable = ({
                       onChange={(event) => onAnnotationChange?.(row.id, { group: event.target.value })}
                       aria-label={`Group for cluster ${row.id}`}
                     >
-                      {GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
+                      {CLUSTER_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
                     </select>
                   </td>
                   <td>{row.size.toLocaleString()}</td>
