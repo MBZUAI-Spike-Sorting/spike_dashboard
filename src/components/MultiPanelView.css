@@ -38,12 +38,21 @@
     100% 100%;
   overflow: hidden;
   transition: background 0.2s ease;
-  cursor: grab;
+  cursor: crosshair;
 }
 
 .multi-panel-view.canvas-panning {
   cursor: grabbing;
   user-select: none;
+}
+
+.multi-panel-view.canvas-selecting,
+.multi-panel-view.group-dragging {
+  user-select: none;
+}
+
+.multi-panel-view.group-dragging {
+  cursor: grabbing;
 }
 
 .dashboard-canvas {
@@ -53,6 +62,29 @@
   height: 100%;
   transform-origin: 0 0;
   overflow: visible;
+}
+
+.widget-selection-box {
+  position: absolute;
+  z-index: 2500;
+  box-sizing: border-box;
+  border: 2px solid #40e0d0;
+  border-radius: 4px;
+  background: rgba(64, 224, 208, 0.14);
+  box-shadow: 0 0 18px rgba(64, 224, 208, 0.25);
+  pointer-events: none;
+}
+
+.widget-selection-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .dashboard-overlay {
@@ -343,6 +375,10 @@
   position: absolute;
 }
 
+.panel.widget-group-dragging {
+  z-index: 110;
+}
+
 /* Default widget positions and sizes - fill the entire window */
 .panel-cluster-list {
   top: 10px;
@@ -564,6 +600,7 @@
   .multi-panel-view {
     overflow-x: auto;
     overflow-y: auto;
+    cursor: grab;
   }
 
   /* Stack widgets vertically on small screens */

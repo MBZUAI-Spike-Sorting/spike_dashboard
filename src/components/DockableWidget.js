@@ -6,6 +6,8 @@ export const normalizeInteractionScale = (scale) => {
   return Number.isFinite(numericScale) && numericScale > 0 ? numericScale : 1;
 };
 
+export const WIDGET_DRAG_THRESHOLD = 4;
+
 export const calculateResizeLayout = (resizeState, clientX, clientY, scale = 1) => {
   const interactionScale = normalizeInteractionScale(scale);
   const dx = (clientX - resizeState.startX) / interactionScale;
@@ -72,7 +74,13 @@ const DockableWidget = ({
   layoutPosition = null,
   style = {},
   isLoading = false,
-  loadingLabel = 'Updating…'
+  loadingLabel = 'Updating…',
+  isSelected = false,
+  isGroupDragging = false,
+  onSelect,
+  onDragStart,
+  onDragMove,
+  onDragEnd
 }) => {
   const widgetRef = useRef(null);
 
@@ -131,8 +139,18 @@ const DockableWidget = ({
     if (!panel) return;
 
     const scale = normalizeInteractionScale(interactionScale);
-    const dx = (e.clientX - dragState.current.startX) / scale;
-    const dy = (e.clientY - dragState.current.startY) / scale;
+    const screenDx = e.clientX - dragState.current.startX;
+    const screenDy = e.clientY - dragState.current.startY;
+    if (!dragState.current.hasMoved) {
+      if (Math.max(Math.abs(screenDx), Math.abs(screenDy)) < WIDGET_DRAG_THRESHOLD) {
+        return;
+      }
+      dragState.current.hasMoved = true;
+      onDragStart?.(id);
+      setIsDragging(true);
+    }
+    const dx = screenDx / scale;
+    const dy = screenDy / scale;
 
     const position = getConstrainedPosition(
       panel,
@@ -143,21 +161,45 @@ const DockableWidget = ({
 
     panel.style.left = `${position.left}px`;
     panel.style.top = `${position.top}px`;
+    onDragMove?.(id, {
+      delta: { x: dx, y: dy },
+      position
+    });
   };
 
-  const handleDragMouseUp = () => {
+  const handleDragMouseUp = (event) => {
+    const drag = dragState.current;
+    if (!drag) return;
+    const moved = Boolean(drag.hasMoved);
+    const cancelled = event?.type === 'blur';
+    const handledByParent = onDragEnd?.(id, { moved, cancelled }) === true;
     dragState.current = null;
     setIsDragging(false);
     document.removeEventListener('mousemove', handleDragMouseMove);
     document.removeEventListener('mouseup', handleDragMouseUp);
-    notifyLayoutChange();
+    window.removeEventListener('blur', handleDragMouseUp);
+    if (moved && !cancelled && !handledByParent) {
+      notifyLayoutChange();
+    }
   };
 
   const startDrag = (e) => {
-    if (!draggable || isMaximized) return;
+    if (e.button !== 0) return;
     const isRecoveryDrag = e.altKey;
-    if (!e.target.closest('.widget-header') && !isRecoveryDrag) return;
+    const isHeaderInteraction = Boolean(e.target.closest('.widget-header'));
+    if (!isHeaderInteraction && !isRecoveryDrag) return;
     if (e.target.closest('.widget-controls')) return;
+
+    const isAdditiveSelection = isHeaderInteraction && (e.ctrlKey || e.metaKey);
+    onSelect?.(id, { additive: isAdditiveSelection });
+
+    // Modifier-click is reserved for toggling widget selection. Release the
+    // modifier before dragging any selected header to move the full group.
+    if (isAdditiveSelection) {
+      e.preventDefault();
+      return;
+    }
+    if (!draggable || isMaximized) return;
 
     const widget = widgetRef.current;
     const panel = widget?.parentElement;
@@ -165,8 +207,8 @@ const DockableWidget = ({
 
     const style = window.getComputedStyle(panel);
 
+    e.preventDefault();
     if (isRecoveryDrag) {
-      e.preventDefault();
       e.stopPropagation();
     }
 
@@ -174,12 +216,13 @@ const DockableWidget = ({
       startX: e.clientX,
       startY: e.clientY,
       left: parseFloat(style.left) || 0,
-      top: parseFloat(style.top) || 0
+      top: parseFloat(style.top) || 0,
+      hasMoved: false
     };
 
-    setIsDragging(true);
     document.addEventListener('mousemove', handleDragMouseMove);
     document.addEventListener('mouseup', handleDragMouseUp);
+    window.addEventListener('blur', handleDragMouseUp);
   };
 
   const handleResizeMouseMove = (e) => {
@@ -245,6 +288,7 @@ const DockableWidget = ({
     return () => {
       document.removeEventListener('mousemove', handleDragMouseMove);
       document.removeEventListener('mouseup', handleDragMouseUp);
+      window.removeEventListener('blur', handleDragMouseUp);
       document.removeEventListener('mousemove', handleResizeMouseMove);
       document.removeEventListener('mouseup', handleResizeMouseUp);
     };
@@ -300,10 +344,11 @@ const DockableWidget = ({
   return (
     <div
       ref={widgetRef}
-      className={`dockable-widget ${isMinimized ? 'minimized' : ''} ${isMaximized ? 'maximized' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
+      className={`dockable-widget ${isMinimized ? 'minimized' : ''} ${isMaximized ? 'maximized' : ''} ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isGroupDragging ? 'group-dragging' : ''} ${isResizing ? 'resizing' : ''}`}
       data-widget-id={id}
+      data-widget-selected={isSelected ? 'true' : 'false'}
       onMouseDown={startDrag}
-      title="Drag the header to move. Alt/Option-drag anywhere to recover this widget."
+      title="Drag the header to move. Ctrl/Cmd-click the header for multi-selection. Alt/Option-drag anywhere to recover this widget."
       style={style}
     >
       <div className="widget-header">
@@ -312,6 +357,8 @@ const DockableWidget = ({
         <div className="widget-controls">
           <button
             className="widget-control-btn"
+            aria-label={`${isMinimized ? 'Restore' : 'Minimize'} ${title}`}
+            title={isMinimized ? `Restore ${title}` : `Minimize ${title}`}
             onClick={(e) => {
               e.stopPropagation();
               onMinimize?.(id);
@@ -323,6 +370,8 @@ const DockableWidget = ({
 
           <button
             className="widget-control-btn"
+            aria-label={`${isMaximized ? 'Restore' : 'Maximize'} ${title}`}
+            title={isMaximized ? `Restore ${title}` : `Maximize ${title}`}
             onClick={(e) => {
               e.stopPropagation();
               onMaximize?.(id);
@@ -334,6 +383,8 @@ const DockableWidget = ({
 
           <button
             className="widget-control-btn"
+            aria-label={`Close ${title}`}
+            title={`Close ${title}`}
             onClick={(e) => {
               e.stopPropagation();
               onClose?.(id);
