@@ -53,11 +53,27 @@
     0 0 0 1px rgba(64, 224, 208, 0.05);
 }
 
+.dockable-widget.selected {
+  border-color: rgba(64, 224, 208, 0.95);
+  box-shadow:
+    0 8px 26px rgba(0, 0, 0, 0.5),
+    0 0 0 2px rgba(64, 224, 208, 0.4);
+}
+
+.dockable-widget.selected .widget-header {
+  background: rgba(64, 224, 208, 0.14);
+}
+
 .dockable-widget.dragging {
   opacity: 0.85;
   cursor: move;
   z-index: 120;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.dockable-widget.group-dragging:not(.dragging) {
+  opacity: 0.9;
+  cursor: move;
 }
 
 .dockable-widget.resizing {
@@ -148,6 +164,11 @@
   border-color: rgba(64, 224, 208, 0.4);
   color: var(--color-primary, #40e0d0);
   transform: scale(1.1);
+}
+
+.widget-control-btn:focus-visible {
+  outline: 2px solid #40e0d0;
+  outline-offset: 2px;
 }
 
 .widget-control-btn:active {
