@@ -78,6 +78,7 @@ import {
 const DISPLAY_SETTINGS_STORAGE_KEY = 'spikescope_display_settings:v1';
 const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
 const CANVAS_OVERLAY_IDLE_MS = 3000;
+const MINIMAP_VISIBLE_MS = 10000;
 
 const getPanelPosition = (panel) => {
   const computedStyle = window.getComputedStyle(panel);
@@ -428,8 +429,11 @@ const MultiPanelView = forwardRef(({
     setIsMinimapVisible(true);
     if (minimapTimerRef.current) {
       clearTimeout(minimapTimerRef.current);
-      minimapTimerRef.current = null;
     }
+    minimapTimerRef.current = setTimeout(() => {
+      setIsMinimapVisible(false);
+      minimapTimerRef.current = null;
+    }, MINIMAP_VISIBLE_MS);
   }, []);
 
   const isSideMenuOpen = isWidgetBankOpen || isRightSideMenuOpen;
