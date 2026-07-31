@@ -123,6 +123,13 @@ const mergeWidgetStateDefaults = (states = {}) => {
   return merged;
 };
 
+export const getHighestWidgetOrder = (states = {}) => (
+  Object.values(states).reduce((highestOrder, state) => {
+    const order = Number(state?.order);
+    return Number.isFinite(order) ? Math.max(highestOrder, order) : highestOrder;
+  }, 0)
+);
+
 const MultiPanelView = forwardRef(({
   demoMode = false,
   selectedDataset,
@@ -1355,6 +1362,7 @@ const MultiPanelView = forwardRef(({
     setWidgetStates((prev) => {
       const existing = prev[widget.id] || {};
       const size = existing.size || definition?.defaultSize || { width: 300, height: 220 };
+      const order = getHighestWidgetOrder(prev) + 1;
       const rect = container?.getBoundingClientRect();
       const focusedPosition = rect
         ? getViewportCenteredWidgetPosition({
@@ -1376,7 +1384,8 @@ const MultiPanelView = forwardRef(({
           minimized: false,
           maximized: false,
           position: dropPosition || focusedPosition,
-          size
+          size,
+          order
         }
       };
     });
@@ -1454,15 +1463,31 @@ const MultiPanelView = forwardRef(({
     isWidgetBankOpen
   ]);
 
-  const getPanelStyle = useCallback((widgetId) => {
+  const highestWidgetOrder = useMemo(
+    () => getHighestWidgetOrder(widgetStates),
+    [widgetStates]
+  );
+
+  const getPanelStyle = useCallback((widgetId, isGroupedDrag = false) => {
     const state = widgetStates[widgetId];
-    if (!state?.position) return {};
+    if (!state) return {};
+    const stateOrder = Number(state.order);
+    const zIndex = state.maximized
+      ? highestWidgetOrder + 2
+      : isGroupedDrag
+      ? highestWidgetOrder + 1
+      : Number.isFinite(stateOrder)
+      ? stateOrder
+      : 0;
 
     return {
-      top: `${state.position.top}px`,
-      left: `${state.position.left}px`
+      ...(state.position ? {
+        top: `${state.position.top}px`,
+        left: `${state.position.left}px`
+      } : {}),
+      zIndex
     };
-  }, [widgetStates]);
+  }, [highestWidgetOrder, widgetStates]);
 
   const getWidgetStyle = useCallback((widgetId) => {
     const state = widgetStates[widgetId];
@@ -1536,7 +1561,7 @@ const MultiPanelView = forwardRef(({
       <div
         className={`panel ${panelClassName} ${isSelectedWidget ? 'widget-selected' : ''} ${isGroupedDrag ? 'widget-group-dragging' : ''}`}
         data-widget-panel-id={widgetId}
-        style={getPanelStyle(widgetId)}
+        style={getPanelStyle(widgetId, isGroupedDrag)}
       >
         <DockableWidget
           id={widgetId}
