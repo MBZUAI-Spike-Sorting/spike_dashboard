@@ -267,18 +267,6 @@ const formatSample = (value) => (
   Number.isFinite(value) ? Math.round(value).toLocaleString() : '-'
 );
 
-const getMetadataPreview = (metadata) => {
-  const entries = Object.entries(metadata || {});
-  if (!entries.length) {
-    return '-';
-  }
-
-  return entries
-    .slice(0, 4)
-    .map(([key, value]) => `${key}: ${formatValue(value)}`)
-    .join(' | ');
-};
-
 const getSeriesValues = (series) => {
   if (Array.isArray(series)) {
     return series;
@@ -857,13 +845,12 @@ const CuratorWidget = ({
                   </button>
                 </th>
               ))}
-              <th>Metadata</th>
             </tr>
           </thead>
           <tbody>
             {!sortedClusters.length && (
               <tr>
-                <td colSpan={7} className="curator-empty-state">
+                <td colSpan={6} className="curator-empty-state">
                   {summary.totalClusters
                     ? `No clusters have at least ${normalizeMinimumSpikeCount(minimumSpikeCount).toLocaleString()} spikes.`
                     : 'Load a cluster file to inspect clusters.'}
@@ -900,7 +887,6 @@ const CuratorWidget = ({
                 <td>{cluster.spikeCount.toLocaleString()}</td>
                 <td>{formatSample(cluster.spikeTimes[0])}</td>
                 <td>{formatSample(cluster.spikeTimes[cluster.spikeTimes.length - 1])}</td>
-                <td>{getMetadataPreview(cluster.metadata)}</td>
               </tr>
               );
             })}
