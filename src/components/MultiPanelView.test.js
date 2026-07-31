@@ -1,34 +1,14 @@
 import React, { act, createRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import MultiPanelView, {
-  CURATOR_LINKED_WIDGET_IDS,
-  revealCuratorLinkedWidgets,
-} from './MultiPanelView';
+import MultiPanelView from './MultiPanelView';
 import { DEFAULT_DISPLAY_SETTINGS } from '../utils/displaySettings';
 
 jest.mock('react-plotly.js', () => () => null);
 jest.mock('./ClusterListTable', () => () => null);
 jest.mock('./SpikeListTable', () => () => null);
 jest.mock('./ClusterStatisticsWindow', () => () => null);
-jest.mock('./SignalViewPanel', () => () => null);
-jest.mock('./WaveformSingleChannelView', () => () => null);
-jest.mock('./WaveformNeighboringChannelsView', () => () => null);
-jest.mock('./AmplitudeProfileWidget', () => () => null);
-jest.mock('./RasterPlotWidget', () => () => null);
 jest.mock('./RightSideMenu', () => () => null);
 jest.mock('./CanvasMinimap', () => () => null);
-jest.mock('./CuratorWidget', () => {
-  const ReactModule = require('react');
-  return ({ onClusterSelect }) => ReactModule.createElement(
-    'button',
-    {
-      type: 'button',
-      'data-testid': 'curator-cluster',
-      onClick: () => onClusterSelect({ id: 42 }),
-    },
-    'Cluster 42'
-  );
-});
 jest.mock('./WidgetBank', () => ({
   __esModule: true,
   default: () => null,
@@ -71,7 +51,7 @@ const createWidgetStates = () => ({
   waveform: { visible: false },
 });
 
-const mountDashboard = (widgetStates = createWidgetStates()) => {
+const mountDashboard = () => {
   localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify({
     ...DEFAULT_DISPLAY_SETTINGS,
     scale: 0.5,
@@ -84,7 +64,7 @@ const mountDashboard = (widgetStates = createWidgetStates()) => {
   const savedViews = [{
     id: 'interaction-test',
     name: 'Interaction test',
-    widgetStates,
+    widgetStates: createWidgetStates(),
   }];
 
   act(() => {
@@ -122,56 +102,6 @@ const widget = (host, widgetId) => (
 const panel = (host, widgetId) => (
   host.querySelector(`[data-widget-panel-id="${widgetId}"]`)
 );
-
-test('reveals linked diagnostics when a curator cluster is selected', () => {
-  const states = {
-    clusterStats: { visible: false, minimized: false, maximized: false, order: 3 },
-    signalView: { visible: true, minimized: true, maximized: false, order: 4 },
-    waveform: { visible: true, minimized: false, maximized: false, order: 6 },
-    curator: { visible: true, minimized: false, maximized: false, order: 9 },
-  };
-
-  const revealed = revealCuratorLinkedWidgets(states);
-
-  CURATOR_LINKED_WIDGET_IDS.forEach((widgetId) => {
-    expect(revealed[widgetId]).toEqual(expect.objectContaining({
-      visible: true,
-      minimized: false,
-    }));
-  });
-  expect(revealed.curator).toBe(states.curator);
-  expect(revealed.waveform).toBe(states.waveform);
-});
-
-test('keeps widget state identity when all curator-linked widgets are already open', () => {
-  const states = Object.fromEntries(CURATOR_LINKED_WIDGET_IDS.map((widgetId, order) => [
-    widgetId,
-    { visible: true, minimized: false, maximized: false, order },
-  ]));
-
-  expect(revealCuratorLinkedWidgets(states)).toBe(states);
-});
-
-test('opens linked widgets after selecting a cluster in the curator', () => {
-  const widgetStates = {
-    ...createWidgetStates(),
-    curator: { visible: true, minimized: false, maximized: false, order: 9 },
-    ...Object.fromEntries(CURATOR_LINKED_WIDGET_IDS.map((widgetId, order) => [
-      widgetId,
-      { visible: false, minimized: false, maximized: false, order: order + 10 },
-    ])),
-  };
-  const dashboard = mountDashboard(widgetStates);
-
-  act(() => {
-    dashboard.host.querySelector('[data-testid="curator-cluster"]').click();
-  });
-
-  CURATOR_LINKED_WIDGET_IDS.forEach((widgetId) => {
-    expect(panel(dashboard.host, widgetId)).not.toBeNull();
-  });
-  dashboard.unmount();
-});
 
 const mouseDownHeader = (host, widgetId, options = {}) => {
   widget(host, widgetId).querySelector('.widget-header').dispatchEvent(

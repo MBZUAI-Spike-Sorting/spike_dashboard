@@ -120,17 +120,6 @@ export const CURATOR_LINKED_WIDGET_IDS = [
   'rasterPlot',
 ];
 
-const mergeWidgetStateDefaults = (states = {}) => {
-  const merged = Object.fromEntries(Object.entries(DEFAULT_WIDGET_STATES).map(([widgetId, defaults]) => [
-    widgetId,
-    { ...defaults, ...(states?.[widgetId] || {}) },
-  ]));
-  Object.entries(states || {}).forEach(([widgetId, state]) => {
-    if (!merged[widgetId]) merged[widgetId] = state;
-  });
-  return merged;
-};
-
 export const revealCuratorLinkedWidgets = (states = {}) => {
   let changed = false;
   const nextStates = { ...states };
@@ -149,6 +138,17 @@ export const revealCuratorLinkedWidgets = (states = {}) => {
   });
 
   return changed ? nextStates : states;
+};
+
+const mergeWidgetStateDefaults = (states = {}) => {
+  const merged = Object.fromEntries(Object.entries(DEFAULT_WIDGET_STATES).map(([widgetId, defaults]) => [
+    widgetId,
+    { ...defaults, ...(states?.[widgetId] || {}) },
+  ]));
+  Object.entries(states || {}).forEach(([widgetId, state]) => {
+    if (!merged[widgetId]) merged[widgetId] = state;
+  });
+  return merged;
 };
 
 const MultiPanelView = forwardRef(({
