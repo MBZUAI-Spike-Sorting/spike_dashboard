@@ -1,6 +1,6 @@
 import React, { act, createRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import MultiPanelView from './MultiPanelView';
+import MultiPanelView, { getHighestWidgetOrder } from './MultiPanelView';
 import { DEFAULT_DISPLAY_SETTINGS } from '../utils/displaySettings';
 
 jest.mock('react-plotly.js', () => () => null);
@@ -9,11 +9,30 @@ jest.mock('./SpikeListTable', () => () => null);
 jest.mock('./ClusterStatisticsWindow', () => () => null);
 jest.mock('./RightSideMenu', () => () => null);
 jest.mock('./CanvasMinimap', () => () => null);
-jest.mock('./WidgetBank', () => ({
-  __esModule: true,
-  default: () => null,
-  WIDGET_DEFINITIONS: {},
-}));
+jest.mock('./AmplitudeProfileWidget', () => () => null);
+jest.mock('./WidgetBank', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: ({ isOpen, onAddWidget, onClose }) => (
+      isOpen
+        ? React.createElement('button', {
+            'aria-label': 'Add Amplitude Distribution',
+            onClick: () => {
+              onAddWidget({ id: 'amplitudeProfile' });
+              onClose();
+            },
+          }, 'Add Amplitude Distribution')
+        : null
+    ),
+    WIDGET_DEFINITIONS: {
+      amplitudeProfile: {
+        id: 'amplitudeProfile',
+        defaultSize: { width: 400, height: 300 },
+      },
+    },
+  };
+});
 
 global.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -51,10 +70,13 @@ const createWidgetStates = () => ({
   waveform: { visible: false },
 });
 
-const mountDashboard = () => {
+const mountDashboard = ({
+  widgetStates = createWidgetStates(),
+  scale = 0.5,
+} = {}) => {
   localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify({
     ...DEFAULT_DISPLAY_SETTINGS,
-    scale: 0.5,
+    scale,
   }));
 
   const host = document.createElement('div');
@@ -64,7 +86,7 @@ const mountDashboard = () => {
   const savedViews = [{
     id: 'interaction-test',
     name: 'Interaction test',
-    widgetStates: createWidgetStates(),
+    widgetStates,
   }];
 
   act(() => {
@@ -114,6 +136,92 @@ const mouseDownHeader = (host, widgetId, options = {}) => {
     })
   );
 };
+
+const clickAddAmplitudeProfile = (dashboard) => {
+  act(() => {
+    dashboard.dashboardRef.current.setIsWidgetBankOpen(true);
+  });
+  act(() => {
+    dashboard.host.querySelector(
+      '[aria-label="Add Amplitude Distribution"]'
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+};
+
+test('finds the highest finite widget order', () => {
+  expect(getHighestWidgetOrder({
+    first: { order: 3 },
+    second: { order: '9' },
+    invalid: { order: 'front' },
+  })).toBe(9);
+});
+
+test('adds and re-adds a focused widget above overlapping panels', () => {
+  const widgetStates = createWidgetStates();
+  widgetStates.clusterList = {
+    ...widgetStates.clusterList,
+    position: { left: 2800, top: 1250 },
+    size: { width: 400, height: 300 },
+  };
+  const dashboard = mountDashboard({ widgetStates });
+  const dashboardRoot = dashboard.host.querySelector('.multi-panel-view');
+  const dashboardCanvas = dashboard.host.querySelector('.dashboard-canvas');
+  dashboardRoot.getBoundingClientRect = () => ({
+    left: 0,
+    top: 0,
+    right: 1200,
+    bottom: 800,
+    width: 1200,
+    height: 800,
+  });
+
+  act(() => {
+    dashboardRoot.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 900,
+      deltaY: 300,
+    }));
+  });
+  expect(dashboardCanvas.style.transform).toBe(
+    'translate(-900px, -300px) scale(0.5)'
+  );
+
+  clickAddAmplitudeProfile(dashboard);
+
+  let states = dashboard.dashboardRef.current.getWidgetPositionsAndSizes();
+  const firstOrder = states.amplitudeProfile.order;
+  const otherOrders = Object.entries(states)
+    .filter(([widgetId]) => widgetId !== 'amplitudeProfile')
+    .map(([, state]) => Number(state.order) || 0);
+
+  expect(states.amplitudeProfile.position).toEqual({ left: 2800, top: 1250 });
+  expect(states.amplitudeProfile.size).toEqual({ width: 400, height: 300 });
+  expect(firstOrder).toBeGreaterThan(Math.max(...otherOrders));
+  expect(Number(panel(dashboard.host, 'amplitudeProfile').style.zIndex)).toBe(firstOrder);
+  expect(Number(panel(dashboard.host, 'amplitudeProfile').style.zIndex)).toBeGreaterThan(
+    Number(panel(dashboard.host, 'clusterList').style.zIndex)
+  );
+
+  clickAddAmplitudeProfile(dashboard);
+
+  states = dashboard.dashboardRef.current.getWidgetPositionsAndSizes();
+  expect(states.amplitudeProfile.order).toBe(firstOrder + 1);
+  expect(Number(panel(dashboard.host, 'amplitudeProfile').style.zIndex)).toBe(
+    firstOrder + 1
+  );
+
+  act(() => {
+    widget(dashboard.host, 'clusterList').querySelector(
+      '[aria-label="Maximize Cluster Curation Table"]'
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  expect(Number(panel(dashboard.host, 'clusterList').style.zIndex)).toBeGreaterThan(
+    Number(panel(dashboard.host, 'amplitudeProfile').style.zIndex)
+  );
+
+  dashboard.unmount();
+});
 
 test('moves a selected widget group from measured CSS positions and commits every member', () => {
   const dashboard = mountDashboard();
@@ -172,6 +280,12 @@ test('moves a selected widget group from measured CSS positions and commits ever
   expect(panel(dashboard.host, 'spikeList').style.top).toBe('180px');
   expect(panel(dashboard.host, 'clusterStats').style.left).toBe('');
   expect(panel(dashboard.host, 'clusterStats').style.top).toBe('');
+  expect(Number(panel(dashboard.host, 'clusterList').style.zIndex)).toBeGreaterThan(
+    Number(panel(dashboard.host, 'clusterStats').style.zIndex)
+  );
+  expect(panel(dashboard.host, 'clusterList').style.zIndex).toBe(
+    panel(dashboard.host, 'spikeList').style.zIndex
+  );
 
   act(() => {
     document.dispatchEvent(new MouseEvent('mouseup', {
