@@ -37,7 +37,6 @@
   color: #7ddfd8;
   font-size: var(--dashboard-font-sm, 0.8rem);
   font-weight: 700;
-  text-transform: uppercase;
 }
 
 .curator-filter-control input,
@@ -57,7 +56,6 @@
   font-size: var(--dashboard-font-sm, 0.8rem);
   font-weight: 700;
   letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 .curator-file-control input {
@@ -169,7 +167,6 @@
 .curator-summary-card span {
   color: #9ca3af;
   font-size: var(--dashboard-font-xs, 0.78rem);
-  text-transform: uppercase;
 }
 
 .curator-summary-card strong {
@@ -226,7 +223,6 @@
   margin-left: 0.25rem;
   color: #9ca3af;
   font-size: var(--dashboard-font-xs, 0.72rem);
-  text-transform: uppercase;
 }
 
 .curator-group-select {

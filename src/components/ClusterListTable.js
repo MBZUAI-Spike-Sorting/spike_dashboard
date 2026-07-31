@@ -359,7 +359,7 @@ const ClusterListTable = ({
               <th>{sortLabel('id', 'ID')}</th>
               <th>{sortLabel('group', 'Group')}</th>
               <th>{sortLabel('size', 'Spikes')}</th>
-              <th>{sortLabel('peakChannel', 'Ch')}</th>
+              <th>{sortLabel('peakChannel', 'CH')}</th>
               <th>{sortLabel('depth', 'Depth')}</th>
               <th>{sortLabel('firingRateHz', 'Hz')}</th>
               <th>{sortLabel('isiViolationRate', 'ISI %')}</th>

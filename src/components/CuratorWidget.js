@@ -452,8 +452,8 @@ const formatPredictionMessage = ({
 };
 
 const SORT_COLUMNS = [
-  { key: 'id', label: 'Cluster' },
-  { key: 'primaryChannel', label: 'Primary channel' },
+  { key: 'id', label: 'ID' },
+  { key: 'primaryChannel', label: 'CH' },
   { key: 'spikeCount', label: 'Spikes' },
   { key: 'firstSpike', label: 'First spike' },
   { key: 'lastSpike', label: 'Last spike' }

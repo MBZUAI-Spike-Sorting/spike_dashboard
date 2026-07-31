@@ -1,5 +1,7 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
+import fs from 'fs';
+import path from 'path';
 import CuratorWidget, { getCuratorClusterIds } from './CuratorWidget';
 
 jest.mock('../utils/curatorSessionStore', () => ({
@@ -60,6 +62,27 @@ test('bulk curator selection uses the active cluster IDs', () => {
     { id: 12 },
     { id: 'unit-a' },
   ])).toEqual([12, 'unit-a']);
+});
+
+test('uses concise, normally cased curator labels', () => {
+  const style = document.createElement('style');
+  style.textContent = fs.readFileSync(path.join(__dirname, 'CuratorWidget.css'), 'utf8');
+  document.head.appendChild(style);
+  const curator = mountCurator();
+  const sortLabels = Array.from(
+    curator.host.querySelectorAll('.curator-table thead button')
+  ).map((button) => button.textContent.replace(/\s+(up|down)$/, '').trim());
+
+  expect(sortLabels).toEqual(['ID', 'CH', 'Spikes', 'First spike', 'Last spike']);
+  expect(window.getComputedStyle(
+    curator.host.querySelector('.curator-file-control label')
+  ).textTransform).not.toBe('uppercase');
+  expect(window.getComputedStyle(
+    curator.host.querySelector('.curator-summary-card span')
+  ).textTransform).not.toBe('uppercase');
+
+  curator.unmount();
+  style.remove();
 });
 
 test('shows a saved group and reports controlled group edits without selecting the row', () => {
