@@ -1,9 +1,9 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import ClusterListTable, {
-  matchesQuery,
-  normalizeClusterGroups,
-} from './ClusterListTable';
+import fs from 'fs';
+import path from 'path';
+import ClusterListTable, { matchesQuery } from './ClusterListTable';
+import { normalizeClusterGroups } from '../utils/clusterGroups';
 
 global.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -102,4 +102,56 @@ test('lets users add and rename cluster groups', () => {
 
   act(() => root.unmount());
   host.remove();
+});
+
+test('keeps both table scrollbars outside the resize hit areas', () => {
+  const style = document.createElement('style');
+  style.textContent = [
+    fs.readFileSync(path.join(__dirname, 'ClusterListTable.css'), 'utf8'),
+    fs.readFileSync(path.join(__dirname, 'DockableWidget.css'), 'utf8'),
+  ].join('\n');
+  document.head.appendChild(style);
+
+  const dockableWidget = document.createElement('div');
+  dockableWidget.className = 'dockable-widget';
+  dockableWidget.innerHTML = `
+    <div class="cluster-list-content"></div>
+    <div class="widget-resize-handle widget-resize-e"></div>
+    <div class="widget-resize-handle widget-resize-s"></div>
+    <div class="widget-resize-handle widget-resize-se"></div>
+  `;
+  document.body.appendChild(dockableWidget);
+
+  const pixels = (value) => Number.parseFloat(value) || 0;
+  const scrollStyle = window.getComputedStyle(
+    dockableWidget.querySelector('.cluster-list-content')
+  );
+  const eastStyle = window.getComputedStyle(
+    dockableWidget.querySelector('.widget-resize-e')
+  );
+  const southStyle = window.getComputedStyle(
+    dockableWidget.querySelector('.widget-resize-s')
+  );
+  const cornerStyle = window.getComputedStyle(
+    dockableWidget.querySelector('.widget-resize-se')
+  );
+
+  expect(pixels(scrollStyle.marginRight)).toBe(pixels(cornerStyle.width));
+  expect(pixels(scrollStyle.marginBottom)).toBe(pixels(cornerStyle.height));
+  expect(pixels(scrollStyle.marginRight)).toBeGreaterThanOrEqual(
+    pixels(eastStyle.width)
+  );
+  expect(pixels(scrollStyle.marginBottom)).toBeGreaterThanOrEqual(
+    pixels(southStyle.height)
+  );
+
+  dockableWidget.classList.add('maximized');
+  const maximizedScrollStyle = window.getComputedStyle(
+    dockableWidget.querySelector('.cluster-list-content')
+  );
+  expect(pixels(maximizedScrollStyle.marginRight)).toBe(0);
+  expect(pixels(maximizedScrollStyle.marginBottom)).toBe(0);
+
+  dockableWidget.remove();
+  style.remove();
 });

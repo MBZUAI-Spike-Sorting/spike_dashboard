@@ -1,21 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import {
+  CLUSTER_GROUPS,
+  getClusterGroup,
+  normalizeClusterGroups,
+} from '../utils/clusterGroups';
 import './ClusterListTable.css';
 
-export const DEFAULT_CLUSTER_GROUPS = ['unsorted', 'good', 'mua', 'noise'];
+export const DEFAULT_CLUSTER_GROUPS = CLUSTER_GROUPS;
+export { normalizeClusterGroups };
 
-export const normalizeClusterGroups = (groups = [], observedGroups = []) => {
-  const normalized = [];
-  [...groups, ...observedGroups].forEach((group) => {
-    const name = String(group || '').trim();
-    if (!name || normalized.some((candidate) => candidate.toLowerCase() === name.toLowerCase())) {
-      return;
-    }
-    normalized.push(name);
-  });
-  return normalized.length > 0 ? normalized : [...DEFAULT_CLUSTER_GROUPS];
-};
-
-const metricValue = (cluster, stats, annotations, defaultGroup = 'unsorted') => {
+const metricValue = (cluster, stats, annotations, groups = CLUSTER_GROUPS) => {
   const clusterId = cluster.id;
   const values = stats?.[clusterId] || stats?.[String(clusterId)] || {};
   const annotation = annotations?.[clusterId] || annotations?.[String(clusterId)] || {};
@@ -29,7 +23,7 @@ const metricValue = (cluster, stats, annotations, defaultGroup = 'unsorted') => 
     meanAmplitude: values.meanAmplitude === null || values.meanAmplitude === undefined
       ? null
       : Number(values.meanAmplitude),
-    group: annotation.group || defaultGroup,
+    group: getClusterGroup(annotations, clusterId, groups),
     label: annotation.label || '',
     note: annotation.note || '',
   };
@@ -132,7 +126,7 @@ const ClusterListTable = ({
       cluster,
       clusterStats,
       clusterAnnotations,
-      availableGroups[0]
+      availableGroups
     ))
     .filter((row) => groupFilter === 'all' || row.group === groupFilter)
     .filter((row) => matchesQuery(row, query))

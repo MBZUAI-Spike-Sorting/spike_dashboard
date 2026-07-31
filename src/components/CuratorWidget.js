@@ -9,6 +9,11 @@ import {
   loadCuratorSessionDataset,
   saveCuratorSessionDataset,
 } from '../utils/curatorSessionStore';
+import {
+  CLUSTER_GROUPS,
+  getClusterGroup,
+  normalizeClusterGroups,
+} from '../utils/clusterGroups';
 import './CuratorWidget.css';
 
 const KNOWN_CLUSTER_FIELDS = new Set([
@@ -487,7 +492,10 @@ const CuratorWidget = ({
   initialDataset,
   signalData,
   selectedClusters = [],
+  clusterAnnotations = {},
+  groups = CLUSTER_GROUPS,
   onClusterSelect,
+  onAnnotationChange,
   onDatasetChange,
   onSelectedClustersChange,
   onLoadingChange,
@@ -504,6 +512,10 @@ const CuratorWidget = ({
   const [isRestoring, setIsRestoring] = useState(false);
   const [minimumSpikeCount, setMinimumSpikeCount] = useState(1);
   const [spikeTimeUnit, setSpikeTimeUnit] = useState('auto');
+  const availableGroups = useMemo(() => normalizeClusterGroups(
+    groups,
+    Object.values(clusterAnnotations || {}).map((annotation) => annotation?.group)
+  ), [clusterAnnotations, groups]);
 
   useEffect(() => {
     onLoadingChange?.(
@@ -836,21 +848,24 @@ const CuratorWidget = ({
             <tr>
               <th aria-label="Selected" />
               {SORT_COLUMNS.map((column) => (
-                <th key={column.key}>
-                  <button type="button" onClick={() => handleSort(column.key)}>
-                    {column.label}
-                    {sortConfig.key === column.key && (
-                      <span>{sortConfig.direction === 'desc' ? ' down' : ' up'}</span>
-                    )}
-                  </button>
-                </th>
+                <React.Fragment key={column.key}>
+                  <th>
+                    <button type="button" onClick={() => handleSort(column.key)}>
+                      {column.label}
+                      {sortConfig.key === column.key && (
+                        <span>{sortConfig.direction === 'desc' ? ' down' : ' up'}</span>
+                      )}
+                    </button>
+                  </th>
+                  {column.key === 'id' && <th>Group</th>}
+                </React.Fragment>
               ))}
             </tr>
           </thead>
           <tbody>
             {!sortedClusters.length && (
               <tr>
-                <td colSpan={6} className="curator-empty-state">
+                <td colSpan={7} className="curator-empty-state">
                   {summary.totalClusters
                     ? `No clusters have at least ${normalizeMinimumSpikeCount(minimumSpikeCount).toLocaleString()} spikes.`
                     : 'Load a cluster file to inspect clusters.'}
@@ -861,6 +876,7 @@ const CuratorWidget = ({
               const selected = selectedClusters.some(
                 (clusterId) => String(clusterId) === String(cluster.id)
               );
+              const group = getClusterGroup(clusterAnnotations, cluster.id, availableGroups);
 
               return (
                 <tr
@@ -878,6 +894,24 @@ const CuratorWidget = ({
                   />
                 </td>
                 <td>{cluster.id}</td>
+                <td>
+                  <select
+                    className={`curator-group-select group-${group}`}
+                    value={group}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      onAnnotationChange?.(cluster.id, { group: event.target.value });
+                    }}
+                    aria-label={`Group for cluster ${cluster.id}`}
+                  >
+                    {availableGroups.map((groupOption) => (
+                      <option key={groupOption} value={groupOption}>
+                        {groupOption}
+                      </option>
+                    ))}
+                  </select>
+                </td>
                 <td>
                   {formatValue(cluster.primaryChannel)}
                   {cluster.primaryChannelSource === 'predicted' && (
