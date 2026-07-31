@@ -92,16 +92,32 @@ export const buildRasterEvents = ({
   spikes,
   selectedClusters,
   visibleClusterIds,
+  selectedOnly = false,
   clusteringResults,
   clusterData,
   curatorDataset
 }) => {
-  const filterIsActive = Array.isArray(visibleClusterIds) && visibleClusterIds.length > 0;
-  const filterSet = selectedSetFrom(filterIsActive ? visibleClusterIds : selectedClusters);
+  const visibleFilterIsActive =
+    Array.isArray(visibleClusterIds) && visibleClusterIds.length > 0;
+  const filterIsActive = selectedOnly || visibleFilterIsActive;
+  const filterSet = selectedSetFrom(
+    selectedOnly
+      ? selectedClusters
+      : visibleFilterIsActive
+      ? visibleClusterIds
+      : selectedClusters
+  );
   let events = [];
 
-  if (filterIsActive && Array.isArray(clusterData?.clusters)) {
-    events = normalizeEventsFromClusters(clusterData.clusters, filterSet, true);
+  // Prefer the complete cluster dataset over the flattened spike preview.
+  // The preview can contain only the first few clusters, which previously
+  // made valid IDs above that preview range disappear from the raster.
+  if (Array.isArray(clusterData?.clusters)) {
+    events = normalizeEventsFromClusters(
+      clusterData.clusters,
+      filterSet,
+      filterIsActive
+    );
   }
 
   if (events.length === 0 && !filterIsActive && Array.isArray(spikes) && spikes.length > 0) {
@@ -206,6 +222,7 @@ const RasterPlotWidget = ({
   const panStateRef = useRef(null);
   const suppressClickRef = useRef(false);
   const [groupBy, setGroupBy] = useState('cluster');
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [size, setSize] = useState({ width: 600, height: 320 });
   const [timeDomain, setTimeDomain] = useState(null);
   const [hover, setHover] = useState(null);
@@ -216,10 +233,20 @@ const RasterPlotWidget = ({
     spikes,
     selectedClusters,
     visibleClusterIds,
+    selectedOnly: groupBy === 'cluster' && showSelectedOnly,
     clusteringResults,
     clusterData,
     curatorDataset
-  }), [spikes, selectedClusters, visibleClusterIds, clusteringResults, clusterData, curatorDataset]);
+  }), [
+    clusterData,
+    clusteringResults,
+    curatorDataset,
+    groupBy,
+    selectedClusters,
+    showSelectedOnly,
+    spikes,
+    visibleClusterIds,
+  ]);
 
   const fullDomain = useMemo(() => {
     if (!events.length) return { start: 0, end: 1 };
@@ -547,6 +574,18 @@ const RasterPlotWidget = ({
         </div>
 
         <div className="raster-actions">
+          {groupBy === 'cluster' && (
+            <button
+              type="button"
+              className={showSelectedOnly ? 'active' : ''}
+              aria-pressed={showSelectedOnly}
+              disabled={selectedClusters.length === 0 && !showSelectedOnly}
+              onClick={() => setShowSelectedOnly((current) => !current)}
+              title="Show only clusters selected in the linked cluster table or curator"
+            >
+              Selected only ({selectedClusters.length})
+            </button>
+          )}
           <button type="button" onClick={() => updateZoom(0.5)} title="Zoom into the time axis">Zoom in</button>
           <button type="button" onClick={() => updateZoom(2)} title="Zoom out of the time axis">Zoom out</button>
           <button type="button" onClick={() => setTimeDomain(null)}>Fit</button>
@@ -567,7 +606,11 @@ const RasterPlotWidget = ({
         }}
       >
         {events.length === 0 ? (
-          <div className="raster-empty">No spike events available.</div>
+          <div className="raster-empty">
+            {groupBy === 'cluster' && showSelectedOnly
+              ? 'No spike events for the selected clusters.'
+              : 'No spike events available.'}
+          </div>
         ) : (
           <div className="raster-scroll-content" style={{ height: contentHeight }}>
             <div className="raster-canvas-layer" style={{ height: size.height }}>

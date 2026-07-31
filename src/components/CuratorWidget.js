@@ -9,7 +9,11 @@ import {
   loadCuratorSessionDataset,
   saveCuratorSessionDataset,
 } from '../utils/curatorSessionStore';
-import { CLUSTER_GROUPS, getClusterGroup } from '../utils/clusterGroups';
+import {
+  CLUSTER_GROUPS,
+  getClusterGroup,
+  normalizeClusterGroups,
+} from '../utils/clusterGroups';
 import './CuratorWidget.css';
 
 const KNOWN_CLUSTER_FIELDS = new Set([
@@ -489,6 +493,7 @@ const CuratorWidget = ({
   signalData,
   selectedClusters = [],
   clusterAnnotations = {},
+  groups = CLUSTER_GROUPS,
   onClusterSelect,
   onAnnotationChange,
   onDatasetChange,
@@ -507,6 +512,10 @@ const CuratorWidget = ({
   const [isRestoring, setIsRestoring] = useState(false);
   const [minimumSpikeCount, setMinimumSpikeCount] = useState(1);
   const [spikeTimeUnit, setSpikeTimeUnit] = useState('auto');
+  const availableGroups = useMemo(() => normalizeClusterGroups(
+    groups,
+    Object.values(clusterAnnotations || {}).map((annotation) => annotation?.group)
+  ), [clusterAnnotations, groups]);
 
   useEffect(() => {
     onLoadingChange?.(
@@ -867,7 +876,7 @@ const CuratorWidget = ({
               const selected = selectedClusters.some(
                 (clusterId) => String(clusterId) === String(cluster.id)
               );
-              const group = getClusterGroup(clusterAnnotations, cluster.id);
+              const group = getClusterGroup(clusterAnnotations, cluster.id, availableGroups);
 
               return (
                 <tr
@@ -896,7 +905,7 @@ const CuratorWidget = ({
                     }}
                     aria-label={`Group for cluster ${cluster.id}`}
                   >
-                    {CLUSTER_GROUPS.map((groupOption) => (
+                    {availableGroups.map((groupOption) => (
                       <option key={groupOption} value={groupOption}>
                         {groupOption}
                       </option>

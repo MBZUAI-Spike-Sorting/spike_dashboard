@@ -1,8 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CLUSTER_GROUPS, getClusterGroup } from '../utils/clusterGroups';
+import {
+  CLUSTER_GROUPS,
+  getClusterGroup,
+  normalizeClusterGroups,
+} from '../utils/clusterGroups';
 import './ClusterListTable.css';
 
-const metricValue = (cluster, stats, annotations) => {
+export const DEFAULT_CLUSTER_GROUPS = CLUSTER_GROUPS;
+export { normalizeClusterGroups };
+
+const metricValue = (cluster, stats, annotations, groups = CLUSTER_GROUPS) => {
   const clusterId = cluster.id;
   const values = stats?.[clusterId] || stats?.[String(clusterId)] || {};
   const annotation = annotations?.[clusterId] || annotations?.[String(clusterId)] || {};
@@ -16,7 +23,7 @@ const metricValue = (cluster, stats, annotations) => {
     meanAmplitude: values.meanAmplitude === null || values.meanAmplitude === undefined
       ? null
       : Number(values.meanAmplitude),
-    group: getClusterGroup(annotations, clusterId),
+    group: getClusterGroup(annotations, clusterId, groups),
     label: annotation.label || '',
     note: annotation.note || '',
   };
@@ -98,19 +105,43 @@ const ClusterListTable = ({
   onClusterToggle,
   onAnnotationChange,
   onVisibleClustersChange,
+  groups = DEFAULT_CLUSTER_GROUPS,
+  onGroupsChange,
 }) => {
   const [query, setQuery] = useState('');
   const [groupFilter, setGroupFilter] = useState('all');
   const [sort, setSort] = useState({ key: 'id', direction: 'asc' });
+  const [isGroupEditorOpen, setIsGroupEditorOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [groupDrafts, setGroupDrafts] = useState({});
+  const [groupError, setGroupError] = useState('');
+
+  const availableGroups = useMemo(() => normalizeClusterGroups(
+    groups,
+    Object.values(clusterAnnotations || {}).map((annotation) => annotation?.group)
+  ), [clusterAnnotations, groups]);
 
   const rows = useMemo(() => clusters
-    .map((cluster) => metricValue(cluster, clusterStats, clusterAnnotations))
+    .map((cluster) => metricValue(
+      cluster,
+      clusterStats,
+      clusterAnnotations,
+      availableGroups
+    ))
     .filter((row) => groupFilter === 'all' || row.group === groupFilter)
     .filter((row) => matchesQuery(row, query))
     .sort((left, right) => {
       const result = compare(left, right, sort.key);
       return sort.direction === 'asc' ? result : -result;
-    }), [clusters, clusterStats, clusterAnnotations, groupFilter, query, sort]);
+    }), [
+      availableGroups,
+      clusters,
+      clusterStats,
+      clusterAnnotations,
+      groupFilter,
+      query,
+      sort,
+    ]);
 
   useEffect(() => {
     onVisibleClustersChange?.(rows.map((row) => row.id));
@@ -143,6 +174,49 @@ const ClusterListTable = ({
     selectedClusters.forEach((clusterId) => onAnnotationChange?.(clusterId, { group }));
   };
 
+  const addGroup = () => {
+    const name = newGroupName.trim();
+    if (!name) {
+      setGroupError('Enter a group name.');
+      return;
+    }
+    if (availableGroups.some((group) => group.toLowerCase() === name.toLowerCase())) {
+      setGroupError('That group already exists.');
+      return;
+    }
+    onGroupsChange?.([...availableGroups, name]);
+    setNewGroupName('');
+    setGroupError('');
+  };
+
+  const renameGroup = (currentName) => {
+    const nextName = String(groupDrafts[currentName] ?? currentName).trim();
+    if (!nextName) {
+      setGroupError('Group names cannot be empty.');
+      return;
+    }
+    if (
+      availableGroups.some((group) => (
+        group !== currentName && group.toLowerCase() === nextName.toLowerCase()
+      ))
+    ) {
+      setGroupError('That group already exists.');
+      return;
+    }
+    if (nextName === currentName) return;
+    onGroupsChange?.(
+      availableGroups.map((group) => group === currentName ? nextName : group),
+      { renamedFrom: currentName, renamedTo: nextName }
+    );
+    setGroupDrafts((current) => {
+      const next = { ...current };
+      delete next[currentName];
+      return next;
+    });
+    setGroupFilter((current) => current === currentName ? nextName : current);
+    setGroupError('');
+  };
+
   return (
     <div className="cluster-list-table">
       <div className="cluster-curation-toolbar">
@@ -156,7 +230,7 @@ const ClusterListTable = ({
         />
         <select value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)} aria-label="Filter by group">
           <option value="all">All groups</option>
-          {CLUSTER_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
+          {availableGroups.map((group) => <option key={group} value={group}>{group}</option>)}
         </select>
         <select
           value=""
@@ -167,10 +241,66 @@ const ClusterListTable = ({
           aria-label="Set group for selected clusters"
         >
           <option value="">Label selected…</option>
-          {CLUSTER_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
+          {availableGroups.map((group) => <option key={group} value={group}>{group}</option>)}
         </select>
+        <button
+          type="button"
+          className="cluster-groups-edit-button"
+          onClick={() => {
+            setIsGroupEditorOpen((current) => !current);
+            setGroupError('');
+          }}
+          aria-expanded={isGroupEditorOpen}
+        >
+          Edit groups
+        </button>
         <span className="cluster-selection-summary">{selectedClusters.length} selected · {rows.length}/{clusters.length}</span>
       </div>
+
+      {isGroupEditorOpen && (
+        <div className="cluster-group-editor">
+          <div className="cluster-group-editor-list">
+            {availableGroups.map((group) => (
+              <div className="cluster-group-editor-row" key={group}>
+                <input
+                  value={groupDrafts[group] ?? group}
+                  onChange={(event) => {
+                    setGroupDrafts((current) => ({ ...current, [group]: event.target.value }));
+                    setGroupError('');
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') renameGroup(group);
+                  }}
+                  aria-label={`Rename group ${group}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => renameGroup(group)}
+                  disabled={(groupDrafts[group] ?? group).trim() === group}
+                >
+                  Rename
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="cluster-group-editor-add">
+            <input
+              value={newGroupName}
+              onChange={(event) => {
+                setNewGroupName(event.target.value);
+                setGroupError('');
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') addGroup();
+              }}
+              placeholder="New group name"
+              aria-label="New group name"
+            />
+            <button type="button" onClick={addGroup}>Add group</button>
+          </div>
+          {groupError && <div className="cluster-group-editor-error" role="alert">{groupError}</div>}
+        </div>
+      )}
 
       <div className="cluster-list-content">
         <table>
@@ -217,7 +347,7 @@ const ClusterListTable = ({
                       onChange={(event) => onAnnotationChange?.(row.id, { group: event.target.value })}
                       aria-label={`Group for cluster ${row.id}`}
                     >
-                      {CLUSTER_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
+                      {availableGroups.map((group) => <option key={group} value={group}>{group}</option>)}
                     </select>
                   </td>
                   <td>{row.size.toLocaleString()}</td>

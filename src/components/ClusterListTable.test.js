@@ -1,6 +1,11 @@
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import fs from 'fs';
 import path from 'path';
-import { matchesQuery } from './ClusterListTable';
+import ClusterListTable, { matchesQuery } from './ClusterListTable';
+import { normalizeClusterGroups } from '../utils/clusterGroups';
+
+global.IS_REACT_ACT_ENVIRONMENT = true;
 
 const row = {
   id: 12,
@@ -37,6 +42,66 @@ test('supports symbolic and comma separators', () => {
 test('does not treat an incomplete boolean group as a match', () => {
   expect(matchesQuery(row, 'ch=31 or ')).toBe(false);
   expect(matchesQuery(row, ',')).toBe(false);
+});
+
+test('normalizes editable group names and preserves observed custom groups', () => {
+  expect(normalizeClusterGroups(
+    ['unsorted', 'Good', 'good', ''],
+    ['review later']
+  )).toEqual(['unsorted', 'Good', 'review later']);
+});
+
+test('lets users add and rename cluster groups', () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  const onGroupsChange = jest.fn();
+  const setInputValue = (input, value) => {
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value'
+    ).set;
+    valueSetter.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  act(() => {
+    root.render(
+      <ClusterListTable
+        clusters={[{ id: 1, size: 10 }]}
+        groups={['unsorted', 'good']}
+        onGroupsChange={onGroupsChange}
+      />
+    );
+  });
+
+  act(() => {
+    host.querySelector('.cluster-groups-edit-button').click();
+  });
+
+  const newGroupInput = host.querySelector('[aria-label="New group name"]');
+  act(() => {
+    setInputValue(newGroupInput, 'review later');
+  });
+  act(() => {
+    host.querySelector('.cluster-group-editor-add button').click();
+  });
+  expect(onGroupsChange).toHaveBeenCalledWith(['unsorted', 'good', 'review later']);
+
+  const renameInput = host.querySelector('[aria-label="Rename group good"]');
+  act(() => {
+    setInputValue(renameInput, 'accepted');
+  });
+  act(() => {
+    renameInput.closest('.cluster-group-editor-row').querySelector('button').click();
+  });
+  expect(onGroupsChange).toHaveBeenLastCalledWith(
+    ['unsorted', 'accepted'],
+    { renamedFrom: 'good', renamedTo: 'accepted' }
+  );
+
+  act(() => root.unmount());
+  host.remove();
 });
 
 test('keeps both table scrollbars outside the resize hit areas', () => {

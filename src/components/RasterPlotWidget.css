@@ -39,10 +39,16 @@
   white-space: nowrap;
 }
 
-.raster-group-toggle button.active {
+.raster-group-toggle button.active,
+.raster-actions button.active {
   border-color: rgba(64, 224, 208, 0.75);
   color: #0f172a;
   background: #5eead4;
+}
+
+.raster-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .raster-actions button:hover,

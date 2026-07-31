@@ -8,6 +8,10 @@ import React, {
   useMemo
 } from 'react';
 import ClusterListTable from './ClusterListTable';
+import {
+  DEFAULT_CLUSTER_GROUPS,
+  normalizeClusterGroups,
+} from '../utils/clusterGroups';
 import SpikeListTable from './SpikeListTable';
 import ClusterStatisticsWindow from './ClusterStatisticsWindow';
 import SignalViewPanel from './SignalViewPanel';
@@ -202,6 +206,7 @@ const MultiPanelView = forwardRef(({
   const [highlightedSpikes, setHighlightedSpikes] = useState([]);
   const [focusedTimeRange, setFocusedTimeRange] = useState(null);
   const [clusterAnnotations, setClusterAnnotations] = useState({});
+  const [clusterGroupNames, setClusterGroupNames] = useState(DEFAULT_CLUSTER_GROUPS);
   const [visibleClusterOrder, setVisibleClusterOrder] = useState([]);
   const [curatorDataset, setCuratorDataset] = useState(null);
   const [waveformViewMode, setWaveformViewMode] = useState('single');
@@ -214,10 +219,12 @@ const MultiPanelView = forwardRef(({
   const [selectionBox, setSelectionBox] = useState(null);
   const [selectedWidgetIds, setSelectedWidgetIds] = useState([]);
   const [groupDraggingWidgetIds, setGroupDraggingWidgetIds] = useState([]);
+  const [isRightSideMenuOpen, setIsRightSideMenuOpen] = useState(false);
   const canvasPanRef = useRef(null);
   const canvasSelectionRef = useRef(null);
   const selectedWidgetIdsRef = useRef([]);
   const widgetGroupDragRef = useRef(null);
+  const sideMenuWasOpenRef = useRef(false);
   const dashboardCanvasRef = useRef(null);
   const zoomIndicatorTimerRef = useRef(null);
   const minimapTimerRef = useRef(null);
@@ -251,6 +258,7 @@ const MultiPanelView = forwardRef(({
     const datasetKey = selectedDataset?.id || selectedDataset?.name || selectedDataset || (demoMode ? 'demo' : 'default');
     return `spikescope_cluster_annotations:${String(datasetKey)}:${selectedAlgorithm || 'none'}`;
   }, [demoMode, selectedAlgorithm, selectedDataset]);
+  const clusterGroupStorageKey = `${annotationStorageKey}:groups`;
 
   const [isWidgetBankOpen, setIsWidgetBankOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -351,6 +359,18 @@ const MultiPanelView = forwardRef(({
   }, [annotationStorageKey, widgetStates.clusterList?.clusterGroups]);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(clusterGroupStorageKey);
+      setClusterGroupNames(normalizeClusterGroups(
+        saved ? JSON.parse(saved) : DEFAULT_CLUSTER_GROUPS
+      ));
+    } catch (error) {
+      console.error('Error loading cluster groups:', error);
+      setClusterGroupNames(DEFAULT_CLUSTER_GROUPS);
+    }
+  }, [clusterGroupStorageKey]);
+
+  useEffect(() => {
     localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify(displaySettings));
   }, [displaySettings]);
 
@@ -403,11 +423,28 @@ const MultiPanelView = forwardRef(({
     setIsMinimapVisible(true);
     if (minimapTimerRef.current) {
       clearTimeout(minimapTimerRef.current);
+      minimapTimerRef.current = null;
     }
-    minimapTimerRef.current = setTimeout(() => {
-      setIsMinimapVisible(false);
-    }, CANVAS_OVERLAY_IDLE_MS);
   }, []);
+
+  const isSideMenuOpen = isWidgetBankOpen || isRightSideMenuOpen;
+
+  useEffect(() => {
+    if (isSideMenuOpen) {
+      sideMenuWasOpenRef.current = true;
+      if (minimapTimerRef.current) {
+        clearTimeout(minimapTimerRef.current);
+        minimapTimerRef.current = null;
+      }
+      setIsMinimapVisible(false);
+      return;
+    }
+
+    if (sideMenuWasOpenRef.current) {
+      sideMenuWasOpenRef.current = false;
+      revealMinimap();
+    }
+  }, [isSideMenuOpen, revealMinimap]);
 
   useEffect(() => {
     revealZoomIndicator();
@@ -1131,6 +1168,42 @@ const MultiPanelView = forwardRef(({
     }
   }, [annotationStorageKey]);
 
+  const handleClusterGroupsChange = useCallback((nextGroups, rename = null) => {
+    const normalizedGroups = normalizeClusterGroups(nextGroups);
+    setClusterGroupNames(normalizedGroups);
+    localStorage.setItem(clusterGroupStorageKey, JSON.stringify(normalizedGroups));
+
+    const renamedFrom = rename?.renamedFrom;
+    const renamedTo = rename?.renamedTo;
+    if (!renamedFrom || !renamedTo) return;
+
+    setClusterAnnotations((previous) => {
+      const next = Object.fromEntries(Object.entries(previous).map(([clusterId, annotation]) => [
+        clusterId,
+        annotation?.group === renamedFrom
+          ? { ...annotation, group: renamedTo }
+          : annotation,
+      ]));
+      localStorage.setItem(annotationStorageKey, JSON.stringify(next));
+      return next;
+    });
+    setWidgetStates((previous) => {
+      const clusterGroups = previous.clusterList?.clusterGroups || {};
+      return {
+        ...previous,
+        clusterList: {
+          ...previous.clusterList,
+          clusterGroups: Object.fromEntries(
+            Object.entries(clusterGroups).map(([clusterId, group]) => [
+              clusterId,
+              group === renamedFrom ? renamedTo : group,
+            ])
+          ),
+        },
+      };
+    });
+  }, [annotationStorageKey, clusterGroupStorageKey]);
+
   const handleVisibleClusterOrderChange = useCallback((clusterIds) => {
     setVisibleClusterOrder((previous) => {
       if (previous.length === clusterIds.length && previous.every((id, index) => String(id) === String(clusterIds[index]))) {
@@ -1692,6 +1765,7 @@ const MultiPanelView = forwardRef(({
           savedCurrentViewId={savedCurrentViewId}
           onPersistViews={onPersistViews}
           layoutStorageScope={layoutStorageScope}
+          onOpenChange={setIsRightSideMenuOpen}
         />
 
         <div
@@ -1706,17 +1780,14 @@ const MultiPanelView = forwardRef(({
           <button type="button" onClick={() => setCanvasZoom(displaySettings.scale + 0.1)} aria-label="Zoom in">+</button>
         </div>
 
-        <CanvasMinimap
-          viewport={minimapViewport}
-          widgets={canvasGeometry.widgets}
-          isVisible={isMinimapVisible}
-          alwaysVisible={displaySettings.minimapAlwaysVisible}
-          onActivity={revealMinimap}
-          onAlwaysVisibleChange={(minimapAlwaysVisible) => {
-            handleDisplaySettingsChange({ minimapAlwaysVisible });
-            revealMinimap();
-          }}
-        />
+        {!isSideMenuOpen && (
+          <CanvasMinimap
+            viewport={minimapViewport}
+            widgets={canvasGeometry.widgets}
+            isVisible={isMinimapVisible}
+            onActivity={revealMinimap}
+          />
+        )}
       </div>
 
       {selectionBox && (
@@ -1768,8 +1839,10 @@ const MultiPanelView = forwardRef(({
           selectedClusters={selectedClusters}
           clusterStats={clusterStats}
           clusterAnnotations={clusterAnnotations}
+          groups={clusterGroupNames}
           onClusterSelect={handleClusterSelect}
           onAnnotationChange={handleAnnotationChange}
+          onGroupsChange={handleClusterGroupsChange}
           onVisibleClustersChange={handleVisibleClusterOrderChange}
         />,
         'panel-cluster-list'
@@ -1807,6 +1880,7 @@ const MultiPanelView = forwardRef(({
   'Curator',
   <CuratorWidget
     clusterAnnotations={clusterAnnotations}
+    groups={clusterGroupNames}
     onAnnotationChange={handleAnnotationChange}
     initialDataset={curatorDataset}
     onDatasetChange={handleCuratorDatasetChange}

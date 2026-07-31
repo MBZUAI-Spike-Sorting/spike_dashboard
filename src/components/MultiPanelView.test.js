@@ -4,11 +4,33 @@ import MultiPanelView, { getHighestWidgetOrder } from './MultiPanelView';
 import { DEFAULT_DISPLAY_SETTINGS } from '../utils/displaySettings';
 
 jest.mock('react-plotly.js', () => () => null);
-jest.mock('./ClusterListTable', () => () => null);
+jest.mock('./ClusterListTable', () => ({
+  __esModule: true,
+  default: () => null,
+  DEFAULT_CLUSTER_GROUPS: ['unsorted', 'good', 'mua', 'noise'],
+  normalizeClusterGroups: (groups = []) => groups,
+}));
 jest.mock('./SpikeListTable', () => () => null);
 jest.mock('./ClusterStatisticsWindow', () => () => null);
-jest.mock('./RightSideMenu', () => () => null);
-jest.mock('./CanvasMinimap', () => () => null);
+jest.mock('./RightSideMenu', () => {
+  const React = require('react');
+  return ({ onOpenChange }) => React.createElement(
+    'div',
+    null,
+    React.createElement('button', {
+      className: 'mock-right-menu-open',
+      onClick: () => onOpenChange?.(true),
+    }),
+    React.createElement('button', {
+      className: 'mock-right-menu-close',
+      onClick: () => onOpenChange?.(false),
+    })
+  );
+});
+jest.mock('./CanvasMinimap', () => {
+  const React = require('react');
+  return () => React.createElement('div', { className: 'mock-canvas-minimap' });
+});
 jest.mock('./AmplitudeProfileWidget', () => () => null);
 jest.mock('./WidgetBank', () => {
   const React = require('react');
@@ -358,4 +380,34 @@ test('marquee-selects intersecting widgets without panning the canvas', () => {
   expect(dashboard.host.querySelector('.widget-selection-box')).toBeNull();
 
   dashboard.unmount();
+});
+
+test('hides the minimap while either side menu is open and restores it on close', () => {
+  jest.useFakeTimers();
+  const dashboard = mountDashboard();
+  const click = (selector) => {
+    dashboard.host.querySelector(selector).dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      button: 0,
+    }));
+  };
+
+  expect(dashboard.host.querySelector('.mock-canvas-minimap')).not.toBeNull();
+  act(() => jest.advanceTimersByTime(5000));
+  expect(dashboard.host.querySelector('.mock-canvas-minimap')).not.toBeNull();
+
+  act(() => click('.widget-bank-floating-toggle'));
+  expect(dashboard.host.querySelector('.mock-canvas-minimap')).toBeNull();
+
+  act(() => click('.widget-bank-floating-toggle'));
+  expect(dashboard.host.querySelector('.mock-canvas-minimap')).not.toBeNull();
+
+  act(() => click('.mock-right-menu-open'));
+  expect(dashboard.host.querySelector('.mock-canvas-minimap')).toBeNull();
+
+  act(() => click('.mock-right-menu-close'));
+  expect(dashboard.host.querySelector('.mock-canvas-minimap')).not.toBeNull();
+
+  dashboard.unmount();
+  jest.useRealTimers();
 });
