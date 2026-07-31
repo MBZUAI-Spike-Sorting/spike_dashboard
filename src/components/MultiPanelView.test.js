@@ -3,12 +3,18 @@ import { createRoot } from 'react-dom/client';
 import MultiPanelView from './MultiPanelView';
 import { DEFAULT_DISPLAY_SETTINGS } from '../utils/displaySettings';
 
+let mockCuratorWidgetProps = null;
+
 jest.mock('react-plotly.js', () => () => null);
 jest.mock('./ClusterListTable', () => () => null);
 jest.mock('./SpikeListTable', () => () => null);
 jest.mock('./ClusterStatisticsWindow', () => () => null);
 jest.mock('./RightSideMenu', () => () => null);
 jest.mock('./CanvasMinimap', () => () => null);
+jest.mock('./CuratorWidget', () => (props) => {
+  mockCuratorWidgetProps = props;
+  return null;
+});
 jest.mock('./WidgetBank', () => ({
   __esModule: true,
   default: () => null,
@@ -51,7 +57,7 @@ const createWidgetStates = () => ({
   waveform: { visible: false },
 });
 
-const mountDashboard = () => {
+const mountDashboard = ({ widgetStates = createWidgetStates() } = {}) => {
   localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify({
     ...DEFAULT_DISPLAY_SETTINGS,
     scale: 0.5,
@@ -64,7 +70,7 @@ const mountDashboard = () => {
   const savedViews = [{
     id: 'interaction-test',
     name: 'Interaction test',
-    widgetStates: createWidgetStates(),
+    widgetStates,
   }];
 
   act(() => {
@@ -244,4 +250,39 @@ test('marquee-selects intersecting widgets without panning the canvas', () => {
   expect(dashboard.host.querySelector('.widget-selection-box')).toBeNull();
 
   dashboard.unmount();
+});
+
+test('restores curator groups from layout state and writes controlled edits back', () => {
+  const widgetStates = createWidgetStates();
+  widgetStates.clusterList.clusterGroups = { 12: 'mua' };
+  widgetStates.curator = {
+    visible: true,
+    minimized: false,
+    maximized: false,
+    position: null,
+    size: { width: 500, height: 320 },
+    type: 'curator',
+  };
+
+  const dashboard = mountDashboard({ widgetStates });
+
+  expect(mockCuratorWidgetProps).not.toBeNull();
+  expect(mockCuratorWidgetProps.clusterAnnotations).toEqual({
+    12: { group: 'mua' },
+  });
+
+  act(() => {
+    mockCuratorWidgetProps.onAnnotationChange(12, { group: 'good' });
+  });
+
+  expect(
+    dashboard.dashboardRef.current
+      .getWidgetPositionsAndSizes()
+      .clusterList
+      .clusterGroups
+  ).toEqual({ 12: 'good' });
+  expect(mockCuratorWidgetProps.clusterAnnotations[12].group).toBe('good');
+
+  dashboard.unmount();
+  mockCuratorWidgetProps = null;
 });

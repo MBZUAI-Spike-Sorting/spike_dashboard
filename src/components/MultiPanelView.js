@@ -1751,7 +1751,9 @@ const MultiPanelView = forwardRef(({
     initialDataset={curatorDataset}
     onDatasetChange={handleCuratorDatasetChange}
     selectedClusters={selectedClusters}
+    clusterAnnotations={clusterAnnotations}
     onClusterSelect={(cluster, options) => handleClusterSelect(cluster.id, options)}
+    onAnnotationChange={handleAnnotationChange}
     onSelectedClustersChange={handleCuratorSelectionChange}
     onLoadingChange={handleWidgetLoadingChange}
     sessionCacheScope={layoutStorageScope}
