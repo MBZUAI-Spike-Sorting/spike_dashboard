@@ -181,6 +181,40 @@ test('finds the highest finite widget order', () => {
   })).toBe(9);
 });
 
+test('shows canvas coordinates for the current cursor position', () => {
+  const dashboard = mountDashboard({ scale: 0.5 });
+  const dashboardRoot = dashboard.host.querySelector('.multi-panel-view');
+  dashboardRoot.getBoundingClientRect = () => ({
+    left: 100,
+    top: 50,
+    right: 1300,
+    bottom: 850,
+    width: 1200,
+    height: 800,
+  });
+
+  act(() => {
+    dashboardRoot.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 300,
+      clientY: 250,
+    }));
+  });
+
+  const coordinates = dashboard.host.querySelector('.canvas-cursor-coordinates');
+  expect(coordinates.textContent).toBe('x 400 · y 400');
+
+  act(() => {
+    dashboardRoot.dispatchEvent(new MouseEvent('mouseout', {
+      bubbles: true,
+      relatedTarget: document.body,
+    }));
+  });
+  expect(dashboard.host.querySelector('.canvas-cursor-coordinates')).toBeNull();
+
+  dashboard.unmount();
+});
+
 test('adds and re-adds a focused widget above overlapping panels', () => {
   const widgetStates = createWidgetStates();
   widgetStates.clusterList = {

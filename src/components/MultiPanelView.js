@@ -218,6 +218,7 @@ const MultiPanelView = forwardRef(({
   const [isCanvasPanning, setIsCanvasPanning] = useState(false);
   const [isCanvasSelecting, setIsCanvasSelecting] = useState(false);
   const [selectionBox, setSelectionBox] = useState(null);
+  const [cursorCanvasPoint, setCursorCanvasPoint] = useState(null);
   const [selectedWidgetIds, setSelectedWidgetIds] = useState([]);
   const [groupDraggingWidgetIds, setGroupDraggingWidgetIds] = useState([]);
   const [isRightSideMenuOpen, setIsRightSideMenuOpen] = useState(false);
@@ -464,6 +465,23 @@ const MultiPanelView = forwardRef(({
       if (minimapTimerRef.current) clearTimeout(minimapTimerRef.current);
     };
   }, [revealMinimap, revealZoomIndicator]);
+
+  const handleCursorPositionChange = useCallback((event) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const point = screenToCanvasPoint({
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    }, hasMaximizedWidget
+      ? { x: 0, y: 0, zoom: 1 }
+      : { ...canvasOffset, zoom: displaySettings.scale });
+
+    setCursorCanvasPoint({
+      x: Math.round(point.left),
+      y: Math.round(point.top),
+    });
+  }, [canvasOffset, displaySettings.scale, hasMaximizedWidget]);
 
   const measureCanvasGeometry = useCallback(() => {
     const container = containerRef.current;
@@ -1719,6 +1737,8 @@ const MultiPanelView = forwardRef(({
         '--canvas-offset-y': `${canvasOffset.y}px`,
       }}
       onMouseDown={handleCanvasMouseDown}
+      onMouseMove={handleCursorPositionChange}
+      onMouseLeave={() => setCursorCanvasPoint(null)}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1798,6 +1818,12 @@ const MultiPanelView = forwardRef(({
             isVisible={isMinimapVisible}
             onActivity={revealMinimap}
           />
+        )}
+
+        {cursorCanvasPoint && (
+          <output className="canvas-cursor-coordinates" aria-label="Canvas cursor coordinates">
+            x {cursorCanvasPoint.x} · y {cursorCanvasPoint.y}
+          </output>
         )}
       </div>
 
