@@ -68,7 +68,8 @@ const RightSideMenu = ({
   customPipelineError = null,
   onAddCustomPipeline,
   onDeleteCustomPipeline,
-  canManageCustomPipelines = false
+  canManageCustomPipelines = false,
+  onOpenChange
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -101,7 +102,9 @@ const RightSideMenu = ({
     demoMode || !isRunningAlgorithm || pipelineStatus === 'cancel_requested';
 
   const handleToggle = () => {
-    setIsOpen(!isOpen);
+    const next = !isOpen;
+    setIsOpen(next);
+    onOpenChange?.(next);
   };
 
   return (

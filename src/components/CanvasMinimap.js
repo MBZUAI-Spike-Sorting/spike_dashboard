@@ -5,8 +5,6 @@ const CanvasMinimap = ({
   viewport,
   widgets,
   isVisible,
-  alwaysVisible,
-  onAlwaysVisibleChange,
   onActivity,
 }) => {
   const model = useMemo(() => createCanvasMinimapModel({
@@ -16,7 +14,7 @@ const CanvasMinimap = ({
 
   return (
     <aside
-      className={`canvas-minimap ${isVisible || alwaysVisible ? 'is-visible' : ''}`}
+      className={`canvas-minimap ${isVisible ? 'is-visible' : ''}`}
       aria-label="Canvas minimap"
       onMouseEnter={onActivity}
     >
@@ -59,14 +57,6 @@ const CanvasMinimap = ({
           rx="2"
         />
       </svg>
-      <label className="canvas-minimap-persistence">
-        <input
-          type="checkbox"
-          checked={alwaysVisible}
-          onChange={(event) => onAlwaysVisibleChange?.(event.target.checked)}
-        />
-        Always show
-      </label>
     </aside>
   );
 };

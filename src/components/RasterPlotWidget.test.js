@@ -51,3 +51,61 @@ test('does not treat an empty visible-cluster order as an active filter', () => 
 
   expect(events.map((event) => event.clusterId)).toEqual([12, 12]);
 });
+
+test('uses complete cluster data so IDs above the spike preview range remain visible', () => {
+  const events = buildRasterEvents({
+    spikes: [
+      { time: 10, clusterId: 0 },
+      { time: 20, clusterId: 1 },
+    ],
+    selectedClusters: [],
+    visibleClusterIds: [],
+    clusterData: {
+      clusters: [
+        { clusterId: 0, spikeTimes: [10] },
+        { clusterId: 8, spikeTimes: [20] },
+        { clusterId: 16, spikeTimes: [30] },
+      ],
+    },
+  });
+
+  expect(events.map((event) => event.clusterId)).toEqual([0, 8, 16]);
+});
+
+test('selected-only mode overrides the visible cluster list', () => {
+  const events = buildRasterEvents({
+    spikes: [],
+    selectedClusters: [0, 2, 3, 6, 16],
+    visibleClusterIds: [0, 1, 2, 3, 4, 5, 6, 7, 16],
+    selectedOnly: true,
+    clusterData: {
+      clusters: [
+        { clusterId: 0, spikeTimes: [10] },
+        { clusterId: 1, spikeTimes: [20] },
+        { clusterId: 2, spikeTimes: [30] },
+        { clusterId: 3, spikeTimes: [40] },
+        { clusterId: 6, spikeTimes: [50] },
+        { clusterId: 7, spikeTimes: [60] },
+        { clusterId: 16, spikeTimes: [70] },
+      ],
+    },
+  });
+
+  expect(events.map((event) => event.clusterId)).toEqual([0, 2, 3, 6, 16]);
+});
+
+test('selected-only mode can intentionally produce an empty raster', () => {
+  const events = buildRasterEvents({
+    selectedClusters: [],
+    visibleClusterIds: [0, 1],
+    selectedOnly: true,
+    clusterData: {
+      clusters: [
+        { clusterId: 0, spikeTimes: [10] },
+        { clusterId: 1, spikeTimes: [20] },
+      ],
+    },
+  });
+
+  expect(events).toEqual([]);
+});

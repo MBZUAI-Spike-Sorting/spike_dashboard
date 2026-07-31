@@ -8,7 +8,7 @@
 
 .cluster-curation-toolbar {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) auto auto;
+  grid-template-columns: minmax(150px, 1fr) auto auto auto;
   gap: 6px;
   padding: 8px;
   border-bottom: 1px solid rgba(64, 224, 208, 0.18);
@@ -17,6 +17,7 @@
 
 .cluster-curation-toolbar input,
 .cluster-curation-toolbar select,
+.cluster-group-editor input,
 .cluster-group-select,
 .cluster-label-input,
 .cluster-note-input {
@@ -28,6 +29,63 @@
   color: #e2e8f0;
   font-size: 0.75rem;
   padding: 0 7px;
+}
+
+.cluster-groups-edit-button,
+.cluster-group-editor button {
+  min-height: 28px;
+  border: 1px solid rgba(64, 224, 208, 0.3);
+  border-radius: 4px;
+  background: rgba(64, 224, 208, 0.08);
+  color: #baf4ee;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 0 9px;
+}
+
+.cluster-groups-edit-button:hover,
+.cluster-group-editor button:hover:not(:disabled) {
+  background: rgba(64, 224, 208, 0.16);
+}
+
+.cluster-group-editor button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.cluster-group-editor {
+  padding: 8px;
+  border-bottom: 1px solid rgba(64, 224, 208, 0.18);
+  background: rgba(10, 16, 35, 0.94);
+}
+
+.cluster-group-editor-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 6px;
+}
+
+.cluster-group-editor-row,
+.cluster-group-editor-add {
+  display: flex;
+  gap: 5px;
+}
+
+.cluster-group-editor-row input,
+.cluster-group-editor-add input {
+  flex: 1;
+}
+
+.cluster-group-editor-add {
+  max-width: 320px;
+  margin-top: 8px;
+}
+
+.cluster-group-editor-error {
+  margin-top: 6px;
+  color: #fb7185;
+  font-size: 0.7rem;
 }
 
 .cluster-selection-summary {
