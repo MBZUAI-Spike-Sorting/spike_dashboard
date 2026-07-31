@@ -42,9 +42,12 @@
   min-height: 0;
 }
 
-/* Keep the horizontal scrollbar above the south resize hit area. */
+/*
+ * Keep both scrollbars clear of the resize targets. The corner handles are
+ * 14px square, so using the same inset also protects each scrollbar endpoint.
+ */
 .dockable-widget:not(.maximized) .cluster-list-content {
-  margin-bottom: 8px;
+  margin: 0 14px 14px 0;
 }
 
 .cluster-list-table table {
