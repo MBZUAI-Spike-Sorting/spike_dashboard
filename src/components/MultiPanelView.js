@@ -112,6 +112,34 @@ const DEFAULT_WIDGET_STATES = {
   amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' }
 };
 
+export const CURATOR_LINKED_WIDGET_IDS = [
+  'clusterStats',
+  'signalView',
+  'waveform',
+  'amplitudeProfile',
+  'rasterPlot',
+];
+
+export const revealCuratorLinkedWidgets = (states = {}) => {
+  let changed = false;
+  const nextStates = { ...states };
+
+  CURATOR_LINKED_WIDGET_IDS.forEach((widgetId) => {
+    const currentState = states[widgetId] || DEFAULT_WIDGET_STATES[widgetId];
+    if (!currentState || (currentState.visible && !currentState.minimized)) return;
+
+    nextStates[widgetId] = {
+      ...currentState,
+      visible: true,
+      minimized: false,
+      maximized: false,
+    };
+    changed = true;
+  });
+
+  return changed ? nextStates : states;
+};
+
 const mergeWidgetStateDefaults = (states = {}) => {
   const merged = Object.fromEntries(Object.entries(DEFAULT_WIDGET_STATES).map(([widgetId, defaults]) => [
     widgetId,
@@ -1010,6 +1038,11 @@ const MultiPanelView = forwardRef(({
     });
   }, []);
 
+  const handleCuratorClusterSelect = useCallback((cluster, options = {}) => {
+    handleClusterSelect(cluster.id, options);
+    setWidgetStates(revealCuratorLinkedWidgets);
+  }, [handleClusterSelect]);
+
   const handleCuratorDatasetChange = useCallback((dataset) => {
     if (!dataset || !Array.isArray(dataset.clusters)) return;
 
@@ -1778,7 +1811,7 @@ const MultiPanelView = forwardRef(({
     initialDataset={curatorDataset}
     onDatasetChange={handleCuratorDatasetChange}
     selectedClusters={selectedClusters}
-    onClusterSelect={(cluster, options) => handleClusterSelect(cluster.id, options)}
+    onClusterSelect={handleCuratorClusterSelect}
     onSelectedClustersChange={handleCuratorSelectionChange}
     onLoadingChange={handleWidgetLoadingChange}
     sessionCacheScope={layoutStorageScope}
