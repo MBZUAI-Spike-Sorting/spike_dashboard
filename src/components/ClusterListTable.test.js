@@ -93,11 +93,30 @@ test('lets users add and rename cluster groups', () => {
     setInputValue(renameInput, 'accepted');
   });
   act(() => {
-    renameInput.closest('.cluster-group-editor-row').querySelector('button').click();
+    host.querySelector('[aria-label="Save group good"]').click();
   });
   expect(onGroupsChange).toHaveBeenLastCalledWith(
     ['unsorted', 'accepted'],
     { renamedFrom: 'good', renamedTo: 'accepted' }
+  );
+
+  act(() => {
+    setInputValue(renameInput, '');
+  });
+  act(() => {
+    host.querySelector('[aria-label="Save group good"]').click();
+  });
+  expect(renameInput.value).toBe('good');
+  expect(host.querySelector('[role="alert"]').textContent).toBe(
+    'Group names cannot be empty.'
+  );
+
+  act(() => {
+    host.querySelector('[aria-label="Delete group good"]').click();
+  });
+  expect(onGroupsChange).toHaveBeenLastCalledWith(
+    ['unsorted'],
+    { deletedGroup: 'good', replacementGroup: 'unsorted' }
   );
 
   act(() => root.unmount());

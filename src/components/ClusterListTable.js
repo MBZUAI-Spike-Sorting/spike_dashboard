@@ -193,6 +193,7 @@ const ClusterListTable = ({
     const nextName = String(groupDrafts[currentName] ?? currentName).trim();
     if (!nextName) {
       setGroupError('Group names cannot be empty.');
+      setGroupDrafts((current) => ({ ...current, [currentName]: currentName }));
       return;
     }
     if (
@@ -214,6 +215,27 @@ const ClusterListTable = ({
       return next;
     });
     setGroupFilter((current) => current === currentName ? nextName : current);
+    setGroupError('');
+  };
+
+  const deleteGroup = (groupToDelete) => {
+    if (availableGroups.length <= 1) {
+      setGroupError('At least one group is required.');
+      return;
+    }
+
+    const remainingGroups = availableGroups.filter((group) => group !== groupToDelete);
+    const replacementGroup = remainingGroups[0];
+    onGroupsChange?.(remainingGroups, {
+      deletedGroup: groupToDelete,
+      replacementGroup,
+    });
+    setGroupDrafts((current) => {
+      const next = { ...current };
+      delete next[groupToDelete];
+      return next;
+    });
+    setGroupFilter((current) => current === groupToDelete ? 'all' : current);
     setGroupError('');
   };
 
@@ -268,17 +290,44 @@ const ClusterListTable = ({
                     setGroupDrafts((current) => ({ ...current, [group]: event.target.value }));
                     setGroupError('');
                   }}
+                  onBlur={() => {
+                    if (!String(groupDrafts[group] ?? group).trim()) {
+                      setGroupDrafts((current) => ({ ...current, [group]: group }));
+                      setGroupError('Group names cannot be empty.');
+                    }
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') renameGroup(group);
+                    if (event.key === 'Escape') {
+                      setGroupDrafts((current) => ({ ...current, [group]: group }));
+                      setGroupError('');
+                    }
                   }}
                   aria-label={`Rename group ${group}`}
                 />
                 <button
                   type="button"
+                  className="cluster-group-icon-button"
                   onClick={() => renameGroup(group)}
                   disabled={(groupDrafts[group] ?? group).trim() === group}
+                  aria-label={`Save group ${group}`}
+                  title="Save group name"
                 >
-                  Rename
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M4 20h4l11-11-4-4L4 16v4Zm13.5-16.5 3 3" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="cluster-group-icon-button delete"
+                  onClick={() => deleteGroup(group)}
+                  disabled={availableGroups.length <= 1}
+                  aria-label={`Delete group ${group}`}
+                  title="Delete group and move its clusters to the default group"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" />
+                  </svg>
                 </button>
               </div>
             ))}

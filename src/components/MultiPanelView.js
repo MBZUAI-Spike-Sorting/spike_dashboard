@@ -361,14 +361,19 @@ const MultiPanelView = forwardRef(({
   useEffect(() => {
     try {
       const saved = localStorage.getItem(clusterGroupStorageKey);
+      const layoutGroups = widgetStates.clusterList?.groupNames;
       setClusterGroupNames(normalizeClusterGroups(
-        saved ? JSON.parse(saved) : DEFAULT_CLUSTER_GROUPS
+        Array.isArray(layoutGroups)
+          ? layoutGroups
+          : saved
+          ? JSON.parse(saved)
+          : DEFAULT_CLUSTER_GROUPS
       ));
     } catch (error) {
       console.error('Error loading cluster groups:', error);
       setClusterGroupNames(DEFAULT_CLUSTER_GROUPS);
     }
-  }, [clusterGroupStorageKey]);
+  }, [clusterGroupStorageKey, widgetStates.clusterList?.groupNames]);
 
   useEffect(() => {
     localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify(displaySettings));
@@ -1168,35 +1173,37 @@ const MultiPanelView = forwardRef(({
     }
   }, [annotationStorageKey]);
 
-  const handleClusterGroupsChange = useCallback((nextGroups, rename = null) => {
+  const handleClusterGroupsChange = useCallback((nextGroups, change = null) => {
     const normalizedGroups = normalizeClusterGroups(nextGroups);
     setClusterGroupNames(normalizedGroups);
     localStorage.setItem(clusterGroupStorageKey, JSON.stringify(normalizedGroups));
 
-    const renamedFrom = rename?.renamedFrom;
-    const renamedTo = rename?.renamedTo;
-    if (!renamedFrom || !renamedTo) return;
+    const sourceGroup = change?.renamedFrom || change?.deletedGroup;
+    const targetGroup = change?.renamedTo || change?.replacementGroup;
 
-    setClusterAnnotations((previous) => {
-      const next = Object.fromEntries(Object.entries(previous).map(([clusterId, annotation]) => [
-        clusterId,
-        annotation?.group === renamedFrom
-          ? { ...annotation, group: renamedTo }
-          : annotation,
-      ]));
-      localStorage.setItem(annotationStorageKey, JSON.stringify(next));
-      return next;
-    });
+    if (sourceGroup && targetGroup) {
+      setClusterAnnotations((previous) => {
+        const next = Object.fromEntries(Object.entries(previous).map(([clusterId, annotation]) => [
+          clusterId,
+          annotation?.group === sourceGroup
+            ? { ...annotation, group: targetGroup }
+            : annotation,
+        ]));
+        localStorage.setItem(annotationStorageKey, JSON.stringify(next));
+        return next;
+      });
+    }
     setWidgetStates((previous) => {
       const clusterGroups = previous.clusterList?.clusterGroups || {};
       return {
         ...previous,
         clusterList: {
           ...previous.clusterList,
+          groupNames: normalizedGroups,
           clusterGroups: Object.fromEntries(
             Object.entries(clusterGroups).map(([clusterId, group]) => [
               clusterId,
-              group === renamedFrom ? renamedTo : group,
+              sourceGroup && targetGroup && group === sourceGroup ? targetGroup : group,
             ])
           ),
         },
