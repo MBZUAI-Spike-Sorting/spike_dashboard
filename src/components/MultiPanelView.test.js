@@ -29,7 +29,10 @@ jest.mock('./RightSideMenu', () => {
 });
 jest.mock('./CanvasMinimap', () => {
   const React = require('react');
-  return () => React.createElement('div', { className: 'mock-canvas-minimap' });
+  return ({ isVisible }) => React.createElement('div', {
+    className: 'mock-canvas-minimap',
+    'data-visible': String(isVisible),
+  });
 });
 jest.mock('./AmplitudeProfileWidget', () => () => null);
 jest.mock('./WidgetBank', () => {
@@ -176,6 +179,40 @@ test('finds the highest finite widget order', () => {
     second: { order: '9' },
     invalid: { order: 'front' },
   })).toBe(9);
+});
+
+test('shows canvas coordinates for the current cursor position', () => {
+  const dashboard = mountDashboard({ scale: 0.5 });
+  const dashboardRoot = dashboard.host.querySelector('.multi-panel-view');
+  dashboardRoot.getBoundingClientRect = () => ({
+    left: 100,
+    top: 50,
+    right: 1300,
+    bottom: 850,
+    width: 1200,
+    height: 800,
+  });
+
+  act(() => {
+    dashboardRoot.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 300,
+      clientY: 250,
+    }));
+  });
+
+  const coordinates = dashboard.host.querySelector('.canvas-cursor-coordinates');
+  expect(coordinates.textContent).toBe('x 400 · y 400');
+
+  act(() => {
+    dashboardRoot.dispatchEvent(new MouseEvent('mouseout', {
+      bubbles: true,
+      relatedTarget: document.body,
+    }));
+  });
+  expect(dashboard.host.querySelector('.canvas-cursor-coordinates')).toBeNull();
+
+  dashboard.unmount();
 });
 
 test('adds and re-adds a focused widget above overlapping panels', () => {
@@ -382,7 +419,7 @@ test('marquee-selects intersecting widgets without panning the canvas', () => {
   dashboard.unmount();
 });
 
-test('hides the minimap while either side menu is open and restores it on close', () => {
+test('shows the minimap for ten seconds and hides it while either side menu is open', () => {
   jest.useFakeTimers();
   const dashboard = mountDashboard();
   const click = (selector) => {
@@ -392,21 +429,26 @@ test('hides the minimap while either side menu is open and restores it on close'
     }));
   };
 
-  expect(dashboard.host.querySelector('.mock-canvas-minimap')).not.toBeNull();
-  act(() => jest.advanceTimersByTime(5000));
-  expect(dashboard.host.querySelector('.mock-canvas-minimap')).not.toBeNull();
+  const minimap = () => dashboard.host.querySelector('.mock-canvas-minimap');
+  expect(minimap().dataset.visible).toBe('true');
+  act(() => jest.advanceTimersByTime(9999));
+  expect(minimap().dataset.visible).toBe('true');
+  act(() => jest.advanceTimersByTime(1));
+  expect(minimap().dataset.visible).toBe('false');
 
   act(() => click('.widget-bank-floating-toggle'));
-  expect(dashboard.host.querySelector('.mock-canvas-minimap')).toBeNull();
+  expect(minimap()).toBeNull();
 
   act(() => click('.widget-bank-floating-toggle'));
-  expect(dashboard.host.querySelector('.mock-canvas-minimap')).not.toBeNull();
+  expect(minimap().dataset.visible).toBe('true');
 
   act(() => click('.mock-right-menu-open'));
-  expect(dashboard.host.querySelector('.mock-canvas-minimap')).toBeNull();
+  expect(minimap()).toBeNull();
 
   act(() => click('.mock-right-menu-close'));
-  expect(dashboard.host.querySelector('.mock-canvas-minimap')).not.toBeNull();
+  expect(minimap().dataset.visible).toBe('true');
+  act(() => jest.advanceTimersByTime(10000));
+  expect(minimap().dataset.visible).toBe('false');
 
   dashboard.unmount();
   jest.useRealTimers();

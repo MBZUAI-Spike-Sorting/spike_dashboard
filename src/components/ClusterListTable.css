@@ -77,6 +77,34 @@
   flex: 1;
 }
 
+.cluster-group-icon-button {
+  display: inline-grid;
+  width: 29px;
+  min-width: 29px;
+  padding: 0;
+  place-items: center;
+}
+
+.cluster-group-icon-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.cluster-group-icon-button.delete {
+  border-color: rgba(251, 113, 133, 0.3);
+  color: #fda4af;
+}
+
+.cluster-group-icon-button.delete:hover:not(:disabled) {
+  border-color: rgba(251, 113, 133, 0.62);
+  background: rgba(251, 113, 133, 0.12);
+}
+
 .cluster-group-editor-add {
   max-width: 320px;
   margin-top: 8px;
@@ -136,7 +164,6 @@
 .cluster-list-table th {
   color: rgba(226, 232, 240, 0.68);
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 

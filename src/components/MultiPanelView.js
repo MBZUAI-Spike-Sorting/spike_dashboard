@@ -78,6 +78,7 @@ import {
 const DISPLAY_SETTINGS_STORAGE_KEY = 'spikescope_display_settings:v1';
 const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
 const CANVAS_OVERLAY_IDLE_MS = 3000;
+const MINIMAP_VISIBLE_MS = 10000;
 
 const getPanelPosition = (panel) => {
   const computedStyle = window.getComputedStyle(panel);
@@ -217,6 +218,7 @@ const MultiPanelView = forwardRef(({
   const [isCanvasPanning, setIsCanvasPanning] = useState(false);
   const [isCanvasSelecting, setIsCanvasSelecting] = useState(false);
   const [selectionBox, setSelectionBox] = useState(null);
+  const [cursorCanvasPoint, setCursorCanvasPoint] = useState(null);
   const [selectedWidgetIds, setSelectedWidgetIds] = useState([]);
   const [groupDraggingWidgetIds, setGroupDraggingWidgetIds] = useState([]);
   const [isRightSideMenuOpen, setIsRightSideMenuOpen] = useState(false);
@@ -361,14 +363,19 @@ const MultiPanelView = forwardRef(({
   useEffect(() => {
     try {
       const saved = localStorage.getItem(clusterGroupStorageKey);
+      const layoutGroups = widgetStates.clusterList?.groupNames;
       setClusterGroupNames(normalizeClusterGroups(
-        saved ? JSON.parse(saved) : DEFAULT_CLUSTER_GROUPS
+        Array.isArray(layoutGroups)
+          ? layoutGroups
+          : saved
+          ? JSON.parse(saved)
+          : DEFAULT_CLUSTER_GROUPS
       ));
     } catch (error) {
       console.error('Error loading cluster groups:', error);
       setClusterGroupNames(DEFAULT_CLUSTER_GROUPS);
     }
-  }, [clusterGroupStorageKey]);
+  }, [clusterGroupStorageKey, widgetStates.clusterList?.groupNames]);
 
   useEffect(() => {
     localStorage.setItem(DISPLAY_SETTINGS_STORAGE_KEY, JSON.stringify(displaySettings));
@@ -423,8 +430,11 @@ const MultiPanelView = forwardRef(({
     setIsMinimapVisible(true);
     if (minimapTimerRef.current) {
       clearTimeout(minimapTimerRef.current);
-      minimapTimerRef.current = null;
     }
+    minimapTimerRef.current = setTimeout(() => {
+      setIsMinimapVisible(false);
+      minimapTimerRef.current = null;
+    }, MINIMAP_VISIBLE_MS);
   }, []);
 
   const isSideMenuOpen = isWidgetBankOpen || isRightSideMenuOpen;
@@ -455,6 +465,23 @@ const MultiPanelView = forwardRef(({
       if (minimapTimerRef.current) clearTimeout(minimapTimerRef.current);
     };
   }, [revealMinimap, revealZoomIndicator]);
+
+  const handleCursorPositionChange = useCallback((event) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const point = screenToCanvasPoint({
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    }, hasMaximizedWidget
+      ? { x: 0, y: 0, zoom: 1 }
+      : { ...canvasOffset, zoom: displaySettings.scale });
+
+    setCursorCanvasPoint({
+      x: Math.round(point.left),
+      y: Math.round(point.top),
+    });
+  }, [canvasOffset, displaySettings.scale, hasMaximizedWidget]);
 
   const measureCanvasGeometry = useCallback(() => {
     const container = containerRef.current;
@@ -1168,35 +1195,37 @@ const MultiPanelView = forwardRef(({
     }
   }, [annotationStorageKey]);
 
-  const handleClusterGroupsChange = useCallback((nextGroups, rename = null) => {
+  const handleClusterGroupsChange = useCallback((nextGroups, change = null) => {
     const normalizedGroups = normalizeClusterGroups(nextGroups);
     setClusterGroupNames(normalizedGroups);
     localStorage.setItem(clusterGroupStorageKey, JSON.stringify(normalizedGroups));
 
-    const renamedFrom = rename?.renamedFrom;
-    const renamedTo = rename?.renamedTo;
-    if (!renamedFrom || !renamedTo) return;
+    const sourceGroup = change?.renamedFrom || change?.deletedGroup;
+    const targetGroup = change?.renamedTo || change?.replacementGroup;
 
-    setClusterAnnotations((previous) => {
-      const next = Object.fromEntries(Object.entries(previous).map(([clusterId, annotation]) => [
-        clusterId,
-        annotation?.group === renamedFrom
-          ? { ...annotation, group: renamedTo }
-          : annotation,
-      ]));
-      localStorage.setItem(annotationStorageKey, JSON.stringify(next));
-      return next;
-    });
+    if (sourceGroup && targetGroup) {
+      setClusterAnnotations((previous) => {
+        const next = Object.fromEntries(Object.entries(previous).map(([clusterId, annotation]) => [
+          clusterId,
+          annotation?.group === sourceGroup
+            ? { ...annotation, group: targetGroup }
+            : annotation,
+        ]));
+        localStorage.setItem(annotationStorageKey, JSON.stringify(next));
+        return next;
+      });
+    }
     setWidgetStates((previous) => {
       const clusterGroups = previous.clusterList?.clusterGroups || {};
       return {
         ...previous,
         clusterList: {
           ...previous.clusterList,
+          groupNames: normalizedGroups,
           clusterGroups: Object.fromEntries(
             Object.entries(clusterGroups).map(([clusterId, group]) => [
               clusterId,
-              group === renamedFrom ? renamedTo : group,
+              sourceGroup && targetGroup && group === sourceGroup ? targetGroup : group,
             ])
           ),
         },
@@ -1708,6 +1737,8 @@ const MultiPanelView = forwardRef(({
         '--canvas-offset-y': `${canvasOffset.y}px`,
       }}
       onMouseDown={handleCanvasMouseDown}
+      onMouseMove={handleCursorPositionChange}
+      onMouseLeave={() => setCursorCanvasPoint(null)}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1787,6 +1818,12 @@ const MultiPanelView = forwardRef(({
             isVisible={isMinimapVisible}
             onActivity={revealMinimap}
           />
+        )}
+
+        {cursorCanvasPoint && (
+          <output className="canvas-cursor-coordinates" aria-label="Canvas cursor coordinates">
+            x {cursorCanvasPoint.x} · y {cursorCanvasPoint.y}
+          </output>
         )}
       </div>
 

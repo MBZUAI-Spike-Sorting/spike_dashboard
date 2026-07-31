@@ -4,9 +4,13 @@ import MultiPanelView from './MultiPanelView';
 import { DEFAULT_DISPLAY_SETTINGS } from '../utils/displaySettings';
 
 let mockCuratorWidgetProps = null;
+let mockClusterListProps = null;
 
 jest.mock('react-plotly.js', () => () => null);
-jest.mock('./ClusterListTable', () => () => null);
+jest.mock('./ClusterListTable', () => (props) => {
+  mockClusterListProps = props;
+  return null;
+});
 jest.mock('./SpikeListTable', () => () => null);
 jest.mock('./ClusterStatisticsWindow', () => () => null);
 jest.mock('./RightSideMenu', () => () => null);
@@ -33,6 +37,7 @@ const createWidgetStates = () => ({
     position: null,
     size: { width: 200, height: 160 },
     type: 'clusterList',
+    groupNames: ['unsorted', 'mua', 'good'],
     clusterGroups: { 12: 'mua' },
   },
   spikeList: { visible: false },
@@ -90,6 +95,7 @@ const mountDashboard = () => {
       host.remove();
       localStorage.clear();
       mockCuratorWidgetProps = null;
+      mockClusterListProps = null;
     },
   };
 };
@@ -113,6 +119,28 @@ test('restores curator groups from layout state and writes controlled edits back
       .clusterGroups
   ).toEqual({ 12: 'good' });
   expect(mockCuratorWidgetProps.clusterAnnotations[12].group).toBe('good');
+
+  dashboard.unmount();
+});
+
+test('deleting a group reassigns its clusters and persists the remaining names', () => {
+  const dashboard = mountDashboard();
+
+  expect(mockClusterListProps.groups).toEqual(['unsorted', 'mua', 'good']);
+
+  act(() => {
+    mockClusterListProps.onGroupsChange(
+      ['unsorted', 'good'],
+      { deletedGroup: 'mua', replacementGroup: 'unsorted' }
+    );
+  });
+
+  const clusterListState = dashboard.dashboardRef.current
+    .getWidgetPositionsAndSizes()
+    .clusterList;
+  expect(clusterListState.groupNames).toEqual(['unsorted', 'good']);
+  expect(clusterListState.clusterGroups).toEqual({ 12: 'unsorted' });
+  expect(mockCuratorWidgetProps.clusterAnnotations[12].group).toBe('unsorted');
 
   dashboard.unmount();
 });

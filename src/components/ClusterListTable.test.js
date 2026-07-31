@@ -51,6 +51,27 @@ test('normalizes editable group names and preserves observed custom groups', () 
   )).toEqual(['unsorted', 'Good', 'review later']);
 });
 
+test('uses concise, normally cased cluster-list headings', () => {
+  const style = document.createElement('style');
+  style.textContent = fs.readFileSync(path.join(__dirname, 'ClusterListTable.css'), 'utf8');
+  document.head.appendChild(style);
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+
+  act(() => {
+    root.render(<ClusterListTable clusters={[row]} />);
+  });
+
+  const headings = Array.from(host.querySelectorAll('thead th'));
+  expect(headings.map((heading) => heading.textContent.trim())).toContain('CH');
+  expect(window.getComputedStyle(headings[2]).textTransform).not.toBe('uppercase');
+
+  act(() => root.unmount());
+  host.remove();
+  style.remove();
+});
+
 test('lets users add and rename cluster groups', () => {
   const host = document.createElement('div');
   document.body.appendChild(host);
@@ -93,11 +114,30 @@ test('lets users add and rename cluster groups', () => {
     setInputValue(renameInput, 'accepted');
   });
   act(() => {
-    renameInput.closest('.cluster-group-editor-row').querySelector('button').click();
+    host.querySelector('[aria-label="Save group good"]').click();
   });
   expect(onGroupsChange).toHaveBeenLastCalledWith(
     ['unsorted', 'accepted'],
     { renamedFrom: 'good', renamedTo: 'accepted' }
+  );
+
+  act(() => {
+    setInputValue(renameInput, '');
+  });
+  act(() => {
+    host.querySelector('[aria-label="Save group good"]').click();
+  });
+  expect(renameInput.value).toBe('good');
+  expect(host.querySelector('[role="alert"]').textContent).toBe(
+    'Group names cannot be empty.'
+  );
+
+  act(() => {
+    host.querySelector('[aria-label="Delete group good"]').click();
+  });
+  expect(onGroupsChange).toHaveBeenLastCalledWith(
+    ['unsorted'],
+    { deletedGroup: 'good', replacementGroup: 'unsorted' }
   );
 
   act(() => root.unmount());
