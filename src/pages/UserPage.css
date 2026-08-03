@@ -386,6 +386,27 @@
   gap: 8px;
 }
 
+.admin-panel-actions {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+.admin-dashboard-link {
+  background: rgba(64, 224, 208, 0.1);
+  border: 1px solid rgba(64, 224, 208, 0.24);
+  border-radius: 6px;
+  color: #75e9de;
+  font-size: 0.8rem;
+  font-weight: 750;
+  padding: 9px 11px;
+  text-decoration: none;
+}
+
+.admin-dashboard-link:hover {
+  background: rgba(64, 224, 208, 0.17);
+}
+
 .admin-create-user {
   align-items: end;
   background: rgba(255, 255, 255, 0.04);

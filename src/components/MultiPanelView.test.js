@@ -215,6 +215,57 @@ test('shows canvas coordinates for the current cursor position', () => {
   dashboard.unmount();
 });
 
+test('restores the saved pan and zoom when reopening a view', () => {
+  const dashboard = mountDashboard();
+
+  act(() => {
+    dashboard.dashboardRef.current.handleViewChange(
+      createWidgetStates(),
+      'reopened-view',
+      { x: -640, y: 125, zoom: 0.75 }
+    );
+  });
+
+  expect(dashboard.host.querySelector('.dashboard-canvas').style.transform).toBe(
+    'translate(-640px, 125px) scale(0.75)'
+  );
+
+  dashboard.unmount();
+});
+
+test('centers positioned widgets when reopening a legacy view without a viewport', () => {
+  const dashboard = mountDashboard({ scale: 0.5 });
+  const dashboardRoot = dashboard.host.querySelector('.multi-panel-view');
+  dashboardRoot.getBoundingClientRect = () => ({
+    left: 0,
+    top: 0,
+    right: 1000,
+    bottom: 600,
+    width: 1000,
+    height: 600,
+  });
+  const widgetStates = createWidgetStates();
+  Object.keys(widgetStates).forEach((widgetId) => {
+    widgetStates[widgetId] = { ...widgetStates[widgetId], visible: false };
+  });
+  widgetStates.clusterList = {
+    ...widgetStates.clusterList,
+    visible: true,
+    position: { left: 1000, top: 400 },
+    size: { width: 400, height: 200 },
+  };
+
+  act(() => {
+    dashboard.dashboardRef.current.handleViewChange(widgetStates, 'legacy-view');
+  });
+
+  expect(dashboard.host.querySelector('.dashboard-canvas').style.transform).toBe(
+    'translate(-100px, 50px) scale(0.5)'
+  );
+
+  dashboard.unmount();
+});
+
 test('adds and re-adds a focused widget above overlapping panels', () => {
   const widgetStates = createWidgetStates();
   widgetStates.clusterList = {
@@ -333,10 +384,12 @@ test('moves a selected widget group from measured CSS positions and commits ever
     }));
   });
 
-  expect(panel(dashboard.host, 'clusterList').style.left).toBe('120px');
-  expect(panel(dashboard.host, 'clusterList').style.top).toBe('80px');
-  expect(panel(dashboard.host, 'spikeList').style.left).toBe('320px');
-  expect(panel(dashboard.host, 'spikeList').style.top).toBe('180px');
+  expect(panel(dashboard.host, 'clusterList').style.transform).toBe(
+    'translate3d(80px, 50px, 0)'
+  );
+  expect(panel(dashboard.host, 'spikeList').style.transform).toBe(
+    'translate3d(80px, 50px, 0)'
+  );
   expect(panel(dashboard.host, 'clusterStats').style.left).toBe('');
   expect(panel(dashboard.host, 'clusterStats').style.top).toBe('');
   expect(Number(panel(dashboard.host, 'clusterList').style.zIndex)).toBeGreaterThan(
@@ -362,7 +415,40 @@ test('moves a selected widget group from measured CSS positions and commits ever
   dashboard.unmount();
 });
 
-test('marquee-selects intersecting widgets without panning the canvas', () => {
+test('uses primary mouse drag on the canvas as the hand pan tool', () => {
+  const dashboard = mountDashboard();
+  const dashboardRoot = dashboard.host.querySelector('.multi-panel-view');
+  const dashboardCanvas = dashboard.host.querySelector('.dashboard-canvas');
+
+  act(() => {
+    dashboardRoot.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    }));
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      clientX: 80,
+      clientY: 70,
+    }));
+  });
+
+  expect(dashboardRoot.classList.contains('canvas-panning')).toBe(true);
+  expect(dashboard.host.querySelector('.widget-selection-box')).toBeNull();
+  expect(dashboardCanvas.style.transform).toBe('translate(60px, 50px) scale(0.5)');
+
+  act(() => {
+    document.dispatchEvent(new MouseEvent('mouseup', {
+      clientX: 80,
+      clientY: 70,
+    }));
+  });
+  expect(dashboardRoot.classList.contains('canvas-panning')).toBe(false);
+
+  dashboard.unmount();
+});
+
+test('ctrl-drag marquee-selects intersecting widgets without panning the canvas', () => {
   const dashboard = mountDashboard();
   const dashboardRoot = dashboard.host.querySelector('.multi-panel-view');
   const dashboardCanvas = dashboard.host.querySelector('.dashboard-canvas');
@@ -395,6 +481,7 @@ test('marquee-selects intersecting widgets without panning the canvas', () => {
       button: 0,
       clientX: 20,
       clientY: 20,
+      ctrlKey: true,
     }));
     document.dispatchEvent(new MouseEvent('mousemove', {
       clientX: 350,

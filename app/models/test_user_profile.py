@@ -37,6 +37,30 @@ class UserProfileLayoutNormalizationTests(unittest.TestCase):
 
         self.assertNotIn('clusterGroups', normalized['waveform'])
 
+    def test_saved_canvas_viewport_is_sanitized_and_preserved(self):
+        profile = UserProfile()
+
+        self.assertEqual(profile._normalize_viewport({
+            'x': -420.5,
+            'y': 90,
+            'zoom': 0.75,
+        }), {
+            'x': -420.5,
+            'y': 90.0,
+            'zoom': 0.75,
+        })
+        self.assertIsNone(profile._normalize_viewport({
+            'x': 0,
+            'y': 0,
+            'zoom': 0,
+        }))
+
+    def test_theme_preference_accepts_only_light_or_dark(self):
+        profile = UserProfile()
+
+        self.assertEqual(profile._normalize_preferences({'theme': 'light'})['theme'], 'light')
+        self.assertEqual(profile._normalize_preferences({'theme': 'neon'})['theme'], 'dark')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "React application for visualizing spike data from neural channels",
   "main": "index.js",
+  "proxy": "http://127.0.0.1:5000",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",

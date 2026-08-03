@@ -153,6 +153,25 @@ export function AuthProvider({ children }) {
     }
   }, [token, clearAuthData]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+
+    const sendHeartbeat = () => {
+      if (document.visibilityState === 'hidden') return;
+      Promise.resolve(apiClient.updatePresence()).catch((error) => {
+        console.error('Presence heartbeat error:', error);
+      });
+    };
+
+    sendHeartbeat();
+    const interval = window.setInterval(sendHeartbeat, 60000);
+    document.addEventListener('visibilitychange', sendHeartbeat);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', sendHeartbeat);
+    };
+  }, [isAuthenticated]);
+
   /**
    * Check if user has access to an algorithm
    */

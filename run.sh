@@ -239,7 +239,7 @@ start_servers() {
   # Wait for backend to be ready
   log "Waiting for backend to start..."
   for i in $(seq 1 30); do
-    if curl -sf "http://localhost:${BACKEND_PORT}/api/health" &>/dev/null; then
+    if curl -sf "http://localhost:${BACKEND_PORT}/health" &>/dev/null; then
       ok "Backend is ready on http://localhost:${BACKEND_PORT}"
       break
     fi

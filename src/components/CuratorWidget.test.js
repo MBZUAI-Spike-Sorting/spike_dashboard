@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import fs from 'fs';
 import path from 'path';
 import CuratorWidget, { getCuratorClusterIds } from './CuratorWidget';
+import apiClient from '../api/client';
 
 jest.mock('../utils/curatorSessionStore', () => ({
   loadCuratorSessionDataset: jest.fn(() => Promise.resolve(null)),
@@ -120,5 +121,37 @@ test('shows a saved group and reports controlled group edits without selecting t
     curator.host.querySelector('[aria-label="Group for cluster 12"]').value
   ).toBe('good');
 
+  curator.unmount();
+});
+
+test('reports a successful custom upload so its data source can be selected', async () => {
+  const onUploadComplete = jest.fn();
+  const onSelectedClustersChange = jest.fn();
+  const parseSpy = jest.spyOn(apiClient, 'parseClusterComparisonFile').mockResolvedValue({
+    data: {
+      dataset: {
+        name: 'uploaded-clusters.json',
+        clusters: [{ id: 44, spikeTimes: [10, 20] }],
+      },
+    },
+  });
+  const curator = mountCurator({ onUploadComplete, onSelectedClustersChange });
+  const input = curator.host.querySelector('#curator-cluster-file');
+  const file = new File(['{}'], 'uploaded-clusters.json', { type: 'application/json' });
+  Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+
+  await act(async () => {
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  expect(onSelectedClustersChange).toHaveBeenCalledWith([]);
+  expect(onUploadComplete).toHaveBeenCalledTimes(1);
+  expect(onUploadComplete.mock.calls[0][0]).toMatchObject({
+    name: 'uploaded-clusters.json',
+    isLoaded: true,
+  });
+  expect(onUploadComplete.mock.calls[0][0].clusters[0].id).toBe(44);
+
+  parseSpy.mockRestore();
   curator.unmount();
 });

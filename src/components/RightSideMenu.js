@@ -40,6 +40,7 @@ const DEMO_CUSTOM_PIPELINES = [
 const RightSideMenu = ({
   demoMode = false,
   widgetStates,
+  currentViewport,
   onViewChange,
   getWidgetPositionsAndSizes,
   savedViews,
@@ -131,6 +132,7 @@ const RightSideMenu = ({
             <div className="section-label">Layout</div>
             <ViewManager
               currentWidgetStates={widgetStates}
+              currentViewport={currentViewport}
               onViewChange={onViewChange}
               getWidgetPositionsAndSizes={getWidgetPositionsAndSizes}
               savedViews={savedViews}

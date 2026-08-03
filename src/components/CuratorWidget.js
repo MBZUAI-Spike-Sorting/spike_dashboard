@@ -497,6 +497,7 @@ const CuratorWidget = ({
   onClusterSelect,
   onAnnotationChange,
   onDatasetChange,
+  onUploadComplete,
   onSelectedClustersChange,
   onLoadingChange,
   sessionCacheScope = 'default',
@@ -628,8 +629,10 @@ const CuratorWidget = ({
 
     try {
       const response = await apiClient.parseClusterComparisonFile(file);
+      const uploadedDataset = normalizeDataset(response.data?.dataset, file.name);
       onSelectedClustersChange?.([]);
-      setDataset(normalizeDataset(response.data?.dataset, file.name));
+      setDataset(uploadedDataset);
+      onUploadComplete?.(uploadedDataset);
     } catch (uploadError) {
       setError(uploadError?.message || 'Unable to load the cluster file.');
     } finally {

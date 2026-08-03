@@ -147,6 +147,7 @@ const DockableWidget = ({
       }
       dragState.current.hasMoved = true;
       onDragStart?.(id);
+      panel.style.willChange = 'transform';
       setIsDragging(true);
     }
     const dx = screenDx / scale;
@@ -159,8 +160,8 @@ const DockableWidget = ({
       dragState.current.top + dy
     );
 
-    panel.style.left = `${position.left}px`;
-    panel.style.top = `${position.top}px`;
+    dragState.current.position = position;
+    panel.style.transform = `${dragState.current.inlineTransform} translate3d(${dx}px, ${dy}px, 0)`.trim();
     onDragMove?.(id, {
       delta: { x: dx, y: dy },
       position
@@ -172,6 +173,16 @@ const DockableWidget = ({
     if (!drag) return;
     const moved = Boolean(drag.hasMoved);
     const cancelled = event?.type === 'blur';
+    const widget = widgetRef.current;
+    const panel = widget?.parentElement;
+    if (panel) {
+      panel.style.transform = drag.inlineTransform;
+      panel.style.willChange = drag.inlineWillChange;
+      if (moved && !cancelled && drag.position) {
+        panel.style.left = `${drag.position.left}px`;
+        panel.style.top = `${drag.position.top}px`;
+      }
+    }
     const handledByParent = onDragEnd?.(id, { moved, cancelled }) === true;
     dragState.current = null;
     setIsDragging(false);
@@ -217,6 +228,9 @@ const DockableWidget = ({
       startY: e.clientY,
       left: parseFloat(style.left) || 0,
       top: parseFloat(style.top) || 0,
+      inlineTransform: panel.style.transform,
+      inlineWillChange: panel.style.willChange,
+      position: null,
       hasMoved: false
     };
 
@@ -247,12 +261,42 @@ const DockableWidget = ({
     widget.style.flex = 'none';
   };
 
-  const handleResizeMouseUp = () => {
+  const restoreFrozenContent = (resize) => {
+    const frozen = resize?.frozenContent;
+    if (!frozen?.element) return;
+    frozen.element.style.width = frozen.width;
+    frozen.element.style.height = frozen.height;
+    frozen.element.style.flex = frozen.flex;
+  };
+
+  const handleResizeMouseUp = (event) => {
+    const resize = resizeState.current;
+    if (!resize) return;
+    const cancelled = event?.type === 'blur';
+    const widget = widgetRef.current;
+    const panel = widget?.parentElement;
+
+    if (cancelled && widget && panel) {
+      panel.style.left = resize.inlineLeft;
+      panel.style.top = resize.inlineTop;
+      widget.style.width = resize.inlineWidth;
+      widget.style.height = resize.inlineHeight;
+      widget.style.flex = resize.inlineFlex;
+    }
+
+    restoreFrozenContent(resize);
     resizeState.current = null;
     setIsResizing(false);
     document.removeEventListener('mousemove', handleResizeMouseMove);
     document.removeEventListener('mouseup', handleResizeMouseUp);
-    notifyLayoutChange();
+    window.removeEventListener('blur', handleResizeMouseUp);
+
+    if (!cancelled) {
+      // Responsive plots and measured widget content update once, after the
+      // outer frame has reached its final size.
+      window.dispatchEvent(new Event('resize'));
+      notifyLayoutChange();
+    }
   };
 
   const startResize = (e, direction) => {
@@ -269,6 +313,21 @@ const DockableWidget = ({
     const rect = widget.getBoundingClientRect();
     const panelStyle = window.getComputedStyle(panel);
 
+    const content = widget.querySelector('.widget-content');
+    const frozenContent = content ? {
+      element: content,
+      width: content.style.width,
+      height: content.style.height,
+      flex: content.style.flex,
+    } : null;
+    if (content) {
+      // Keep expensive charts at their starting dimensions while only the
+      // lightweight outer widget frame follows the pointer.
+      content.style.width = `${content.offsetWidth}px`;
+      content.style.height = `${content.offsetHeight}px`;
+      content.style.flex = '0 0 auto';
+    }
+
     resizeState.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -276,12 +335,19 @@ const DockableWidget = ({
       height: widget.offsetHeight || rect.height / scale,
       left: parseFloat(panelStyle.left) || 0,
       top: parseFloat(panelStyle.top) || 0,
-      direction
+      direction,
+      inlineLeft: panel.style.left,
+      inlineTop: panel.style.top,
+      inlineWidth: widget.style.width,
+      inlineHeight: widget.style.height,
+      inlineFlex: widget.style.flex,
+      frozenContent,
     };
 
     setIsResizing(true);
     document.addEventListener('mousemove', handleResizeMouseMove);
     document.addEventListener('mouseup', handleResizeMouseUp);
+    window.addEventListener('blur', handleResizeMouseUp);
   };
 
   useEffect(() => {
@@ -291,6 +357,7 @@ const DockableWidget = ({
       window.removeEventListener('blur', handleDragMouseUp);
       document.removeEventListener('mousemove', handleResizeMouseMove);
       document.removeEventListener('mouseup', handleResizeMouseUp);
+      window.removeEventListener('blur', handleResizeMouseUp);
     };
   }, []);
 
@@ -300,12 +367,15 @@ const DockableWidget = ({
 
     let animationFrame = null;
     const observer = new ResizeObserver(() => {
+      if (resizeState.current) return;
       if (animationFrame !== null) cancelAnimationFrame(animationFrame);
       animationFrame = requestAnimationFrame(() => {
         // Plotly's responsive handler listens to window resize rather than
         // arbitrary parent-element changes. Forward the dock resize so plots
         // and other responsive children recompute their dimensions.
-        window.dispatchEvent(new Event('resize'));
+        if (!resizeState.current) {
+          window.dispatchEvent(new Event('resize'));
+        }
         animationFrame = null;
       });
     });

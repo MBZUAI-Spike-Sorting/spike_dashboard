@@ -1,0 +1,153 @@
+.admin-page {
+  background: #090f1d;
+  color: #e8f0f6;
+  min-height: 100vh;
+}
+
+.admin-page-header {
+  align-items: center;
+  background: rgba(9, 15, 29, 0.94);
+  border-bottom: 1px solid rgba(64, 224, 208, 0.15);
+  display: flex;
+  justify-content: space-between;
+  padding: 16px clamp(20px, 4vw, 64px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.admin-brand {
+  color: #40e0d0;
+  font-size: 1.15rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.admin-page-header nav { display: flex; gap: 20px; }
+.admin-page-header nav a { color: #9fb1c2; text-decoration: none; }
+.admin-page-header nav a:hover { color: #40e0d0; }
+
+.admin-page-main {
+  margin: 0 auto;
+  max-width: 1500px;
+  padding: 42px clamp(18px, 4vw, 58px) 72px;
+}
+
+.admin-page-title,
+.admin-panel-heading {
+  align-items: flex-end;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+}
+
+.admin-page-title { margin-bottom: 26px; }
+.admin-eyebrow { color: #40e0d0; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+.admin-page-title h1 { font-size: clamp(1.8rem, 4vw, 3rem); margin: 8px 0; }
+.admin-page-title p,
+.admin-panel-heading p { color: #91a2b4; margin: 0; }
+
+.admin-page button,
+.admin-page input,
+.admin-page select {
+  border: 1px solid rgba(133, 158, 181, 0.24);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.admin-page button {
+  background: rgba(64, 224, 208, 0.12);
+  color: #78eee2;
+  cursor: pointer;
+  font-weight: 750;
+  padding: 10px 15px;
+}
+
+.admin-page button:hover:not(:disabled) { background: rgba(64, 224, 208, 0.2); }
+.admin-page button:disabled { cursor: not-allowed; opacity: 0.45; }
+.admin-page input,
+.admin-page select { background: #0d1728; color: #e8f0f6; padding: 9px 11px; }
+
+.admin-message { border-radius: 8px; margin-bottom: 18px; padding: 12px 15px; }
+.admin-message.error { background: rgba(255, 100, 100, 0.12); border: 1px solid rgba(255, 100, 100, 0.3); color: #ffb2b2; }
+.admin-message.success { background: rgba(64, 224, 208, 0.1); border: 1px solid rgba(64, 224, 208, 0.24); color: #83eee4; }
+
+.admin-summary {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(170px, 0.6fr) minmax(170px, 0.6fr) minmax(280px, 1.8fr);
+  margin-bottom: 22px;
+}
+
+.admin-summary article,
+.admin-panel {
+  background: linear-gradient(145deg, rgba(18, 31, 51, 0.95), rgba(12, 21, 37, 0.96));
+  border: 1px solid rgba(102, 137, 165, 0.16);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+}
+
+.admin-summary article { display: flex; flex-direction: column; padding: 20px; }
+.admin-summary article > span { color: #9fb1c2; font-size: 0.78rem; font-weight: 750; text-transform: uppercase; }
+.admin-summary strong { color: #6ce9dd; font-size: 2.2rem; line-height: 1.15; margin: 8px 0; }
+.admin-summary small { color: #7f91a4; }
+.online-people > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+.online-person { align-items: center; background: rgba(46, 204, 113, 0.09); border-radius: 999px; color: #b8e8ca !important; display: flex; font-size: 0.78rem !important; gap: 7px; padding: 7px 10px; text-transform: none !important; }
+.online-person i,
+.presence-pill i { background: currentColor; border-radius: 50%; height: 7px; width: 7px; }
+
+.admin-panel { margin-top: 22px; padding: 22px; }
+.admin-panel-heading { margin-bottom: 18px; }
+.admin-panel-heading h2 { margin: 0 0 5px; }
+.admin-user-filters { display: flex; gap: 9px; }
+.admin-user-filters input { min-width: 230px; }
+
+.admin-accounts-table { display: grid; gap: 7px; overflow-x: auto; }
+.admin-account-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  display: grid;
+  font-size: 0.84rem;
+  gap: 14px;
+  grid-template-columns: minmax(180px, 1.2fr) 100px minmax(160px, 1fr) 120px minmax(150px, 0.9fr) 80px;
+  min-width: 960px;
+  padding: 11px 12px;
+}
+
+.admin-account-row.heading { background: transparent; color: #768a9e; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+.admin-account-identity { display: flex; flex-direction: column; min-width: 0; }
+.admin-account-identity small { color: #8294a7; overflow: hidden; text-overflow: ellipsis; }
+.presence-pill { align-items: center; border-radius: 999px; display: inline-flex; gap: 7px; justify-self: start; padding: 6px 9px; }
+.presence-pill.online { background: rgba(46, 204, 113, 0.1); color: #85e8aa; }
+.presence-pill.offline { background: rgba(142, 158, 173, 0.1); color: #91a2b4; }
+.admin-remove-user { background: rgba(255, 92, 92, 0.09) !important; color: #ffabab !important; padding: 8px 10px !important; }
+.admin-empty { color: #91a2b4; padding: 28px; text-align: center; }
+
+.quota-grid { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(190px, 1fr)); }
+.quota-card { background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 10px; padding: 16px; }
+.quota-card.pro { border-color: rgba(64, 224, 208, 0.25); }
+.quota-card.admin { border-color: rgba(243, 156, 18, 0.25); }
+.quota-card-title { align-items: center; display: flex; justify-content: space-between; margin-bottom: 15px; }
+.quota-card-title h3 { margin: 0; }
+.quota-card-title > span { color: #8193a6; font-size: 0.74rem; }
+.quota-card label { display: grid; gap: 6px; margin: 11px 0; }
+.quota-card label span { color: #9aacbd; font-size: 0.76rem; font-weight: 700; }
+.quota-card input { min-width: 0; width: 100%; }
+.quota-card button { margin-top: 7px; width: 100%; }
+
+@media (max-width: 1050px) {
+  .quota-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .admin-page-header nav a:last-child { display: none; }
+  .admin-page-title,
+  .admin-panel-heading { align-items: stretch; flex-direction: column; }
+  .admin-summary { grid-template-columns: 1fr 1fr; }
+  .online-people { grid-column: 1 / -1; }
+  .admin-user-filters { flex-direction: column; }
+  .admin-user-filters input { min-width: 0; }
+  .quota-grid { grid-template-columns: 1fr; }
+}

@@ -11,6 +11,7 @@ import numpy as np
 from flask import Blueprint, request, jsonify, current_app
 
 from app.logger import get_logger
+from app.models.tier_quota import TierQuota
 from app.services.filter_processor import FilterProcessor
 from app.utils.auth import algorithm_access_required, get_current_user, login_required
 from app.utils.responses import server_error, validation_error, not_found_error, error_response, success_response
@@ -1342,6 +1343,21 @@ def add_custom_pipeline():
             )
 
         custom_pipeline_manager = current_app.config['custom_pipeline_manager']
+        quota = TierQuota.get_for_role(current_user.role)
+        existing_pipelines = custom_pipeline_manager.list_pipelines(
+            owner_user_id=current_user.id,
+            include_all=False,
+        )
+        if (
+            quota.max_custom_pipelines >= 0
+            and len(existing_pipelines) >= quota.max_custom_pipelines
+        ):
+            return error_response(
+                f'Your {current_user.role.value} tier allows '
+                f'{quota.max_custom_pipelines} custom pipelines',
+                status=403,
+                error_code='PIPELINE_QUOTA_EXCEEDED',
+            )
         pipeline = custom_pipeline_manager.add_pipeline(
             request_data,
             owner={

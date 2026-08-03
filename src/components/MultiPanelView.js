@@ -52,7 +52,9 @@ import {
   mergeWidgetInputBindings,
 } from '../widgets/dataContracts';
 import {
+  getWidgetStatesCenteredViewport,
   getViewportCenteredWidgetPosition,
+  normalizeCanvasViewport,
   screenToCanvasPoint,
   zoomViewportAtPoint,
 } from '../utils/canvasViewport';
@@ -79,6 +81,25 @@ const DISPLAY_SETTINGS_STORAGE_KEY = 'spikescope_display_settings:v1';
 const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
 const CANVAS_OVERLAY_IDLE_MS = 3000;
 const MINIMAP_VISIBLE_MS = 10000;
+const CURATOR_UPLOAD_ALGORITHM = 'preprocessed_kilosort4';
+
+const CanvasCursorCoordinates = forwardRef(({ ariaLabel }, ref) => {
+  const [point, setPoint] = useState(null);
+
+  useImperativeHandle(ref, () => ({
+    show: setPoint,
+    hide: () => setPoint(null),
+  }), []);
+
+  if (!point) return null;
+  return (
+    <output className="canvas-cursor-coordinates" aria-label={ariaLabel}>
+      x {point.x} · y {point.y}
+    </output>
+  );
+});
+
+CanvasCursorCoordinates.displayName = 'CanvasCursorCoordinates';
 
 const getPanelPosition = (panel) => {
   const computedStyle = window.getComputedStyle(panel);
@@ -215,15 +236,22 @@ const MultiPanelView = forwardRef(({
     readDisplaySettings(window.localStorage, DISPLAY_SETTINGS_STORAGE_KEY)
   ));
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const displayScaleRef = useRef(displaySettings.scale);
+  displayScaleRef.current = displaySettings.scale;
+  const currentCanvasViewport = useMemo(() => ({
+    x: canvasOffset.x,
+    y: canvasOffset.y,
+    zoom: displaySettings.scale,
+  }), [canvasOffset.x, canvasOffset.y, displaySettings.scale]);
   const [isCanvasPanning, setIsCanvasPanning] = useState(false);
   const [isCanvasSelecting, setIsCanvasSelecting] = useState(false);
   const [selectionBox, setSelectionBox] = useState(null);
-  const [cursorCanvasPoint, setCursorCanvasPoint] = useState(null);
   const [selectedWidgetIds, setSelectedWidgetIds] = useState([]);
   const [groupDraggingWidgetIds, setGroupDraggingWidgetIds] = useState([]);
   const [isRightSideMenuOpen, setIsRightSideMenuOpen] = useState(false);
   const canvasPanRef = useRef(null);
   const canvasSelectionRef = useRef(null);
+  const cursorCoordinatesRef = useRef(null);
   const selectedWidgetIdsRef = useRef([]);
   const widgetGroupDragRef = useRef(null);
   const sideMenuWasOpenRef = useRef(false);
@@ -477,7 +505,7 @@ const MultiPanelView = forwardRef(({
       ? { x: 0, y: 0, zoom: 1 }
       : { ...canvasOffset, zoom: displaySettings.scale });
 
-    setCursorCanvasPoint({
+    cursorCoordinatesRef.current?.show({
       x: Math.round(point.left),
       y: Math.round(point.top),
     });
@@ -487,6 +515,7 @@ const MultiPanelView = forwardRef(({
     const container = containerRef.current;
     const canvas = dashboardCanvasRef.current;
     if (!container || !canvas) return;
+    if (canvas.querySelector('.dockable-widget.resizing')) return;
 
     const widgets = Array.from(canvas.querySelectorAll('.panel')).map((panel) => {
       const widget = panel.querySelector('.dockable-widget');
@@ -670,9 +699,17 @@ const MultiPanelView = forwardRef(({
     const isMiddleButton = event.button === 1;
     const isCanvasBackground = !event.target.closest('.dockable-widget')
       && !event.target.closest('.dashboard-overlay');
+    const isSelectionModifier = event.ctrlKey || event.metaKey;
     const isAlternatePan = event.button === 0 && event.altKey && isCanvasBackground;
-    const isSelectionStart = event.button === 0 && !event.altKey && isCanvasBackground;
-    if (!isMiddleButton && !isAlternatePan && !isSelectionStart) return;
+    const isSelectionStart = event.button === 0
+      && isSelectionModifier
+      && !event.altKey
+      && isCanvasBackground;
+    const isPrimaryPan = event.button === 0
+      && !isSelectionModifier
+      && !event.altKey
+      && isCanvasBackground;
+    if (!isMiddleButton && !isAlternatePan && !isPrimaryPan && !isSelectionStart) return;
     if (hasMaximizedWidget) return;
 
     event.preventDefault();
@@ -690,7 +727,7 @@ const MultiPanelView = forwardRef(({
         containerHeight: rect.height,
         startPoint,
         currentPoint: startPoint,
-        additive: event.ctrlKey || event.metaKey,
+        additive: isSelectionModifier,
         initialSelection: [...selectedWidgetIdsRef.current],
       };
       setSelectionBox(normalizeSelectionRect(startPoint, startPoint));
@@ -1133,6 +1170,12 @@ const MultiPanelView = forwardRef(({
     setSelectedClusters(Array.isArray(clusterIds) ? clusterIds : []);
   }, []);
 
+  const handleCuratorUploadComplete = useCallback(() => {
+    if (!demoMode) {
+      onAlgorithmChange?.(CURATOR_UPLOAD_ALGORITHM);
+    }
+  }, [demoMode, onAlgorithmChange]);
+
   const pcaClusterData = useMemo(() => (
     curatorDataset
       ? createWaveformPcaClusterData(clusterData, clusterWaveforms)
@@ -1295,6 +1338,8 @@ const MultiPanelView = forwardRef(({
         position: getPanelPosition(panel),
         inlineLeft: panel.style.left,
         inlineTop: panel.style.top,
+        inlineTransform: panel.style.transform,
+        inlineWillChange: panel.style.willChange,
       };
     });
 
@@ -1306,6 +1351,8 @@ const MultiPanelView = forwardRef(({
     Object.values(drag?.records || {}).forEach((record) => {
       record.panel.style.left = record.inlineLeft;
       record.panel.style.top = record.inlineTop;
+      record.panel.style.transform = record.inlineTransform;
+      record.panel.style.willChange = record.inlineWillChange;
     });
     widgetGroupDragRef.current = null;
     setGroupDraggingWidgetIds([]);
@@ -1353,8 +1400,8 @@ const MultiPanelView = forwardRef(({
       if (String(id) === String(widgetId)) return;
       const panel = drag.records[id]?.panel;
       if (!panel) return;
-      panel.style.left = `${position.left}px`;
-      panel.style.top = `${position.top}px`;
+      panel.style.willChange = 'transform';
+      panel.style.transform = `${drag.records[id].inlineTransform} translate3d(${effectiveDelta.x}px, ${effectiveDelta.y}px, 0)`.trim();
     });
   }, []);
 
@@ -1378,6 +1425,14 @@ const MultiPanelView = forwardRef(({
     if (!drag || String(drag.leaderId) !== String(widgetId)) return false;
 
     const finalPositions = offsetWidgetPositions(drag.positions, drag.lastDelta);
+    Object.entries(finalPositions).forEach(([id, position]) => {
+      const record = drag.records[id];
+      if (!record) return;
+      record.panel.style.left = `${position.left}px`;
+      record.panel.style.top = `${position.top}px`;
+      record.panel.style.transform = record.inlineTransform;
+      record.panel.style.willChange = record.inlineWillChange;
+    });
     setWidgetStates((previous) => {
       const next = { ...previous };
       Object.entries(finalPositions).forEach(([id, position]) => {
@@ -1479,15 +1534,37 @@ const MultiPanelView = forwardRef(({
     });
   }, [cancelWidgetGroupDrag, isDefaultView, updateSelectedWidgetIds]);
 
-  const handleViewChange = useCallback((newWidgetStates, nextViewId) => {
+  const handleViewChange = useCallback((newWidgetStates, nextViewId, savedViewport) => {
     cancelWidgetGroupDrag();
     updateSelectedWidgetIds([]);
-    setWidgetStates(mergeWidgetStateDefaults(JSON.parse(JSON.stringify(newWidgetStates))));
+    const nextWidgetStates = mergeWidgetStateDefaults(
+      JSON.parse(JSON.stringify(newWidgetStates))
+    );
+    const restoredViewport = normalizeCanvasViewport(savedViewport);
+
+    setWidgetStates(nextWidgetStates);
     setCurrentViewId(
       nextViewId ||
       localStorage.getItem(getScopedStorageKey(CURRENT_VIEW_KEY, layoutStorageScope)) ||
       'default'
     );
+
+    if (restoredViewport) {
+      const restoredScale = normalizeDisplaySettings({ scale: restoredViewport.zoom }).scale;
+      setCanvasOffset({ x: restoredViewport.x, y: restoredViewport.y });
+      setDisplaySettings((current) => ({ ...current, scale: restoredScale }));
+      return;
+    }
+
+    const container = containerRef.current;
+    const rect = container?.getBoundingClientRect();
+    const centeredViewport = getWidgetStatesCenteredViewport({
+      containerWidth: rect?.width || container?.clientWidth || 0,
+      containerHeight: rect?.height || container?.clientHeight || 0,
+      widgetStates: nextWidgetStates,
+      zoom: displayScaleRef.current,
+    });
+    setCanvasOffset({ x: centeredViewport.x, y: centeredViewport.y });
   }, [cancelWidgetGroupDrag, layoutStorageScope, updateSelectedWidgetIds]);
 
   const handleAddWidget = useCallback((widget) => {
@@ -1738,7 +1815,7 @@ const MultiPanelView = forwardRef(({
       }}
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleCursorPositionChange}
-      onMouseLeave={() => setCursorCanvasPoint(null)}
+      onMouseLeave={() => cursorCoordinatesRef.current?.hide()}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1767,6 +1844,7 @@ const MultiPanelView = forwardRef(({
           isWidgetBankOpen={isWidgetBankOpen}
           onWidgetBankToggle={() => setIsWidgetBankOpen(!isWidgetBankOpen)}
           widgetStates={widgetStates}
+          currentViewport={currentCanvasViewport}
           onViewChange={handleViewChange}
           getWidgetPositionsAndSizes={getWidgetPositionsAndSizes}
           algorithms={algorithms}
@@ -1820,11 +1898,10 @@ const MultiPanelView = forwardRef(({
           />
         )}
 
-        {cursorCanvasPoint && (
-          <output className="canvas-cursor-coordinates" aria-label="Canvas cursor coordinates">
-            x {cursorCanvasPoint.x} · y {cursorCanvasPoint.y}
-          </output>
-        )}
+        <CanvasCursorCoordinates
+          ref={cursorCoordinatesRef}
+          ariaLabel="Canvas cursor coordinates"
+        />
       </div>
 
       {selectionBox && (
@@ -1921,6 +1998,7 @@ const MultiPanelView = forwardRef(({
     onAnnotationChange={handleAnnotationChange}
     initialDataset={curatorDataset}
     onDatasetChange={handleCuratorDatasetChange}
+    onUploadComplete={handleCuratorUploadComplete}
     selectedClusters={selectedClusters}
     onClusterSelect={handleCuratorClusterSelect}
     onSelectedClustersChange={handleCuratorSelectionChange}

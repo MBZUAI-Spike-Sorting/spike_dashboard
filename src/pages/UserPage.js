@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
 import CustomPipelineManager from '../components/CustomPipelineManager';
+import ThemeToggle from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import {
   PASSWORD_MAX_LENGTH,
@@ -399,7 +400,10 @@ const UserPage = () => {
           </span>
           <span>SpikeScope</span>
         </Link>
-        <Link to="/dashboard" className="user-page-return">Dashboard</Link>
+        <div className="user-page-header-actions">
+          <ThemeToggle />
+          <Link to="/dashboard" className="user-page-return">Dashboard</Link>
+        </div>
       </header>
 
       <main className="user-page-main">
@@ -667,9 +671,14 @@ const UserPage = () => {
             <section className="user-page-section user-page-admin">
               <div className="user-page-section-header">
                 <h2>User Roles</h2>
-                <button type="button" onClick={loadUsers} disabled={isLoadingUsers}>
-                  {isLoadingUsers ? 'Refreshing...' : 'Refresh'}
-                </button>
+                <div className="admin-panel-actions">
+                  <Link className="admin-dashboard-link" to="/admin">
+                    Open admin dashboard
+                  </Link>
+                  <button type="button" onClick={loadUsers} disabled={isLoadingUsers}>
+                    {isLoadingUsers ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
               </div>
 
               {userError && <div className="user-page-inline-error">{userError}</div>}

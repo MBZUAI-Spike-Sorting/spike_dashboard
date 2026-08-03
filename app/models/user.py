@@ -56,6 +56,7 @@ class User(db.Model):
     role = db.Column(db.Enum(UserRole), default=UserRole.USER, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
+    last_seen_at = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
     failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
     locked_until = db.Column(db.DateTime, nullable=True)
@@ -86,8 +87,22 @@ class User(db.Model):
     
     def update_last_login(self):
         """Update the last login timestamp."""
-        self.last_login = datetime.utcnow()
+        now = datetime.utcnow()
+        self.last_login = now
+        self.last_seen_at = now
         db.session.commit()
+
+    def update_last_seen(self):
+        """Record authenticated activity for the admin presence dashboard."""
+        self.last_seen_at = datetime.utcnow()
+        db.session.commit()
+
+    def is_online(self, online_window_minutes=5):
+        """Treat recent heartbeat activity as an online session."""
+        return bool(
+            self.last_seen_at
+            and self.last_seen_at >= datetime.utcnow() - timedelta(minutes=online_window_minutes)
+        )
 
     def is_locked(self):
         """Check if the account is temporarily locked."""
@@ -150,6 +165,8 @@ class User(db.Model):
             'capabilities': self.get_capabilities(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
+            'last_seen_at': self.last_seen_at.isoformat() if self.last_seen_at else None,
+            'is_online': self.is_online(),
             'is_active': self.is_active,
             'failed_login_attempts': self.failed_login_attempts or 0,
             'locked_until': self.locked_until.isoformat() if self.locked_until else None,
