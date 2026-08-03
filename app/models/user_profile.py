@@ -30,6 +30,7 @@ class UserProfile(db.Model):
         'defaultView': 'multipanel',
         'defaultDataset': '',
         'compactTables': False,
+        'theme': 'dark',
         'dashboardViews': [],
         'currentDashboardViewId': 'default'
     }
@@ -116,6 +117,8 @@ class UserProfile(db.Model):
             normalized['defaultDataset'] = self._clean_text(preferences.get('defaultDataset'), 180)
         if 'compactTables' in preferences:
             normalized['compactTables'] = bool(preferences.get('compactTables'))
+        if preferences.get('theme') in ('light', 'dark'):
+            normalized['theme'] = preferences['theme']
         if 'dashboardViews' in preferences:
             normalized['dashboardViews'] = self._normalize_dashboard_views(
                 preferences.get('dashboardViews')
@@ -145,26 +148,65 @@ class UserProfile(db.Model):
 
         normalized = []
         seen_ids = set()
+        custom_view_count = 0
+        max_custom_views = self.MAX_DASHBOARD_VIEWS
+        try:
+            from app.models.tier_quota import TierQuota
+            quota = TierQuota.get_for_role(self.user.role) if self.user else None
+            if quota:
+                max_custom_views = (
+                    None if quota.max_custom_layouts == -1 else quota.max_custom_layouts
+                )
+        except Exception:
+            # Keep profile hydration usable during partial migrations and isolated tests.
+            max_custom_views = self.MAX_DASHBOARD_VIEWS
 
-        for view in views[:self.MAX_DASHBOARD_VIEWS]:
+        for view in views[:200]:
             if not isinstance(view, dict):
                 continue
 
             view_id = self._clean_text(view.get('id'), 80)
             if not view_id or view_id in seen_ids:
                 continue
+            is_default = view_id == 'default' or bool(view.get('isDefault'))
+            if (
+                not is_default
+                and max_custom_views is not None
+                and custom_view_count >= max_custom_views
+            ):
+                continue
 
             seen_ids.add(view_id)
+            if not is_default:
+                custom_view_count += 1
             normalized.append({
                 'id': view_id,
                 'name': self._clean_text(view.get('name') or 'Layout', 120),
-                'isDefault': bool(view.get('isDefault')),
+                'isDefault': is_default,
                 'widgetStates': self._normalize_widget_states(view.get('widgetStates')),
+                'viewport': self._normalize_viewport(view.get('viewport')),
                 'createdAt': self._clean_text(view.get('createdAt'), 40),
                 'updatedAt': self._clean_text(view.get('updatedAt'), 40),
             })
 
         return normalized
+
+    def _normalize_viewport(self, viewport):
+        if not isinstance(viewport, dict):
+            return None
+        try:
+            x = float(viewport.get('x'))
+            y = float(viewport.get('y'))
+            zoom = float(viewport.get('zoom'))
+        except (TypeError, ValueError):
+            return None
+        if zoom <= 0:
+            return None
+        return {
+            'x': max(-100000, min(100000, x)),
+            'y': max(-100000, min(100000, y)),
+            'zoom': max(0.1, min(4, zoom)),
+        }
 
     def _normalize_widget_states(self, widget_states):
         if not isinstance(widget_states, dict):

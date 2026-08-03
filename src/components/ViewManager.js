@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { normalizeCanvasViewport } from '../utils/canvasViewport';
 import './ViewManager.css';
 
 const STORAGE_KEY = 'spike_dashboard_custom_views';
@@ -140,6 +141,7 @@ const buildViewSnapshot = (savedViews, savedCurrentViewId, storageScope) => {
 
 const ViewManager = ({
   currentWidgetStates,
+  currentViewport,
   onViewChange,
   getWidgetPositionsAndSizes,
   savedViews,
@@ -178,7 +180,8 @@ const ViewManager = ({
       applyViewTimer = setTimeout(() => {
         onViewChange(
           JSON.parse(JSON.stringify(viewToApply.widgetStates)),
-          viewToApply.id
+          viewToApply.id,
+          normalizeCanvasViewport(viewToApply.viewport)
         );
         setIsInitialized(true);
       }, 100);
@@ -213,7 +216,8 @@ const ViewManager = ({
     if (viewToApply && onViewChange) {
       onViewChange(
         JSON.parse(JSON.stringify(viewToApply.widgetStates)),
-        viewToApply.id
+        viewToApply.id,
+        normalizeCanvasViewport(viewToApply.viewport)
       );
     }
   }, [savedViews, savedCurrentViewId, isInitialized, onViewChange, layoutStorageScope]);
@@ -254,6 +258,28 @@ const ViewManager = ({
       return nextViews;
     });
   }, [currentWidgetStates, currentViewId, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized || currentViewId === 'default') return undefined;
+
+    const normalizedViewport = normalizeCanvasViewport(currentViewport);
+    if (!normalizedViewport) return undefined;
+
+    const saveTimer = setTimeout(() => {
+      setViews((previousViews) => previousViews.map((view) => {
+        if (view.id !== currentViewId || view.isDefault) return view;
+        if (JSON.stringify(view.viewport) === JSON.stringify(normalizedViewport)) return view;
+
+        return {
+          ...view,
+          viewport: normalizedViewport,
+          updatedAt: new Date().toISOString()
+        };
+      }));
+    }, 150);
+
+    return () => clearTimeout(saveTimer);
+  }, [currentViewport, currentViewId, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -306,7 +332,8 @@ const ViewManager = ({
       if (viewToApply && onViewChange) {
         onViewChange(
           JSON.parse(JSON.stringify(viewToApply.widgetStates)),
-          viewToApply.id
+          viewToApply.id,
+          normalizeCanvasViewport(viewToApply.viewport)
         );
       }
     };
@@ -342,6 +369,15 @@ const ViewManager = ({
     const view = views.find((v) => v.id === viewId);
     if (!view) return;
 
+    const outgoingViewport = normalizeCanvasViewport(currentViewport);
+    if (currentViewId !== 'default' && outgoingViewport) {
+      setViews((previousViews) => previousViews.map((candidate) => (
+        candidate.id === currentViewId && !candidate.isDefault
+          ? { ...candidate, viewport: outgoingViewport, updatedAt: new Date().toISOString() }
+          : candidate
+      )));
+    }
+
     setCurrentViewId(viewId);
 
     const widgetStatesToApply =
@@ -349,7 +385,11 @@ const ViewManager = ({
         ? mergeWidgetStateDefaults(DEFAULT_VIEW.widgetStates)
         : mergeWidgetStateDefaults(view.widgetStates);
 
-    onViewChange(JSON.parse(JSON.stringify(widgetStatesToApply)), view.id);
+    onViewChange(
+      JSON.parse(JSON.stringify(widgetStatesToApply)),
+      view.id,
+      normalizeCanvasViewport(view.viewport)
+    );
     setIsDropdownOpen(false);
   };
 
@@ -364,12 +404,17 @@ const ViewManager = ({
         JSON.parse(JSON.stringify(EMPTY_WIDGET_STATES)),
         EMPTY_WIDGET_STATES
       ),
+      viewport: normalizeCanvasViewport(currentViewport) || { x: 0, y: 0, zoom: 1 },
       createdAt: new Date().toISOString()
     };
 
     setViews((prev) => [...prev, newView]);
     setCurrentViewId(newView.id);
-    onViewChange(JSON.parse(JSON.stringify(newView.widgetStates)), newView.id);
+    onViewChange(
+      JSON.parse(JSON.stringify(newView.widgetStates)),
+      newView.id,
+      newView.viewport
+    );
     setNewViewName('');
     setIsCreatingNew(false);
     setIsDropdownOpen(false);
@@ -385,7 +430,8 @@ const ViewManager = ({
       setCurrentViewId('default');
       onViewChange(
         JSON.parse(JSON.stringify(mergeWidgetStateDefaults(DEFAULT_VIEW.widgetStates))),
-        'default'
+        'default',
+        null
       );
     }
   };

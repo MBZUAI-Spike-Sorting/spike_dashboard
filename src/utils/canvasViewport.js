@@ -33,3 +33,56 @@ export const getViewportCenteredWidgetPosition = ({
     top: center.top - Number(widgetHeight) / 2,
   };
 };
+
+export const normalizeCanvasViewport = (viewport) => {
+  const x = Number(viewport?.x);
+  const y = Number(viewport?.y);
+  const zoom = Number(viewport?.zoom);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom) || zoom <= 0) {
+    return null;
+  }
+  return { x, y, zoom };
+};
+
+export const getWidgetStatesCenteredViewport = ({
+  containerWidth,
+  containerHeight,
+  widgetStates,
+  zoom = 1,
+}) => {
+  const safeZoom = Number.isFinite(Number(zoom)) && Number(zoom) > 0
+    ? Number(zoom)
+    : 1;
+  const bounds = Object.values(widgetStates || {}).reduce((current, state) => {
+    const left = Number(state?.position?.left);
+    const top = Number(state?.position?.top);
+    const width = Number(state?.size?.width);
+    const height = Number(state?.size?.height);
+    if (
+      state?.visible === false ||
+      !Number.isFinite(left) ||
+      !Number.isFinite(top) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      return current;
+    }
+
+    return {
+      left: Math.min(current?.left ?? left, left),
+      top: Math.min(current?.top ?? top, top),
+      right: Math.max(current?.right ?? left + width, left + width),
+      bottom: Math.max(current?.bottom ?? top + height, top + height),
+    };
+  }, null);
+
+  if (!bounds) return { x: 0, y: 0, zoom: safeZoom };
+
+  return {
+    x: Number(containerWidth) / 2 - ((bounds.left + bounds.right) / 2) * safeZoom,
+    y: Number(containerHeight) / 2 - ((bounds.top + bounds.bottom) / 2) * safeZoom,
+    zoom: safeZoom,
+  };
+};

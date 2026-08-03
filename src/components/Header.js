@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import DatasetSelector from './DatasetSelector';
 import UserMenu from './UserMenu';
+import ThemeToggle from './ThemeToggle';
 import './Header.css';
 import { Link } from 'react-router-dom';
 /**
@@ -105,6 +106,7 @@ const Header = ({
           </svg>
         </button>
         )}
+       <ThemeToggle />
        {demoMode ? (
   <Link to="/login" className="demo-signin-button" title="Sign in">
     Sign In

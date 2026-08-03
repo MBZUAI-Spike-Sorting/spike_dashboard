@@ -38,7 +38,7 @@
     100% 100%;
   overflow: hidden;
   transition: background 0.2s ease;
-  cursor: crosshair;
+  cursor: grab;
 }
 
 .multi-panel-view.canvas-panning {
@@ -49,6 +49,10 @@
 .multi-panel-view.canvas-selecting,
 .multi-panel-view.group-dragging {
   user-select: none;
+}
+
+.multi-panel-view.canvas-selecting {
+  cursor: crosshair;
 }
 
 .multi-panel-view.group-dragging {

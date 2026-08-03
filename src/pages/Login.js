@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from '../components/ThemeToggle';
 import './Auth.css';
 
 const Login = () => {
@@ -35,6 +36,7 @@ const Login = () => {
 
   return (
     <div className="auth-container">
+      <ThemeToggle className="auth-theme-toggle" />
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-logo">

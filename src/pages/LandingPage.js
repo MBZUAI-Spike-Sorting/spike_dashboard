@@ -8,6 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from '../components/ThemeToggle';
 import './LandingPage.css';
 
 const LandingPage = () => {
@@ -152,6 +153,7 @@ const getInitials = (name) =>
           <a href="#workflow" className="landing-nav-link">Workflow</a>
           <a href="#about" className="landing-nav-link">About</a>
           <a href="#team" className="landing-nav-link">Team</a>
+          <ThemeToggle />
           {isAuthenticated ? (
   <Link to="/dashboard" className="landing-nav-cta">
     Go to Dashboard

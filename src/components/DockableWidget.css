@@ -71,6 +71,10 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
+.panel.widget-group-dragging {
+  will-change: transform;
+}
+
 .dockable-widget.group-dragging:not(.dragging) {
   opacity: 0.9;
   cursor: move;
@@ -80,6 +84,10 @@
   opacity: 0.9;
   z-index: 120;
   user-select: none;
+}
+
+.dockable-widget.resizing .widget-content {
+  pointer-events: none;
 }
 
 .dockable-widget.minimized {

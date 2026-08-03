@@ -145,6 +145,11 @@ const apiClient = {
       token,
     });
   },
+
+  /** Update the current account's online heartbeat. */
+  async updatePresence() {
+    return request('/api/auth/presence', { method: 'POST' });
+  },
   
   /**
    * Change password
@@ -163,6 +168,19 @@ const apiClient = {
    */
   async listUsers() {
     return request('/api/auth/users');
+  },
+
+  /** Load user presence and tier quotas (admin only). */
+  async getAdminOverview() {
+    return request('/api/auth/admin/overview');
+  },
+
+  /** Update resource limits for an account tier (admin only). */
+  async updateTierQuota(tier, quota) {
+    return request(`/api/auth/admin/quotas/${encodeURIComponent(tier)}`, {
+      method: 'PUT',
+      body: JSON.stringify(quota),
+    });
   },
 
   /**

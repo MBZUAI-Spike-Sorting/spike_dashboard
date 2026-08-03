@@ -30,7 +30,12 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         data = np.zeros((2, 120), dtype=np.float32)
         data[0, 7:14] = [-1, -2, 0, 4, 2, 0, -1]
         data[1, 22:29] = [-2, -1, 1, 3, 1, 0, -2]
-        app.config['clustering_manager'] = SimpleNamespace(clustering_results=results)
+        app.config['clustering_manager'] = SimpleNamespace(
+            clustering_results=results,
+            has_preprocessed_torchbci=lambda: True,
+            has_preprocessed_kilosort4=lambda: True,
+            check_algorithm_available=lambda _algorithm: True,
+        )
         app.config['dataset_manager'] = SimpleNamespace(data_array=data)
         app.config['app_config'] = SimpleNamespace(SAMPLING_RATE=1000)
         app.register_blueprint(clustering_bp)
@@ -45,6 +50,18 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload['metadata']['sampleRateHz'], 1000)
         self.assertEqual(payload['statistics']['0']['numSpikes'], 3)
+
+    def test_preprocessed_kilosort_keeps_its_display_name(self):
+        response = self.client.get('/api/spike-sorting/algorithms')
+        algorithms = response.get_json()['algorithms']
+        custom_upload = next(
+            algorithm for algorithm in algorithms
+            if algorithm['name'] == 'preprocessed_kilosort4'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(custom_upload['displayName'], 'Kilosort4 (Preprocessed)')
+        self.assertFalse(custom_upload['requiresRun'])
 
     def test_correlogram_and_isi_contracts(self):
         correlograms = self.client.post('/api/cluster-correlograms', json={

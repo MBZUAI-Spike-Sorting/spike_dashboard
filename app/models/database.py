@@ -19,7 +19,8 @@ def _ensure_user_columns():
     existing_columns = {column['name'] for column in inspector.get_columns('users')}
     column_definitions = {
         'failed_login_attempts': 'INTEGER NOT NULL DEFAULT 0',
-        'locked_until': 'DATETIME'
+        'locked_until': 'DATETIME',
+        'last_seen_at': 'DATETIME'
     }
 
     for column_name, definition in column_definitions.items():
@@ -68,9 +69,11 @@ def init_db(app):
     with app.app_context():
         from app.models.user import User, UserRole
         from app.models.user_profile import UserProfile  # noqa: F401
+        from app.models.tier_quota import TierQuota
 
         db.create_all()
         _ensure_user_columns()
+        TierQuota.ensure_defaults()
 
         # Create default admin user if not exists
         admin = User.query.filter_by(username='admin').first()

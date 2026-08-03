@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from app.models.database import db
 from app.models.user import User, UserRole
 from app.models.user_profile import UserProfile
+from app.models.tier_quota import TierQuota
 from app.utils.auth import (
     generate_token, 
     login_required, 
@@ -263,6 +264,17 @@ def logout():
     return success_response(message='Logged out successfully')
 
 
+@auth_bp.route('/presence', methods=['POST'])
+@login_required
+def update_presence():
+    """Update the signed-in user's heartbeat used by the admin dashboard."""
+    user = get_current_user()
+    user.update_last_seen()
+    return success_response({
+        'last_seen_at': user.last_seen_at.isoformat(),
+    })
+
+
 @auth_bp.route('/change-password', methods=['POST'])
 @login_required
 def change_password():
@@ -304,6 +316,66 @@ def change_password():
 
 
 # Admin-only routes
+
+@auth_bp.route('/admin/overview', methods=['GET'])
+@admin_required
+def admin_overview():
+    """Return presence, account, and tier-quota data for administrators."""
+    TierQuota.ensure_defaults()
+    users = User.query.order_by(User.username.asc()).all()
+    user_data = [user.to_dict() for user in users]
+    quotas = [
+        TierQuota.get_for_role(role).to_dict()
+        for role in UserRole
+    ]
+
+    return success_response({
+        'users': user_data,
+        'total': len(user_data),
+        'online_count': sum(1 for user in user_data if user['is_online']),
+        'online_window_minutes': 5,
+        'quotas': quotas,
+    })
+
+
+@auth_bp.route('/admin/quotas/<tier>', methods=['PUT'])
+@admin_required
+def update_tier_quota(tier):
+    """Update resource limits for a single account tier."""
+    tier = str(tier or '').strip().lower()
+    valid_tiers = {role.value for role in UserRole}
+    if tier not in valid_tiers:
+        return validation_error(f'Tier must be one of: {", ".join(sorted(valid_tiers))}')
+
+    data = request.get_json() or {}
+    fields = {
+        'max_custom_layouts': int,
+        'max_storage_gb': float,
+        'max_gpu_hours': float,
+        'max_custom_pipelines': int,
+    }
+    cleaned = {}
+    for field, converter in fields.items():
+        value = data.get(field)
+        if isinstance(value, bool):
+            return validation_error(f'{field} must be a number')
+        try:
+            value = converter(value)
+        except (TypeError, ValueError):
+            return validation_error(f'{field} must be a number')
+        if value < -1:
+            return validation_error(f'{field} must be -1 (unlimited) or zero and above')
+        cleaned[field] = value
+
+    quota = TierQuota.get_for_role(tier)
+    for field, value in cleaned.items():
+        setattr(quota, field, value)
+    db.session.commit()
+
+    logger.info('Admin updated quota for tier %s', tier)
+    return success_response({
+        'quota': quota.to_dict(),
+    }, message='Tier quota updated successfully')
 
 @auth_bp.route('/users', methods=['POST'])
 @admin_required

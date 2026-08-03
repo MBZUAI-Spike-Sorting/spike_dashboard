@@ -266,8 +266,9 @@ test('reports zoom-normalized drag movement for grouped layout handling', () => 
     delta: { x: 80, y: 40 },
     position: { left: 90, top: 60 },
   });
-  expect(panel.style.left).toBe('90px');
-  expect(panel.style.top).toBe('60px');
+  expect(panel.style.left).toBe('10px');
+  expect(panel.style.top).toBe('20px');
+  expect(panel.style.transform).toBe('translate3d(80px, 40px, 0)');
 
   act(() => {
     document.dispatchEvent(new MouseEvent('mouseup'));
@@ -277,6 +278,9 @@ test('reports zoom-normalized drag movement for grouped layout handling', () => 
     moved: true,
     cancelled: false,
   });
+  expect(panel.style.left).toBe('90px');
+  expect(panel.style.top).toBe('60px');
+  expect(panel.style.transform).toBe('');
   expect(onLayoutChange).not.toHaveBeenCalled();
 
   act(() => root.unmount());
@@ -319,5 +323,66 @@ test('persists an ordinary widget drag when no group handler is provided', () =>
   expect(panel.style.top).toBe('40px');
   expect(onLayoutChange).toHaveBeenCalledTimes(1);
 
+  act(() => root.unmount());
+});
+
+test('freezes widget content and publishes one resize after interaction finishes', () => {
+  const panel = document.createElement('div');
+  panel.style.left = '10px';
+  panel.style.top = '20px';
+  const root = createRoot(panel);
+  const onLayoutChange = jest.fn();
+  const onWindowResize = jest.fn();
+  window.addEventListener('resize', onWindowResize);
+
+  act(() => {
+    root.render(
+      <DockableWidget
+        id="signal"
+        title="Signal"
+        style={{ width: '300px', height: '200px' }}
+        onLayoutChange={onLayoutChange}
+      >
+        <span>Signal content</span>
+      </DockableWidget>
+    );
+  });
+
+  const widget = panel.querySelector('.dockable-widget');
+  const content = panel.querySelector('.widget-content');
+  Object.defineProperty(widget, 'offsetWidth', { configurable: true, value: 300 });
+  Object.defineProperty(widget, 'offsetHeight', { configurable: true, value: 200 });
+  Object.defineProperty(content, 'offsetWidth', { configurable: true, value: 280 });
+  Object.defineProperty(content, 'offsetHeight', { configurable: true, value: 160 });
+
+  act(() => {
+    panel.querySelector('.widget-resize-se').dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    }));
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      clientX: 150,
+      clientY: 140,
+    }));
+  });
+
+  expect(widget.classList.contains('resizing')).toBe(true);
+  expect(widget.style.width).toBe('350px');
+  expect(widget.style.height).toBe('240px');
+  expect(content.style.width).toBe('280px');
+  expect(content.style.height).toBe('160px');
+  expect(onWindowResize).not.toHaveBeenCalled();
+  expect(onLayoutChange).not.toHaveBeenCalled();
+
+  act(() => document.dispatchEvent(new MouseEvent('mouseup')));
+
+  expect(content.style.width).toBe('');
+  expect(content.style.height).toBe('');
+  expect(onWindowResize).toHaveBeenCalledTimes(1);
+  expect(onLayoutChange).toHaveBeenCalledTimes(1);
+
+  window.removeEventListener('resize', onWindowResize);
   act(() => root.unmount());
 });

@@ -8,6 +8,7 @@ jest.mock('../api/client', () => ({
   default: {
     getCurrentUser: jest.fn(),
     login: jest.fn(),
+    updatePresence: jest.fn().mockResolvedValue({ success: true }),
   },
 }));
 
