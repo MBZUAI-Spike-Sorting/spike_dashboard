@@ -28,7 +28,9 @@ const DEFAULT_VIEW = {
     rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null, type: 'rasterPlot' },
     correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
     isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
-    amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' }
+    amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
+    featureMatrix: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'featureMatrix' },
+    templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 15, position: null, size: null, type: 'templateFeaturePair' }
   }
 };
 
@@ -45,7 +47,9 @@ const EMPTY_WIDGET_STATES = {
   rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null, type: 'rasterPlot' },
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
-  amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' }
+  amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
+  featureMatrix: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'featureMatrix' },
+  templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 15, position: null, size: null, type: 'templateFeaturePair' }
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {

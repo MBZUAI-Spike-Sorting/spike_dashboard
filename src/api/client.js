@@ -567,6 +567,30 @@ const apiClient = {
       }),
     });
   },
+
+  /**
+   * Get bounded per-spike features for matrix and pair-review views.
+   */
+  async getClusterFeatures({
+    clusterIds,
+    algorithm = '',
+    maxSpikesPerCluster = 5000,
+    includeBackground = true,
+    maxBackgroundSpikes = 5000,
+    selectedChannels = [],
+  }) {
+    return request('/api/cluster-features', {
+      method: 'POST',
+      body: JSON.stringify({
+        clusterIds,
+        algorithm,
+        maxSpikesPerCluster,
+        includeBackground,
+        maxBackgroundSpikes,
+        selectedChannels,
+      }),
+    });
+  },
   
   /**
    * Get cluster waveforms

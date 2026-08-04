@@ -34,6 +34,8 @@ import RasterPlotWidget from './RasterPlotWidget';
 import CorrelogramWidget from './CorrelogramWidget';
 import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
+import FeatureMatrixWidget from './FeatureMatrixWidget';
+import TemplateFeaturePairWidget from './TemplateFeaturePairWidget';
 import ProbeMapWidget from './ProbeMapWidget';
 import TraceHeatmapWidget from './TraceHeatmapWidget';
 import SimilarityTableWidget from './SimilarityTableWidget';
@@ -150,7 +152,9 @@ const DEFAULT_WIDGET_STATES = {
   firingRateTimeline: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'firingRateTimeline' },
   similarityTable: { visible: false, minimized: false, maximized: false, order: 15, position: null, size: null, type: 'similarityTable' },
   probeMap: { visible: false, minimized: false, maximized: false, order: 16, position: null, size: null, type: 'probeMap' },
-  traceHeatmap: { visible: false, minimized: false, maximized: false, order: 17, position: null, size: null, type: 'traceHeatmap' }
+  traceHeatmap: { visible: false, minimized: false, maximized: false, order: 17, position: null, size: null, type: 'traceHeatmap' },
+  featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
+  templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -241,6 +245,7 @@ const MultiPanelView = forwardRef(({
   const [clusterData, setClusterData] = useState(null);
   const [clusterWaveforms, setClusterWaveforms] = useState({});
   const [highlightedSpikes, setHighlightedSpikes] = useState([]);
+  const [curationSpikeSelection, setCurationSpikeSelection] = useState([]);
   const [selectedChannels, setSelectedChannels] = useState(() => getDefaultChannelSelection(datasetInfo));
   const [focusedTimeRange, setFocusedTimeRange] = useState(null);
   const [clusterAnnotations, setClusterAnnotations] = useState({});
@@ -914,6 +919,8 @@ const MultiPanelView = forwardRef(({
       setClusterData(null);
       setClusterWaveforms({});
       setHighlightedSpikes([]);
+      setCurationSpikeSelection([]);
+      setSelectedChannels([]);
       setFocusedTimeRange(null);
     };
 
@@ -1188,6 +1195,8 @@ const MultiPanelView = forwardRef(({
     setSelectedSpike(null);
     setClusterWaveforms(dashboardData.clusterWaveforms);
     setHighlightedSpikes([]);
+    setCurationSpikeSelection([]);
+    setSelectedChannels([]);
     setFocusedTimeRange(null);
     setVisibleClusterOrder(clusterIds);
     setSelectedClusters((previous) => (
@@ -1259,6 +1268,18 @@ const MultiPanelView = forwardRef(({
       ? previous
       : [clusterId, ...previous]);
   }, [clusterData]);
+
+  const handleCurationSpikeSelection = useCallback((selection) => {
+    const normalized = [...new Map((Array.isArray(selection) ? selection : [])
+      .filter((spike) => spike && spike.clusterId !== undefined)
+      .map((spike) => [
+        spike.spikeId || `${spike.clusterId}:${spike.spikeIndex ?? spike.pointIndex ?? 0}`,
+        spike,
+      ])).values()];
+    setCurationSpikeSelection(normalized);
+    if (normalized.length > 0) handleSpikeHighlight(normalized[0]);
+    else setHighlightedSpikes([]);
+  }, [handleSpikeHighlight]);
 
   useEffect(() => {
     setHighlightedSpikes((previous) => previous.filter((spike) => (
@@ -1770,6 +1791,7 @@ const MultiPanelView = forwardRef(({
     visibleClusterOrder,
     spikes,
     highlightedSpikes,
+    curationSpikeSelection,
     selectedChannels,
     clusterStats,
     clusterAnnotations,
@@ -1789,6 +1811,7 @@ const MultiPanelView = forwardRef(({
     datasetInfo,
     demoSignalData,
     focusedTimeRange,
+    curationSpikeSelection,
     highlightedSpikes,
     selectedChannels,
     selectedClusters,
@@ -2162,6 +2185,48 @@ const MultiPanelView = forwardRef(({
           onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-amplitude-time'
+      )}
+      {renderDockable(
+        'featureMatrix',
+        'Feature Matrix',
+        <FeatureMatrixWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          selectedChannels={selectedChannels}
+          clusterData={clusterData}
+          clusteringResults={curatorDataset ? null : clusteringResults}
+          selectedAlgorithm={selectedAlgorithm}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          curationSpikeSelection={curationSpikeSelection}
+          onCurationSelectionChange={handleCurationSpikeSelection}
+          onSpikeSelect={handleSpikeHighlight}
+          onSelectedChannelsChange={handleSelectedChannelsChange}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-feature-matrix'
+      )}
+      {renderDockable(
+        'templateFeaturePair',
+        'Template Feature Pair',
+        <TemplateFeaturePairWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          selectedChannels={selectedChannels}
+          clusterData={clusterData}
+          clusteringResults={curatorDataset ? null : clusteringResults}
+          selectedAlgorithm={selectedAlgorithm}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          curationSpikeSelection={curationSpikeSelection}
+          onCurationSelectionChange={handleCurationSpikeSelection}
+          onSpikeSelect={handleSpikeHighlight}
+          onClusterPairSelect={handleClusterPairSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-template-feature-pair'
       )}
       {renderDockable(
         'firingRateTimeline',

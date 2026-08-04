@@ -24,6 +24,8 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
+import FeatureMatrixWidget from '../components/FeatureMatrixWidget';
+import TemplateFeaturePairWidget from '../components/TemplateFeaturePairWidget';
 import ProbeMapWidget from '../components/ProbeMapWidget';
 import TraceHeatmapWidget from '../components/TraceHeatmapWidget';
 import SimilarityTableWidget from '../components/SimilarityTableWidget';
@@ -273,6 +275,34 @@ const BUILTIN_WIDGETS = [
     requiredData: ['datasetInfo'],
     dataContract: WIDGET_DATA_CONTRACTS.traceHeatmap,
     order: 17,
+  },
+  {
+    id: 'featureMatrix',
+    name: 'Feature Matrix',
+    description: 'Compare retained spike features and lasso exact spikes for curation',
+    icon: '▩',
+    category: 'analysis',
+    defaultSize: { width: 860, height: 680 },
+    minWidth: 460,
+    minHeight: 340,
+    component: FeatureMatrixWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.featureMatrix,
+    order: 18,
+  },
+  {
+    id: 'templateFeaturePair',
+    name: 'Template Feature Pair',
+    description: 'Review pairwise separation for exactly two linked clusters',
+    icon: '⋈',
+    category: 'analysis',
+    defaultSize: { width: 720, height: 500 },
+    minWidth: 400,
+    minHeight: 280,
+    component: TemplateFeaturePairWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.templateFeaturePair,
+    order: 19,
   },
 ];
 

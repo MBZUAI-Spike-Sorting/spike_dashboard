@@ -52,3 +52,16 @@ test('amplitude distribution is wired to selected clusters and waveforms by defa
     variables
   ).valid).toBe(true);
 });
+
+test('feature views prefer exact curation selections and shared channels', () => {
+  const bindings = createDefaultWidgetInputBindings();
+
+  expect(bindings.featureMatrix).toMatchObject({
+    spikeSelection: 'curationSpikeSelection',
+    channels: 'selectedChannels',
+  });
+  expect(bindings.templateFeaturePair).toMatchObject({
+    spikeSelection: 'curationSpikeSelection',
+    channels: 'selectedChannels',
+  });
+});

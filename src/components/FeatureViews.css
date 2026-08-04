@@ -1,0 +1,47 @@
+.feature-view-widget .feature-toolbar button {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(64, 224, 208, 0.28);
+  border-radius: 4px;
+  background: rgba(64, 224, 208, 0.1);
+  color: #ccfbf1;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.feature-view-widget .feature-toolbar button:hover {
+  background: rgba(64, 224, 208, 0.2);
+}
+
+.feature-view-widget .feature-channel-select {
+  width: 76px;
+  height: 42px;
+}
+
+.feature-dimension-strip {
+  display: flex;
+  gap: 10px;
+  min-height: 30px;
+  padding: 5px 9px;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(64, 224, 208, 0.1);
+  background: rgba(18, 24, 48, 0.58);
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 0.7rem;
+}
+
+.feature-dimension-strip label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.feature-dimension-strip input { accent-color: #40e0d0; }
+
+.feature-plot-shell {
+  position: absolute;
+  inset: 0;
+  min-width: 340px;
+  min-height: 240px;
+}
