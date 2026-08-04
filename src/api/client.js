@@ -495,6 +495,26 @@ const apiClient = {
   },
 
   /**
+   * Get binned spike counts and firing rates through recording time.
+   */
+  async getClusterFiringRates({
+    clusterIds,
+    algorithm = '',
+    binSizeSeconds = 1,
+    maxBins = 5000,
+  }) {
+    return request('/api/cluster-firing-rates', {
+      method: 'POST',
+      body: JSON.stringify({
+        clusterIds,
+        algorithm,
+        binSizeSeconds,
+        maxBins,
+      }),
+    });
+  },
+
+  /**
    * Get unstandardized peak-to-peak amplitudes through recording time.
    */
   async getClusterAmplitudes({

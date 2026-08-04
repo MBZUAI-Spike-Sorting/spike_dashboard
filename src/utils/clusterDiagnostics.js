@@ -324,6 +324,90 @@ export const buildLocalClusterSimilarities = ({
   };
 };
 
+export const buildLocalFiringRates = ({
+  events,
+  clusterIds,
+  sampleRateHz = 30000,
+  binSizeSeconds = 1,
+  recordingDurationSamples = null,
+  maxBins = 5000,
+}) => {
+  const safeSampleRate = Math.max(Number(sampleRateHz) || 0, 1);
+  const requestedBinSizeSeconds = Math.max(
+    Number(binSizeSeconds) || 0,
+    1 / safeSampleRate
+  );
+  const boundedMaxBins = Math.min(Math.max(Math.floor(Number(maxBins) || 1), 1), 20000);
+  const grouped = groupTimes(events, clusterIds);
+  let latestSpikeSample = 0;
+
+  grouped.forEach((times) => {
+    times.forEach((time) => {
+      if (Number.isFinite(time) && time >= 0) latestSpikeSample = Math.max(latestSpikeSample, time);
+    });
+  });
+
+  const requestedDuration = Number(recordingDurationSamples);
+  const durationSamples = Math.max(
+    Number.isFinite(requestedDuration) ? requestedDuration : 0,
+    latestSpikeSample + 1,
+    1
+  );
+  const requestedBinSamples = Math.max(requestedBinSizeSeconds * safeSampleRate, 1);
+  const requestedBinCount = Math.max(1, Math.ceil(durationSamples / requestedBinSamples));
+  const binCount = Math.min(requestedBinCount, boundedMaxBins);
+  const effectiveBinSamples = requestedBinCount > boundedMaxBins
+    ? durationSamples / binCount
+    : requestedBinSamples;
+  const binEdgesSamples = Array.from(
+    { length: binCount + 1 },
+    (_, index) => index * effectiveBinSamples
+  );
+  binEdgesSamples[binEdgesSamples.length - 1] = durationSamples;
+  const binWidthsSeconds = binEdgesSamples.slice(0, -1).map(
+    (edge, index) => (binEdgesSamples[index + 1] - edge) / safeSampleRate
+  );
+  const binCentersSeconds = binEdgesSamples.slice(0, -1).map(
+    (edge, index) => (edge + binEdgesSamples[index + 1]) / (2 * safeSampleRate)
+  );
+
+  const series = clusterIds.map((clusterId) => {
+    const counts = new Array(binCount).fill(0);
+    const times = (grouped.get(String(clusterId)) || []).filter(
+      (time) => Number.isFinite(time) && time >= 0 && time <= durationSamples
+    );
+    times.forEach((time) => {
+      const index = Math.min(binCount - 1, Math.floor(time / effectiveBinSamples));
+      if (index >= 0) counts[index] += 1;
+    });
+    const rateHz = counts.map((count, index) => (
+      binWidthsSeconds[index] > 0 ? count / binWidthsSeconds[index] : 0
+    ));
+    return {
+      clusterId,
+      counts,
+      rateHz,
+      totalSpikes: times.length,
+      meanRateHz: times.length / (durationSamples / safeSampleRate),
+      maxRateHz: rateHz.length ? Math.max(...rateHz) : 0,
+    };
+  });
+
+  return {
+    clusterIds,
+    binEdgesSamples,
+    binCentersSeconds,
+    binWidthsSeconds,
+    requestedBinSizeSeconds,
+    binSizeSeconds: effectiveBinSamples / safeSampleRate,
+    binSizeAdjusted: requestedBinCount > boundedMaxBins,
+    recordingDurationSamples: durationSamples,
+    recordingDurationSeconds: durationSamples / safeSampleRate,
+    sampleRateHz: safeSampleRate,
+    series,
+  };
+};
+
 const waveformAmplitude = (waveform) => {
   const values = waveform?.amplitude;
   if (!Array.isArray(values) || values.length === 0) return null;

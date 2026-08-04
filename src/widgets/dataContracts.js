@@ -23,6 +23,7 @@ export const DATA_TYPES = Object.freeze({
   CLUSTER_SIMILARITY: 'cluster_similarity',
   CORRELOGRAMS: 'correlograms',
   ISI_HISTOGRAMS: 'isi_histograms',
+  FIRING_RATES: 'firing_rates',
   SPIKE_AMPLITUDES: 'spike_amplitudes',
   TIME_RANGE: 'time_range'
 });
@@ -44,6 +45,7 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.CLUSTER_SIMILARITY]: 'Cluster similarity ranking',
   [DATA_TYPES.CORRELOGRAMS]: 'Correlograms',
   [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
+  [DATA_TYPES.FIRING_RATES]: 'Firing-rate timelines',
   [DATA_TYPES.SPIKE_AMPLITUDES]: 'Spike amplitudes',
   [DATA_TYPES.TIME_RANGE]: 'Time range'
 });
@@ -166,6 +168,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     label: 'ISI histograms',
     dataType: DATA_TYPES.ISI_HISTOGRAMS,
     shape: '{ clusterIds, binCentersMs, series }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
+  firingRates: {
+    id: 'firingRates',
+    label: 'Firing-rate timelines',
+    dataType: DATA_TYPES.FIRING_RATES,
+    shape: '{ clusterIds, binCentersSeconds, series }',
     validate: (value) => isPlainObject(value) && Array.isArray(value.series)
   },
   spikeAmplitudes: {
@@ -454,6 +463,17 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
       { id: 'spikes', label: 'Spike events', accepts: [DATA_TYPES.SPIKE_EVENTS], required: true },
       { id: 'isiHistograms', label: 'Precomputed ISIs', accepts: [DATA_TYPES.ISI_HISTOGRAMS], required: false }
+    ]
+  },
+  firingRateTimeline: {
+    widgetId: 'firingRateTimeline',
+    label: 'Firing Rate Timeline',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'spikes', label: 'Spike events', accepts: [DATA_TYPES.SPIKE_EVENTS], required: true },
+      { id: 'firingRates', label: 'Precomputed firing rates', accepts: [DATA_TYPES.FIRING_RATES], required: false },
+      { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
     ]
   },
   amplitudeTime: {

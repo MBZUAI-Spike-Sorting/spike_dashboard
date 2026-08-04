@@ -6,6 +6,7 @@ from processing.cluster_diagnostics import (
     calculate_cluster_metrics,
     calculate_correlograms,
     calculate_cluster_similarities,
+    calculate_firing_rate_histograms,
     calculate_isi_histograms,
     extract_spike_amplitudes,
 )
@@ -115,6 +116,35 @@ class ClusterDiagnosticsTests(unittest.TestCase):
             result['candidates'][0]['similarity'],
             result['candidates'][1]['similarity'],
         )
+
+    def test_firing_rates_use_each_bin_width_and_full_recording_duration(self):
+        result = calculate_firing_rate_histograms(
+            self.results,
+            [0, 1],
+            sample_rate_hz=1000,
+            bin_size_seconds=0.05,
+            recording_duration_samples=120,
+        )
+
+        self.assertEqual(result['binEdgesSamples'], [0.0, 50.0, 100.0, 120.0])
+        self.assertEqual(result['series'][0]['counts'], [2, 1, 0])
+        self.assertEqual(result['series'][0]['rateHz'], [40.0, 20.0, 0.0])
+        self.assertEqual(result['series'][1]['counts'], [2, 0, 0])
+        self.assertAlmostEqual(result['series'][0]['meanRateHz'], 25.0)
+
+    def test_firing_rate_bin_count_is_bounded(self):
+        result = calculate_firing_rate_histograms(
+            self.results,
+            [0],
+            sample_rate_hz=1000,
+            bin_size_seconds=0.001,
+            recording_duration_samples=10000,
+            max_bins=25,
+        )
+
+        self.assertTrue(result['binSizeAdjusted'])
+        self.assertEqual(len(result['binCentersSeconds']), 25)
+        self.assertAlmostEqual(result['binSizeSeconds'], 0.4)
 
     def test_diagnostics_accept_cluster_ids_above_seven(self):
         results = [[] for _ in range(12)]

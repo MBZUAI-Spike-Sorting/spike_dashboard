@@ -96,6 +96,18 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
             'channel_distance',
         })
 
+    def test_firing_rate_contract_uses_recording_duration(self):
+        payload = self.client.post('/api/cluster-firing-rates', json={
+            'clusterIds': [0, 1],
+            'algorithm': 'test',
+            'binSizeSeconds': 0.05,
+        }).get_json()
+
+        self.assertEqual(payload['sampleRateHz'], 1000)
+        self.assertEqual(payload['recordingDurationSamples'], 120.0)
+        self.assertEqual(payload['series'][0]['counts'], [2, 1, 0])
+        self.assertEqual(payload['series'][0]['rateHz'], [40.0, 20.0, 0.0])
+
     def test_amplitude_contract_uses_raw_data(self):
         payload = self.client.post('/api/cluster-amplitudes', json={
             'clusterIds': [0],

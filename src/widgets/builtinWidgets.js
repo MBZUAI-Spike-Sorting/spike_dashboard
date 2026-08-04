@@ -25,6 +25,7 @@ import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
 import SimilarityTableWidget from '../components/SimilarityTableWidget';
+import FiringRateTimelineWidget from '../components/FiringRateTimelineWidget';
 
 /**
  * Built-in widget definitions
@@ -216,6 +217,20 @@ const BUILTIN_WIDGETS = [
     order: 13,
   },
   {
+    id: 'firingRateTimeline',
+    name: 'Firing Rate Timeline',
+    description: 'Inspect cluster activity and stability across recording time',
+    icon: '⌁',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 440 },
+    minWidth: 400,
+    minHeight: 280,
+    component: FiringRateTimelineWidget,
+    requiredData: ['clusters', 'spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.firingRateTimeline,
+    order: 14,
+  },
+  {
     id: 'similarityTable',
     name: 'Similarity Table',
     description: 'Rank and review clusters similar to the primary cluster',
@@ -227,7 +242,7 @@ const BUILTIN_WIDGETS = [
     component: SimilarityTableWidget,
     requiredData: ['clusters'],
     dataContract: WIDGET_DATA_CONTRACTS.similarityTable,
-    order: 14,
+    order: 15,
   },
 ];
 
