@@ -34,6 +34,7 @@ import RasterPlotWidget from './RasterPlotWidget';
 import CorrelogramWidget from './CorrelogramWidget';
 import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
+import SimilarityTableWidget from './SimilarityTableWidget';
 import FiringRateTimelineWidget from './FiringRateTimelineWidget';
 import CanvasMinimap from './CanvasMinimap';
 import apiClient from '../api/client';
@@ -137,7 +138,8 @@ const DEFAULT_WIDGET_STATES = {
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
   amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
-  firingRateTimeline: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'firingRateTimeline' }
+  firingRateTimeline: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'firingRateTimeline' },
+  similarityTable: { visible: false, minimized: false, maximized: false, order: 15, position: null, size: null, type: 'similarityTable' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -2047,6 +2049,26 @@ const MultiPanelView = forwardRef(({
           onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-correlogram'
+      )}
+
+      {renderDockable(
+        'similarityTable',
+        'Similarity Table',
+        <SimilarityTableWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          clusterData={clusterData}
+          clusterWaveforms={clusterWaveforms}
+          clusteringResults={clusteringResults}
+          clusterStats={clusterStats}
+          clusterAnnotations={clusterAnnotations}
+          selectedAlgorithm={selectedAlgorithm}
+          demoMode={demoMode}
+          onClusterPairSelect={handleClusterPairSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-similarity-table'
       )}
 
       {renderDockable(

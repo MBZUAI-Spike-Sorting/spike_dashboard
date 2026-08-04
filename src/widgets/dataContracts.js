@@ -20,6 +20,7 @@ export const DATA_TYPES = Object.freeze({
   SIGNAL_TRACE: 'signal_trace',
   DATASET_INFO: 'dataset_info',
   CURATION_STATE: 'curation_state',
+  CLUSTER_SIMILARITY: 'cluster_similarity',
   CORRELOGRAMS: 'correlograms',
   ISI_HISTOGRAMS: 'isi_histograms',
   FIRING_RATES: 'firing_rates',
@@ -41,6 +42,7 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.SIGNAL_TRACE]: 'Signal trace',
   [DATA_TYPES.DATASET_INFO]: 'Dataset info',
   [DATA_TYPES.CURATION_STATE]: 'Cluster curation state',
+  [DATA_TYPES.CLUSTER_SIMILARITY]: 'Cluster similarity ranking',
   [DATA_TYPES.CORRELOGRAMS]: 'Correlograms',
   [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
   [DATA_TYPES.FIRING_RATES]: 'Firing-rate timelines',
@@ -106,6 +108,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     dataType: DATA_TYPES.CURATION_STATE,
     shape: 'Record<clusterId, { group, label, note }>',
     validate: isPlainObject
+  },
+  clusterSimilarities: {
+    id: 'clusterSimilarities',
+    label: 'Cluster similarity ranking',
+    dataType: DATA_TYPES.CLUSTER_SIMILARITY,
+    shape: '{ primaryClusterId, source, candidates }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.candidates)
   },
   clusterData: {
     id: 'clusterData',
@@ -423,6 +432,17 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         accepts: [DATA_TYPES.CLUSTER_ORDER],
         required: false
       }
+    ]
+  },
+  similarityTable: {
+    widgetId: 'similarityTable',
+    label: 'Similarity Table',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'selectedClusters', label: 'Primary and secondary clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'statistics', label: 'Cluster statistics', accepts: [DATA_TYPES.CLUSTER_STATISTICS], required: false },
+      { id: 'annotations', label: 'Curation annotations', accepts: [DATA_TYPES.CURATION_STATE], required: false },
+      { id: 'similarities', label: 'Precomputed similarity ranking', accepts: [DATA_TYPES.CLUSTER_SIMILARITY], required: false }
     ]
   },
   correlogram: {

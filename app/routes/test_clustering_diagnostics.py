@@ -80,6 +80,22 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         self.assertEqual(len(correlograms['pairs']), 4)
         self.assertEqual(isis['series'][0]['violationCount'], 1)
 
+    def test_similarity_contract_excludes_primary_cluster(self):
+        payload = self.client.post('/api/cluster-similarities', json={
+            'primaryClusterId': 0,
+            'algorithm': 'test',
+            'maxCandidates': 10,
+            'windowSamples': 3,
+        }).get_json()
+
+        self.assertEqual(payload['primaryClusterId'], 0)
+        self.assertEqual([row['clusterId'] for row in payload['candidates']], [1])
+        self.assertIn(payload['source'], {
+            'mean_waveform_channel',
+            'feature_centroid_channel',
+            'channel_distance',
+        })
+
     def test_firing_rate_contract_uses_recording_duration(self):
         payload = self.client.post('/api/cluster-firing-rates', json={
             'clusterIds': [0, 1],

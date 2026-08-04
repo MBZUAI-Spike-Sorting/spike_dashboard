@@ -544,6 +544,18 @@
   min-height: 280px;
 }
 
+.panel-similarity-table {
+  top: 110px;
+  left: clamp(56px, 18vw, 280px);
+}
+
+.panel-similarity-table .dockable-widget {
+  width: min(760px, calc(100vw - 100px));
+  height: min(480px, calc(100vh - 170px));
+  min-width: min(480px, calc(100vw - 72px));
+  min-height: 280px;
+}
+
 .panel-firing-rate-timeline {
   top: 230px;
   left: clamp(72px, 24vw, 380px);

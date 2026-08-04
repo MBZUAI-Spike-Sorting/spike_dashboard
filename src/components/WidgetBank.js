@@ -114,6 +114,14 @@ const WIDGET_DEFINITIONS = {
     icon: '⌁',
     category: 'analysis',
     defaultSize: { width: 760, height: 440 }
+  },
+  similarityTable: {
+    id: 'similarityTable',
+    name: 'Similarity Table',
+    description: 'Rank and review clusters similar to the primary cluster',
+    icon: '≈',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 480 }
   }
 };
 

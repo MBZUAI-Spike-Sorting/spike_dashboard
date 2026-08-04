@@ -35,6 +35,10 @@ Times are represented as recording samples at the API boundary. Correlogram and 
 
 The numerical implementations live in `processing/cluster_diagnostics.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`.
 
+## P1 pair review
+
+The **Similarity Table** ranks merge candidates for the primary cluster and publishes a primary/secondary pair to linked diagnostic views. It uses retained sorter-template similarity when the clustering manager exposes it; otherwise it clearly labels a deterministic mean-waveform/channel or feature-centroid/channel fallback. The API contract is `POST /api/cluster-similarities`.
+
 ## Backlog position
 
-The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, and Firing Rate Timeline. The next view in the gap-analysis order is Similarity Table, followed by Probe Map.
+The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, Firing Rate Timeline, and Similarity Table. The next view in the gap-analysis order is Probe Map.
