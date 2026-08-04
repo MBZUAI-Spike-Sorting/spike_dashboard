@@ -36,6 +36,8 @@ import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
 import ProbeMapWidget from './ProbeMapWidget';
 import TraceHeatmapWidget from './TraceHeatmapWidget';
+import SimilarityTableWidget from './SimilarityTableWidget';
+import FiringRateTimelineWidget from './FiringRateTimelineWidget';
 import CanvasMinimap from './CanvasMinimap';
 import apiClient from '../api/client';
 import {
@@ -145,8 +147,10 @@ const DEFAULT_WIDGET_STATES = {
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
   amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
-  probeMap: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'probeMap' },
-  traceHeatmap: { visible: false, minimized: false, maximized: false, order: 15, position: null, size: null, type: 'traceHeatmap' }
+  firingRateTimeline: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'firingRateTimeline' },
+  similarityTable: { visible: false, minimized: false, maximized: false, order: 15, position: null, size: null, type: 'similarityTable' },
+  probeMap: { visible: false, minimized: false, maximized: false, order: 16, position: null, size: null, type: 'probeMap' },
+  traceHeatmap: { visible: false, minimized: false, maximized: false, order: 17, position: null, size: null, type: 'traceHeatmap' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -2098,6 +2102,26 @@ const MultiPanelView = forwardRef(({
       )}
 
       {renderDockable(
+        'similarityTable',
+        'Similarity Table',
+        <SimilarityTableWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          clusterData={clusterData}
+          clusterWaveforms={clusterWaveforms}
+          clusteringResults={clusteringResults}
+          clusterStats={clusterStats}
+          clusterAnnotations={clusterAnnotations}
+          selectedAlgorithm={selectedAlgorithm}
+          demoMode={demoMode}
+          onClusterPairSelect={handleClusterPairSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-similarity-table'
+      )}
+
+      {renderDockable(
         'isiHistogram',
         'Inter-Spike Interval Histogram',
         <IsiHistogramWidget
@@ -2138,6 +2162,26 @@ const MultiPanelView = forwardRef(({
           onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-amplitude-time'
+      )}
+      {renderDockable(
+        'firingRateTimeline',
+        'Firing Rate Timeline',
+        <FiringRateTimelineWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          spikes={spikes}
+          clusterData={clusterData}
+          clusteringResults={clusteringResults}
+          selectedAlgorithm={selectedAlgorithm}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          linkedTimeRange={focusedTimeRange}
+          onTimeRangeSelect={handleTimeRangeSelect}
+          onClusterSelect={handleClusterSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-firing-rate-timeline'
       )}
       {renderDockable(
         'probeMap',

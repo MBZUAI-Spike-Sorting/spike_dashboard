@@ -26,6 +26,8 @@ import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
 import ProbeMapWidget from '../components/ProbeMapWidget';
 import TraceHeatmapWidget from '../components/TraceHeatmapWidget';
+import SimilarityTableWidget from '../components/SimilarityTableWidget';
+import FiringRateTimelineWidget from '../components/FiringRateTimelineWidget';
 
 /**
  * Built-in widget definitions
@@ -217,6 +219,34 @@ const BUILTIN_WIDGETS = [
     order: 13,
   },
   {
+    id: 'firingRateTimeline',
+    name: 'Firing Rate Timeline',
+    description: 'Inspect cluster activity and stability across recording time',
+    icon: '⌁',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 440 },
+    minWidth: 400,
+    minHeight: 280,
+    component: FiringRateTimelineWidget,
+    requiredData: ['clusters', 'spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.firingRateTimeline,
+    order: 14,
+  },
+  {
+    id: 'similarityTable',
+    name: 'Similarity Table',
+    description: 'Rank and review clusters similar to the primary cluster',
+    icon: '≈',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 480 },
+    minWidth: 480,
+    minHeight: 280,
+    component: SimilarityTableWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.similarityTable,
+    order: 15,
+  },
+  {
     id: 'probeMap',
     name: 'Probe Map',
     description: 'Inspect physical channel geometry and selected-cluster footprints',
@@ -228,7 +258,7 @@ const BUILTIN_WIDGETS = [
     component: ProbeMapWidget,
     requiredData: ['datasetInfo'],
     dataContract: WIDGET_DATA_CONTRACTS.probeMap,
-    order: 14,
+    order: 16,
   },
   {
     id: 'traceHeatmap',
@@ -242,7 +272,7 @@ const BUILTIN_WIDGETS = [
     component: TraceHeatmapWidget,
     requiredData: ['datasetInfo'],
     dataContract: WIDGET_DATA_CONTRACTS.traceHeatmap,
-    order: 15,
+    order: 17,
   },
 ];
 
