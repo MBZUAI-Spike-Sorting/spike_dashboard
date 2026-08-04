@@ -34,7 +34,8 @@ const DEFAULT_VIEW = {
     templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
     clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' },
     spikeAttributeExplorer: { visible: false, minimized: false, maximized: false, order: 22, position: null, size: null, type: 'spikeAttributeExplorer' },
-    analysisWorkspace: { visible: false, minimized: false, maximized: false, order: 23, position: null, size: null, type: 'analysisWorkspace' }
+    analysisWorkspace: { visible: false, minimized: false, maximized: false, order: 23, position: null, size: null, type: 'analysisWorkspace' },
+    curationActions: { visible: false, minimized: false, maximized: false, order: 24, position: null, size: null, type: 'curationActions' }
   }
 };
 
@@ -57,7 +58,8 @@ const EMPTY_WIDGET_STATES = {
   templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
   clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' },
   spikeAttributeExplorer: { visible: false, minimized: false, maximized: false, order: 22, position: null, size: null, type: 'spikeAttributeExplorer' },
-  analysisWorkspace: { visible: false, minimized: false, maximized: false, order: 23, position: null, size: null, type: 'analysisWorkspace' }
+  analysisWorkspace: { visible: false, minimized: false, maximized: false, order: 23, position: null, size: null, type: 'analysisWorkspace' },
+  curationActions: { visible: false, minimized: false, maximized: false, order: 24, position: null, size: null, type: 'curationActions' }
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {

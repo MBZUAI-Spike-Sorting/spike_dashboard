@@ -519,6 +519,14 @@ const CuratorWidget = ({
   ), [clusterAnnotations, groups]);
 
   useEffect(() => {
+    if (!initialDataset?.metadata?.sourceSignature || !initialDataset?.clusters?.length) return;
+    setDataset(normalizeDataset(
+      initialDataset,
+      initialDataset.name || 'SpikeScope curation session'
+    ));
+  }, [initialDataset]);
+
+  useEffect(() => {
     onLoadingChange?.(
       'curator',
       isUploading || isPredicting || isRestoring,

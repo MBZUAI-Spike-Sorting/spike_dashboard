@@ -186,6 +186,14 @@ const WIDGET_DEFINITIONS = {
     icon: '{ }',
     category: 'analysis',
     defaultSize: { width: 820, height: 600 }
+  },
+  curationActions: {
+    id: 'curationActions',
+    name: 'Curation Actions',
+    description: 'Merge, split, undo, redo, and export non-destructive curated assignments',
+    icon: '✂',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 460 }
   }
 };
 
