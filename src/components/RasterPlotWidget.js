@@ -79,6 +79,9 @@ const normalizeEventsFromClusters = (clusters = [], filterSet, filterIsActive = 
       events.push({
         time: numericTime,
         clusterId,
+        spikeId: cluster?.spikeIds?.[pointIndex]
+          ?? `${clusterId}:${cluster?.spikeIndices?.[pointIndex] ?? pointIndex}`,
+        spikeIndex: cluster?.spikeIndices?.[pointIndex] ?? pointIndex,
         channel: spikeChannels[pointIndex] ?? cluster?.primaryChannel ?? cluster?.primary_channel ?? cluster?.channelId ?? cluster?.channel,
         pointIndex
       });
@@ -129,6 +132,8 @@ export const buildRasterEvents = ({
         return {
           time,
           clusterId: spike.clusterId ?? spike.cluster_id ?? spike.cluster ?? 'unassigned',
+          spikeId: spike.spikeId,
+          spikeIndex: spike.spikeIndex ?? spike.pointIndex ?? index,
           channel: spike.channel ?? spike.channelId ?? spike.primaryChannel,
           pointIndex: spike.pointIndex ?? index,
           amplitude: spike.amplitude
@@ -158,6 +163,8 @@ export const buildRasterEvents = ({
         events.push({
           time,
           clusterId,
+          spikeId: spike.spikeId ?? `${clusterId}:${spike.spikeIndex ?? pointIndex}`,
+          spikeIndex: spike.spikeIndex ?? pointIndex,
           channel: spike.channel,
           pointIndex,
           amplitude: spike.amplitude

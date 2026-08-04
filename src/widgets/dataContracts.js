@@ -20,6 +20,7 @@ export const DATA_TYPES = Object.freeze({
   SIGNAL_TRACE: 'signal_trace',
   DATASET_INFO: 'dataset_info',
   CURATION_STATE: 'curation_state',
+  CURATION_SESSION: 'curation_session',
   CORRELOGRAMS: 'correlograms',
   ISI_HISTOGRAMS: 'isi_histograms',
   SPIKE_AMPLITUDES: 'spike_amplitudes',
@@ -40,6 +41,7 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.SIGNAL_TRACE]: 'Signal trace',
   [DATA_TYPES.DATASET_INFO]: 'Dataset info',
   [DATA_TYPES.CURATION_STATE]: 'Cluster curation state',
+  [DATA_TYPES.CURATION_SESSION]: 'Versioned curation session',
   [DATA_TYPES.CORRELOGRAMS]: 'Correlograms',
   [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
   [DATA_TYPES.SPIKE_AMPLITUDES]: 'Spike amplitudes',
@@ -90,6 +92,20 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     dataType: DATA_TYPES.SPIKE_SELECTION,
     shape: 'Array<{ clusterId, pointIndex, time? }>',
     validate: (value) => Array.isArray(value)
+  },
+  curationSpikeSelection: {
+    id: 'curationSpikeSelection',
+    label: 'Curation spike selection',
+    dataType: DATA_TYPES.SPIKE_SELECTION,
+    shape: 'Array<{ spikeId, clusterId, pointIndex, spikeIndex }>',
+    validate: (value) => Array.isArray(value)
+  },
+  curationSession: {
+    id: 'curationSession',
+    label: 'Versioned curation session',
+    dataType: DATA_TYPES.CURATION_SESSION,
+    shape: '{ schemaVersion, revision, cursor, operations }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.operations)
   },
   clusterStats: {
     id: 'clusterStats',
@@ -446,6 +462,17 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       { id: 'amplitudes', label: 'Spike amplitudes', accepts: [DATA_TYPES.SPIKE_AMPLITUDES], required: false },
       { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
     ]
+  },
+  curationActions: {
+    widgetId: 'curationActions',
+    label: 'Curation Actions',
+    inputs: [
+      { id: 'clusters', label: 'Current clusters', accepts: [DATA_TYPES.CLUSTER_LIST], required: true },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'spikeSelection', label: 'Exact spike selection', accepts: [DATA_TYPES.SPIKE_SELECTION], required: false, defaultVariableId: 'curationSpikeSelection' },
+      { id: 'session', label: 'Curation session', accepts: [DATA_TYPES.CURATION_SESSION], required: true },
+      { id: 'annotations', label: 'Cluster metadata', accepts: [DATA_TYPES.CURATION_STATE], required: false }
+    ]
   }
 });
 
@@ -493,9 +520,13 @@ export function createDefaultWidgetInputBindings(pipelineVariables = PIPELINE_VA
     bindings[widgetId] = {};
 
     contract.inputs.forEach((input) => {
-      const compatibleVariable = Object.values(pipelineVariables).find((variable) =>
-        input.accepts.includes(variable.dataType)
-      );
+      const preferredVariable = pipelineVariables[input.defaultVariableId];
+      const compatibleVariable = preferredVariable
+        && input.accepts.includes(preferredVariable.dataType)
+        ? preferredVariable
+        : Object.values(pipelineVariables).find((variable) =>
+            input.accepts.includes(variable.dataType)
+          );
 
       bindings[widgetId][input.id] = compatibleVariable?.id || '';
     });

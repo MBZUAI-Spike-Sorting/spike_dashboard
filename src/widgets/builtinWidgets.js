@@ -24,6 +24,7 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
+import CurationActionsWidget from '../components/CurationActionsWidget';
 
 /**
  * Built-in widget definitions
@@ -213,6 +214,20 @@ const BUILTIN_WIDGETS = [
     requiredData: ['clusters', 'spikes'],
     dataContract: WIDGET_DATA_CONTRACTS.amplitudeTime,
     order: 13,
+  },
+  {
+    id: 'curationActions',
+    name: 'Curation Actions',
+    description: 'Merge, split, undo, redo, and export non-destructive curated assignments',
+    icon: '✂',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 460 },
+    minWidth: 440,
+    minHeight: 300,
+    component: CurationActionsWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.curationActions,
+    order: 20,
   },
 ];
 

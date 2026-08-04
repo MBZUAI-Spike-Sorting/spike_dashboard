@@ -544,6 +544,18 @@
   min-height: 280px;
 }
 
+.panel-curation-actions {
+  top: 130px;
+  left: clamp(54px, 19vw, 290px);
+}
+
+.panel-curation-actions .dockable-widget {
+  width: min(760px, calc(100vw - 100px));
+  height: min(460px, calc(100vh - 190px));
+  min-width: min(440px, calc(100vw - 72px));
+  min-height: 300px;
+}
+
 /* Waveform View Toggle */
 .waveform-view-toggle {
   display: flex !important;

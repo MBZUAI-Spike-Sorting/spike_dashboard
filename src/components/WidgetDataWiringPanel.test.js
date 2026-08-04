@@ -52,3 +52,15 @@ test('amplitude distribution is wired to selected clusters and waveforms by defa
     variables
   ).valid).toBe(true);
 });
+
+test('curation actions use complete exact spike selection and versioned session state', () => {
+  const bindings = createDefaultWidgetInputBindings();
+
+  expect(bindings.curationActions).toMatchObject({
+    clusters: 'clusters',
+    selectedClusters: 'selectedClusters',
+    spikeSelection: 'curationSpikeSelection',
+    session: 'curationSession',
+    annotations: 'clusterAnnotations',
+  });
+});

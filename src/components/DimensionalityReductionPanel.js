@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import Plot from 'react-plotly.js';
 import './DimensionalityReductionPanel.css';
 
@@ -7,6 +7,7 @@ const DimensionalityReductionPanel = ({
   selectedClusters,
   selectedSpike,
   onSpikeClick,
+  onSpikeSelectionChange,
   clusteringResults,
   selectedAlgorithm
 }) => {
@@ -76,7 +77,12 @@ const DimensionalityReductionPanel = ({
             customdata: regularIndices.map(idx => ({
               clusterIdx: clusterId,
               pointIdx: idx,
-              clusterId: clusterId
+              pointIndex: idx,
+              spikeIndex: clusterSpikes[idx]?.spikeIndex ?? idx,
+              spikeId: `${clusterId}:${clusterSpikes[idx]?.spikeIndex ?? idx}`,
+              clusterId: clusterId,
+              timeSamples: clusterSpikes[idx]?.time,
+              channel: clusterSpikes[idx]?.channel,
             })),
             hovertemplate: `<b>Cluster ${clusterId}</b><br>Point: %{customdata.pointIdx}<br>PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>`,
             showlegend: highlightedPoint === null
@@ -103,7 +109,12 @@ const DimensionalityReductionPanel = ({
             customdata: [{
               clusterIdx: clusterId,
               pointIdx: highlightedPoint.spikeIdx,
-              clusterId: clusterId
+              pointIndex: highlightedPoint.spikeIdx,
+              spikeIndex: clusterSpikes[highlightedPoint.spikeIdx]?.spikeIndex ?? highlightedPoint.spikeIdx,
+              spikeId: `${clusterId}:${clusterSpikes[highlightedPoint.spikeIdx]?.spikeIndex ?? highlightedPoint.spikeIdx}`,
+              clusterId: clusterId,
+              timeSamples: clusterSpikes[highlightedPoint.spikeIdx]?.time,
+              channel: clusterSpikes[highlightedPoint.spikeIdx]?.channel,
             }],
             hovertemplate: `<b>Cluster ${clusterId} (Selected)</b><br>Point: %{customdata.pointIdx}<br>PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>`,
             showlegend: true
@@ -172,7 +183,12 @@ const DimensionalityReductionPanel = ({
           customdata: regularIndices.map(idx => ({
             clusterIdx: cluster.clusterId,
             pointIdx: idx,
-            clusterId: cluster.clusterId
+            pointIndex: idx,
+            spikeIndex: cluster.spikeIndices?.[idx] ?? idx,
+            spikeId: cluster.spikeIds?.[idx] ?? `${cluster.clusterId}:${cluster.spikeIndices?.[idx] ?? idx}`,
+            clusterId: cluster.clusterId,
+            timeSamples: cluster.spikeTimes?.[idx],
+            channel: cluster.spikeChannels?.[idx],
           })),
           hovertemplate: `<b>Cluster ${cluster.clusterId}</b><br>Point: %{customdata.pointIdx}<br>PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>`,
           showlegend: highlightedPoint === null
@@ -200,7 +216,13 @@ const DimensionalityReductionPanel = ({
           customdata: [{
             clusterIdx: cluster.clusterId,
             pointIdx: highlightedPoint.pointIdx,
-            clusterId: cluster.clusterId
+            pointIndex: highlightedPoint.pointIdx,
+            spikeIndex: cluster.spikeIndices?.[highlightedPoint.pointIdx] ?? highlightedPoint.pointIdx,
+            spikeId: cluster.spikeIds?.[highlightedPoint.pointIdx]
+              ?? `${cluster.clusterId}:${cluster.spikeIndices?.[highlightedPoint.pointIdx] ?? highlightedPoint.pointIdx}`,
+            clusterId: cluster.clusterId,
+            timeSamples: cluster.spikeTimes?.[highlightedPoint.pointIdx],
+            channel: cluster.spikeChannels?.[highlightedPoint.pointIdx],
           }],
           hovertemplate: `<b>Cluster ${cluster.clusterId} (Selected)</b><br>Point: %{customdata.pointIdx}<br>PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>`
         });
@@ -312,17 +334,21 @@ const DimensionalityReductionPanel = ({
   };
 
   const handlePointClick = (event) => {
-    if (event.points && event.points.length > 0 && onSpikeClick) {
+    if (event.points && event.points.length > 0) {
       const point = event.points[0];
       const customdata = point.customdata;
-      onSpikeClick(customdata.clusterId, customdata.pointIdx);
+      onSpikeSelectionChange?.(getPcaSpikeSelection(event));
+      onSpikeClick?.(customdata.clusterId, customdata.pointIdx);
     }
+  };
+
+  const handlePointSelection = (event) => {
+    onSpikeSelectionChange?.(getPcaSpikeSelection(event));
   };
 
   const generatePreviewPlot = () => {
     if (!spikePreview || !spikePreview.waveform) return null;
 
-    const spikeTime = spikePreview.spikeTime;
     const window = spikePreview.window || 10;
     const relativeTimePoints = Array.from(
       { length: spikePreview.waveform.length },
@@ -409,6 +435,7 @@ const DimensionalityReductionPanel = ({
             layout={{
               autosize: true,
               uirevision: 'true',
+              dragmode: 'lasso',
               paper_bgcolor: 'rgba(30, 30, 60, 0.6)',
               plot_bgcolor: 'rgba(0, 0, 0, 0.3)',
               font: { color: '#e0e6ed' },
@@ -439,11 +466,13 @@ const DimensionalityReductionPanel = ({
             config={{
               displayModeBar: true,
               displaylogo: false,
-              modeBarButtonsToRemove: ['lasso2d', 'select2d']
+              modeBarButtonsToRemove: []
             }}
             style={{ width: '100%', height: '100%' }}
             useResizeHandler={true}
             onClick={handlePointClick}
+            onSelected={handlePointSelection}
+            onDeselect={() => onSpikeSelectionChange?.([])}
             onHover={handlePointHover}
             onUnhover={handlePointUnhover}
           />
@@ -459,6 +488,21 @@ const DimensionalityReductionPanel = ({
       </div>
     </div>
   );
+};
+
+export const getPcaSpikeSelection = (event) => {
+  const points = (event?.points || [])
+    .map((point) => point.customdata)
+    .filter((point) => point?.spikeId)
+    .map((point) => ({
+      spikeId: point.spikeId,
+      clusterId: point.clusterId,
+      pointIndex: point.pointIndex ?? point.pointIdx,
+      spikeIndex: point.spikeIndex ?? point.pointIndex ?? point.pointIdx,
+      timeSamples: point.timeSamples,
+      channel: point.channel,
+    }));
+  return [...new Map(points.map((point) => [point.spikeId, point])).values()];
 };
 
 export default DimensionalityReductionPanel;

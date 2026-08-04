@@ -1,6 +1,6 @@
 # Phy-inspired P0 views
 
-SpikeScope's first Phy-inspired curation increment adds four linked views and a shared selection model.
+SpikeScope's Phy-inspired curation work adds linked diagnostics and a non-destructive manual curation loop.
 
 ## Views
 
@@ -8,6 +8,7 @@ SpikeScope's first Phy-inspired curation increment adds four linked views and a 
 - **Correlogram Matrix** shows auto- and cross-correlograms for up to four linked clusters. It exposes local cluster controls plus bin, window, performance-limit, refractory, and count/rate/baseline-ratio controls.
 - **ISI Histogram** overlays up to twelve linked clusters and reports refractory violation rates in the legend. Local cluster choices, bin size, visible interval, refractory period, and linear/log x scale are configurable.
 - **Amplitude vs Time / Drift** extracts raw peak-to-peak amplitudes for up to twelve linked clusters, displays them against recording time with same-channel background spikes and marginal amplitude histograms, and supports box/lasso time selection.
+- **Curation Actions** merges selected current clusters and splits a complete lasso/box selection of stable original spike IDs. A deterministic operation log provides undo/redo; current assignments immediately drive linked views, while export always writes a new JSON artifact instead of overwriting sorter inputs.
 
 All views are available from the Widget Bank. Existing saved layouts are migrated by merging the new widget definitions as hidden entries.
 
@@ -32,3 +33,5 @@ The diagnostic views use these POST endpoints:
 Times are represented as recording samples at the API boundary. Correlogram and ISI bin coordinates are milliseconds. Amplitude points include both `timeSamples` and `timeSeconds`; amplitudes are unstandardized peak-to-peak values from the loaded dataset. Waveform requests use deterministic, bounded sampling and always include explicitly highlighted spikes.
 
 The numerical implementations live in `processing/cluster_diagnostics.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`.
+
+Session versioning, persistence, recovery, and non-destructive export are documented in [`CURATION_SESSIONS.md`](CURATION_SESSIONS.md).

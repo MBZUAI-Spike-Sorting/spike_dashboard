@@ -34,6 +34,7 @@ import RasterPlotWidget from './RasterPlotWidget';
 import CorrelogramWidget from './CorrelogramWidget';
 import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
+import CurationActionsWidget from './CurationActionsWidget';
 import CanvasMinimap from './CanvasMinimap';
 import apiClient from '../api/client';
 import {
@@ -76,6 +77,18 @@ import {
   getOrLoadSessionCache,
   getSessionObjectId,
 } from '../utils/sessionCache';
+import {
+  createCurationExport,
+  createCurationSession,
+  createCurationSource,
+  createCuratedDashboardData,
+  deriveCurationState,
+  mergeCurationClusters,
+  redoCuration,
+  restoreCurationSession,
+  splitCurationSelection,
+  undoCuration,
+} from '../utils/curationSession';
 
 const DISPLAY_SETTINGS_STORAGE_KEY = 'spikescope_display_settings:v1';
 const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
@@ -135,7 +148,8 @@ const DEFAULT_WIDGET_STATES = {
   rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null, type: 'rasterPlot' },
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
-  amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' }
+  amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
+  curationActions: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'curationActions' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -144,6 +158,7 @@ export const CURATOR_LINKED_WIDGET_IDS = [
   'waveform',
   'amplitudeProfile',
   'rasterPlot',
+  'curationActions',
 ];
 
 export const revealCuratorLinkedWidgets = (states = {}) => {
@@ -226,11 +241,19 @@ const MultiPanelView = forwardRef(({
   const [clusterData, setClusterData] = useState(null);
   const [clusterWaveforms, setClusterWaveforms] = useState({});
   const [highlightedSpikes, setHighlightedSpikes] = useState([]);
+  const [curationSpikeSelection, setCurationSpikeSelection] = useState([]);
   const [focusedTimeRange, setFocusedTimeRange] = useState(null);
   const [clusterAnnotations, setClusterAnnotations] = useState({});
   const [clusterGroupNames, setClusterGroupNames] = useState(DEFAULT_CLUSTER_GROUPS);
   const [visibleClusterOrder, setVisibleClusterOrder] = useState([]);
   const [curatorDataset, setCuratorDataset] = useState(null);
+  const [curationSource, setCurationSource] = useState(null);
+  const [curationSession, setCurationSession] = useState(null);
+  const [curationActionError, setCurationActionError] = useState('');
+  const [curationRecoveryMessage, setCurationRecoveryMessage] = useState('');
+  const curationBaseStateRef = useRef(null);
+  const curationSourceRef = useRef(null);
+  curationSourceRef.current = curationSource;
   const [waveformViewMode, setWaveformViewMode] = useState('single');
   const [displaySettings, setDisplaySettings] = useState(() => (
     readDisplaySettings(window.localStorage, DISPLAY_SETTINGS_STORAGE_KEY)
@@ -289,6 +312,7 @@ const MultiPanelView = forwardRef(({
     return `spikescope_cluster_annotations:${String(datasetKey)}:${selectedAlgorithm || 'none'}`;
   }, [demoMode, selectedAlgorithm, selectedDataset]);
   const clusterGroupStorageKey = `${annotationStorageKey}:groups`;
+  const curationStorageKey = `${annotationStorageKey}:curation-session:v1`;
 
   const [isWidgetBankOpen, setIsWidgetBankOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -810,6 +834,13 @@ const MultiPanelView = forwardRef(({
   useEffect(() => {
     if (!demoMode) return;
 
+    setCurationSource(null);
+    setCurationSession(null);
+    setCurationSpikeSelection([]);
+    setCurationActionError('');
+    setCurationRecoveryMessage('');
+    curationBaseStateRef.current = null;
+
     const grouped = {};
     (demoClusterPlotData || []).forEach((point) => {
       const cid = point.clusterId;
@@ -885,6 +916,12 @@ const MultiPanelView = forwardRef(({
       setClusterData(null);
       setClusterWaveforms({});
       setHighlightedSpikes([]);
+      setCurationSpikeSelection([]);
+      setCurationSource(null);
+      setCurationSession(null);
+      setCurationActionError('');
+      setCurationRecoveryMessage('');
+      curationBaseStateRef.current = null;
       setFocusedTimeRange(null);
     };
 
@@ -1020,6 +1057,9 @@ const MultiPanelView = forwardRef(({
             time,
             clusterId,
             pointIndex,
+            spikeIndex: cluster.spikeIndices?.[pointIndex] ?? pointIndex,
+            spikeId: cluster.spikeIds?.[pointIndex]
+              ?? `${clusterId}:${cluster.spikeIndices?.[pointIndex] ?? pointIndex}`,
             channel: cluster.spikeChannels?.[pointIndex] ?? cluster.channelId
           });
         });
@@ -1146,6 +1186,10 @@ const MultiPanelView = forwardRef(({
 
   const handleCuratorDatasetChange = useCallback((dataset) => {
     if (!dataset || !Array.isArray(dataset.clusters)) return;
+    if (
+      dataset.metadata?.sourceSignature
+      && dataset.metadata.sourceSignature === curationSourceRef.current?.signature
+    ) return;
 
     const normalizedDataset = normalizeCuratorDatasetTimes(dataset, datasetInfo);
     const dashboardData = createDashboardDataFromCuratorDataset(normalizedDataset);
@@ -1159,6 +1203,12 @@ const MultiPanelView = forwardRef(({
     setSelectedSpike(null);
     setClusterWaveforms(dashboardData.clusterWaveforms);
     setHighlightedSpikes([]);
+    setCurationSpikeSelection([]);
+    setCurationSource(null);
+    setCurationSession(null);
+    setCurationActionError('');
+    setCurationRecoveryMessage('');
+    curationBaseStateRef.current = null;
     setFocusedTimeRange(null);
     setVisibleClusterOrder(clusterIds);
     setSelectedClusters((previous) => (
@@ -1196,7 +1246,9 @@ const MultiPanelView = forwardRef(({
       String(candidate.clusterId ?? candidate.id ?? index) === String(clusterId)
     ));
     const event = {
+      spikeId: suppliedEvent?.spikeId ?? cluster?.spikeIds?.[resolvedPointIndex],
       clusterId,
+      spikeIndex: suppliedEvent?.spikeIndex ?? cluster?.spikeIndices?.[resolvedPointIndex] ?? resolvedPointIndex,
       pointIndex: Number.isFinite(Number(resolvedPointIndex)) ? Number(resolvedPointIndex) : 0,
       time: suppliedEvent?.time ?? suppliedEvent?.timeSamples ?? cluster?.spikeTimes?.[resolvedPointIndex],
       channel: suppliedEvent?.channel ?? cluster?.spikeChannels?.[resolvedPointIndex] ?? cluster?.channelId,
@@ -1207,6 +1259,259 @@ const MultiPanelView = forwardRef(({
       ? previous
       : [clusterId, ...previous]);
   }, [clusterData]);
+
+  const handleCurationSpikeSelection = useCallback((selection) => {
+    const normalized = [...new Map((Array.isArray(selection) ? selection : [])
+      .filter((spike) => spike?.spikeId)
+      .map((spike) => [spike.spikeId, spike])).values()];
+    setCurationSpikeSelection(normalized);
+    if (normalized.length > 0) handleSpikeHighlight(normalized[0]);
+    else setHighlightedSpikes([]);
+  }, [handleSpikeHighlight]);
+
+  const applyCurationState = useCallback((source, nextSession, preferredClusterIds = null) => {
+    const dashboard = createCuratedDashboardData(
+      source,
+      nextSession,
+      clusterAnnotations,
+      datasetInfo
+    );
+    const availableIds = dashboard.clusterData.clusterIds;
+    setCurationSession(nextSession);
+    setClusters(dashboard.clusters);
+    setClusterData(dashboard.clusterData);
+    setClusterStats(dashboard.clusterStats);
+    setCuratorDataset(dashboard.curatorDataset);
+    setClusterWaveforms(dashboard.clusterWaveforms);
+    setSpikes([]);
+    setSelectedSpike(null);
+    setHighlightedSpikes([]);
+    setCurationSpikeSelection([]);
+    setFocusedTimeRange(null);
+    setVisibleClusterOrder(availableIds);
+    setSelectedClusters((previous) => {
+      const requested = Array.isArray(preferredClusterIds) ? preferredClusterIds : previous;
+      const available = new Set(availableIds.map(String));
+      const retained = requested.filter((clusterId) => available.has(String(clusterId)));
+      return retained.length ? retained : availableIds.slice(0, 1);
+    });
+  }, [clusterAnnotations, datasetInfo]);
+
+  useEffect(() => {
+    if (curationSource || !Array.isArray(clusterData?.clusters) || clusterData.clusters.length === 0) {
+      return;
+    }
+    const source = createCurationSource({
+      sourceKey: curationStorageKey,
+      clusterData,
+      clusteringResults: curatorDataset ? null : clusteringResults,
+      clusterWaveforms,
+      clusterAnnotations,
+    });
+    curationBaseStateRef.current = {
+      clusters,
+      clusterData,
+      clusterStats,
+      clusterWaveforms,
+      curatorDataset,
+      selectedClusters,
+      visibleClusterOrder,
+    };
+    const saved = localStorage.getItem(curationStorageKey);
+    const restored = saved
+      ? restoreCurationSession(saved, source)
+      : { session: createCurationSession(source), recovered: true, error: null };
+    setCurationSource(source);
+    setCurationSession(restored.session);
+    setCurationRecoveryMessage(saved && !restored.recovered
+      ? `${restored.error} A clean session was recovered; original sorter data was untouched.`
+      : '');
+    if (restored.session.operations.length > 0) {
+      const restoredState = deriveCurationState(source, restored.session);
+      setClusterAnnotations((previous) => {
+        const next = { ...previous };
+        restoredState.clusters.forEach((cluster) => {
+          if (!next[String(cluster.id)]) next[String(cluster.id)] = cluster.metadata;
+        });
+        localStorage.setItem(annotationStorageKey, JSON.stringify(next));
+        return next;
+      });
+      applyCurationState(source, restored.session);
+    }
+  }, [
+    applyCurationState,
+    clusterAnnotations,
+    clusterData,
+    clusterStats,
+    clusterWaveforms,
+    clusteringResults,
+    clusters,
+    annotationStorageKey,
+    curationSource,
+    curationStorageKey,
+    curatorDataset,
+    selectedClusters,
+    visibleClusterOrder,
+  ]);
+
+  useEffect(() => {
+    if (!curationSource || !curationSession) return;
+    localStorage.setItem(curationStorageKey, JSON.stringify(curationSession));
+  }, [curationSession, curationSource, curationStorageKey]);
+
+  const persistOperationMetadata = useCallback((session) => {
+    const operation = session.operations[session.cursor - 1];
+    if (!operation?.metadata) return;
+    setClusterAnnotations((previous) => {
+      const next = {
+        ...previous,
+        [String(operation.targetClusterId)]: operation.metadata,
+      };
+      localStorage.setItem(annotationStorageKey, JSON.stringify(next));
+      return next;
+    });
+  }, [annotationStorageKey]);
+
+  const handleMergeCuration = useCallback(() => {
+    if (!curationSource || !curationSession) return;
+    try {
+      const next = mergeCurationClusters(
+        curationSource,
+        curationSession,
+        selectedClusters,
+        clusterAnnotations
+      );
+      const operation = next.operations[next.cursor - 1];
+      persistOperationMetadata(next);
+      applyCurationState(curationSource, next, [operation.targetClusterId]);
+      setCurationActionError('');
+    } catch (error) {
+      setCurationActionError(error.message || 'Unable to merge the selected clusters.');
+    }
+  }, [
+    applyCurationState,
+    clusterAnnotations,
+    curationSession,
+    curationSource,
+    persistOperationMetadata,
+    selectedClusters,
+  ]);
+
+  const handleSplitCuration = useCallback(() => {
+    if (!curationSource || !curationSession) return;
+    try {
+      const next = splitCurationSelection(
+        curationSource,
+        curationSession,
+        curationSpikeSelection.map((spike) => spike.spikeId),
+        clusterAnnotations
+      );
+      const operation = next.operations[next.cursor - 1];
+      persistOperationMetadata(next);
+      applyCurationState(
+        curationSource,
+        next,
+        [operation.sourceClusterId, operation.targetClusterId]
+      );
+      setCurationActionError('');
+    } catch (error) {
+      setCurationActionError(error.message || 'Unable to split the selected spikes.');
+    }
+  }, [
+    applyCurationState,
+    clusterAnnotations,
+    curationSession,
+    curationSource,
+    curationSpikeSelection,
+    persistOperationMetadata,
+  ]);
+
+  const handleUndoCuration = useCallback(() => {
+    if (!curationSource || !curationSession) return;
+    const next = undoCuration(curationSession);
+    applyCurationState(curationSource, next);
+    setCurationActionError('');
+  }, [applyCurationState, curationSession, curationSource]);
+
+  const handleRedoCuration = useCallback(() => {
+    if (!curationSource || !curationSession) return;
+    const next = redoCuration(curationSession);
+    persistOperationMetadata(next);
+    applyCurationState(curationSource, next);
+    setCurationActionError('');
+  }, [applyCurationState, curationSession, curationSource, persistOperationMetadata]);
+
+  const handleResetCuration = useCallback(() => {
+    if (!curationSource) return;
+    const fresh = createCurationSession(curationSource);
+    const base = curationBaseStateRef.current;
+    const targetIds = new Set((curationSession?.operations || []).map((operation) => (
+      String(operation.targetClusterId)
+    )));
+    setClusterAnnotations((previous) => {
+      const next = Object.fromEntries(Object.entries(previous).filter(([clusterId]) => (
+        !targetIds.has(String(clusterId))
+      )));
+      localStorage.setItem(annotationStorageKey, JSON.stringify(next));
+      return next;
+    });
+    setCurationSession(fresh);
+    setCurationSpikeSelection([]);
+    setHighlightedSpikes([]);
+    setCurationActionError('');
+    setCurationRecoveryMessage('');
+    if (!base) {
+      applyCurationState(curationSource, fresh);
+      return;
+    }
+    setClusters(base.clusters);
+    setClusterData(base.clusterData);
+    setClusterStats(base.clusterStats);
+    setClusterWaveforms(base.clusterWaveforms);
+    setCuratorDataset(base.curatorDataset);
+    setSelectedClusters(base.selectedClusters);
+    setVisibleClusterOrder(base.visibleClusterOrder);
+    setSpikes([]);
+    setSelectedSpike(null);
+    setFocusedTimeRange(null);
+  }, [annotationStorageKey, applyCurationState, curationSession, curationSource]);
+
+  const curationDerivedState = useMemo(() => {
+    if (!curationSource || !curationSession) return null;
+    try {
+      return deriveCurationState(curationSource, curationSession);
+    } catch (_error) {
+      return null;
+    }
+  }, [curationSession, curationSource]);
+  const curationActive = Boolean(curationSession?.operations?.length);
+  const curationExportPayload = useMemo(() => {
+    if (!curationSource || !curationSession) return null;
+    try {
+      return createCurationExport({
+        source: curationSource,
+        session: curationSession,
+        clusterAnnotations,
+        dataset: selectedDataset && typeof selectedDataset === 'object'
+          ? { id: selectedDataset.id ?? null, name: selectedDataset.name ?? selectedDataset.filename ?? null }
+          : selectedDataset,
+        algorithm: selectedAlgorithm,
+      });
+    } catch (_error) {
+      return null;
+    }
+  }, [
+    clusterAnnotations,
+    curationSession,
+    curationSource,
+    selectedAlgorithm,
+    selectedDataset,
+  ]);
+  const curationExportFilename = useMemo(() => {
+    const rawName = selectedDataset?.name || selectedDataset?.filename || selectedDataset || 'dataset';
+    const safeName = String(rawName).replace(/[^a-zA-Z0-9_.-]+/g, '-');
+    return `spikescope-${safeName || 'dataset'}-curation-r${curationSession?.revision || 0}.json`;
+  }, [curationSession?.revision, selectedDataset]);
 
   useEffect(() => {
     setHighlightedSpikes((previous) => previous.filter((spike) => (
@@ -1718,6 +2023,8 @@ const MultiPanelView = forwardRef(({
     visibleClusterOrder,
     spikes,
     highlightedSpikes,
+    curationSpikeSelection,
+    curationSession,
     clusterStats,
     clusterAnnotations,
     clusterData,
@@ -1736,6 +2043,8 @@ const MultiPanelView = forwardRef(({
     datasetInfo,
     demoSignalData,
     focusedTimeRange,
+    curationSession,
+    curationSpikeSelection,
     highlightedSpikes,
     selectedClusters,
     spikes,
@@ -2008,6 +2317,28 @@ const MultiPanelView = forwardRef(({
   'panel-curator'
 )}
 
+      {renderDockable(
+        'curationActions',
+        'Curation Actions',
+        <CurationActionsWidget
+          session={curationSession}
+          currentClusterCount={curationDerivedState?.clusters?.length || clusters.length}
+          selectedClusters={selectedClusters}
+          selectedSpikes={curationSpikeSelection}
+          error={curationActionError}
+          recoveryMessage={curationRecoveryMessage}
+          exportPayload={curationExportPayload}
+          exportFilename={curationExportFilename}
+          onMerge={handleMergeCuration}
+          onSplit={handleSplitCuration}
+          onUndo={handleUndoCuration}
+          onRedo={handleRedoCuration}
+          onReset={handleResetCuration}
+          onClearSpikeSelection={() => handleCurationSpikeSelection([])}
+        />,
+        'panel-curation-actions'
+      )}
+
 {renderDockable(
   'rasterPlot',
   'Raster Plot',
@@ -2022,7 +2353,10 @@ const MultiPanelView = forwardRef(({
     clusterOrder={visibleClusterOrder}
     highlightedSpikes={highlightedSpikes}
     linkedTimeRange={focusedTimeRange}
-    onEventSelect={handleSpikeHighlight}
+    onEventSelect={(event) => {
+      handleSpikeHighlight(event);
+      if (event?.spikeId) handleCurationSpikeSelection([event]);
+    }}
     demoMode={demoMode}
   />,
   'panel-raster-plot'
@@ -2038,7 +2372,7 @@ const MultiPanelView = forwardRef(({
           clusteringResults={clusteringResults}
           selectedAlgorithm={selectedAlgorithm}
           datasetInfo={datasetInfo}
-          demoMode={demoMode}
+          demoMode={demoMode || curationActive}
           onClusterSelect={handleClusterSelect}
           onClusterPairSelect={handleClusterPairSelect}
           dataCacheScope={dataCacheScope}
@@ -2058,7 +2392,7 @@ const MultiPanelView = forwardRef(({
           clusteringResults={clusteringResults}
           selectedAlgorithm={selectedAlgorithm}
           datasetInfo={datasetInfo}
-          demoMode={demoMode}
+          demoMode={demoMode || curationActive}
           onClusterSelect={handleClusterSelect}
           dataCacheScope={dataCacheScope}
           onLoadingChange={handleWidgetLoadingChange}
@@ -2078,7 +2412,7 @@ const MultiPanelView = forwardRef(({
           clusteringResults={clusteringResults}
           selectedAlgorithm={selectedAlgorithm}
           datasetInfo={datasetInfo}
-          demoMode={demoMode}
+          demoMode={demoMode || curationActive}
           highlightedSpikes={highlightedSpikes}
           linkedTimeRange={focusedTimeRange}
           onTimeRangeSelect={handleTimeRangeSelect}
@@ -2098,6 +2432,7 @@ const MultiPanelView = forwardRef(({
           onSpikeSelect={(index, spike) => {
             setSelectedSpike(index);
             handleSpikeHighlight(spike);
+            if (spike?.spikeId) handleCurationSpikeSelection([spike]);
           }}
           selectedClusters={selectedClusters}
         />,
@@ -2143,6 +2478,7 @@ const MultiPanelView = forwardRef(({
             pointIndex: highlightedSpikes[0].pointIndex
           } : null}
           onSpikeClick={handleSpikeHighlight}
+          onSpikeSelectionChange={handleCurationSpikeSelection}
         />,
         'panel-dim-reduction'
       )}
@@ -2180,7 +2516,7 @@ const MultiPanelView = forwardRef(({
               selectedClusters={selectedClusters}
               selectedAlgorithm={selectedAlgorithm}
               demoMode={demoMode}
-              demoWaveforms={demoWaveforms}
+              demoWaveforms={curationActive ? clusterWaveforms : demoWaveforms}
               clusterLookup={curatorDataset?.clusterLookup}
               dataCacheScope={dataCacheScope}
               onLoadingChange={handleWidgetLoadingChange}
