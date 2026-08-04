@@ -544,6 +544,114 @@
   min-height: 280px;
 }
 
+.panel-similarity-table {
+  top: 110px;
+  left: clamp(56px, 18vw, 280px);
+}
+
+.panel-similarity-table .dockable-widget {
+  width: min(760px, calc(100vw - 100px));
+  height: min(480px, calc(100vh - 170px));
+  min-width: min(480px, calc(100vw - 72px));
+  min-height: 280px;
+}
+
+.panel-firing-rate-timeline {
+  top: 230px;
+  left: clamp(72px, 24vw, 380px);
+}
+
+.panel-firing-rate-timeline .dockable-widget {
+  width: min(760px, calc(100vw - 100px));
+  height: min(440px, calc(100vh - 290px));
+  min-width: min(400px, calc(100vw - 72px));
+  min-height: 280px;
+}
+
+.panel-probe-map {
+  top: 80px;
+  left: clamp(44px, 12vw, 190px);
+}
+
+.panel-probe-map .dockable-widget {
+  width: min(560px, calc(100vw - 90px));
+  height: min(620px, calc(100vh - 140px));
+  min-width: min(360px, calc(100vw - 72px));
+  min-height: 300px;
+}
+
+.panel-trace-heatmap {
+  top: 130px;
+  left: clamp(60px, 18vw, 290px);
+}
+
+.panel-trace-heatmap .dockable-widget {
+  width: min(820px, calc(100vw - 100px));
+  height: min(520px, calc(100vh - 190px));
+  min-width: min(440px, calc(100vw - 72px));
+  min-height: 300px;
+}
+
+.panel-feature-matrix {
+  top: 90px;
+  left: clamp(40px, 12vw, 190px);
+}
+
+.panel-feature-matrix .dockable-widget {
+  width: min(860px, calc(100vw - 88px));
+  height: min(680px, calc(100vh - 150px));
+  min-width: min(460px, calc(100vw - 72px));
+  min-height: 340px;
+}
+
+.panel-template-feature-pair {
+  top: 160px;
+  left: clamp(64px, 21vw, 320px);
+}
+
+.panel-template-feature-pair .dockable-widget {
+  width: min(720px, calc(100vw - 100px));
+  height: min(500px, calc(100vh - 220px));
+  min-width: min(400px, calc(100vw - 72px));
+  min-height: 280px;
+}
+
+.panel-template-gallery {
+  top: 80px;
+  left: clamp(42px, 13vw, 210px);
+}
+
+.panel-template-gallery .dockable-widget {
+  width: min(840px, calc(100vw - 90px));
+  height: min(620px, calc(100vh - 145px));
+  min-width: min(440px, calc(100vw - 72px));
+  min-height: 320px;
+}
+
+.panel-cluster-metric-scatter {
+  top: 170px;
+  left: clamp(60px, 22vw, 330px);
+}
+
+.panel-cluster-metric-scatter .dockable-widget {
+  width: min(740px, calc(100vw - 100px));
+  height: min(500px, calc(100vh - 230px));
+  min-width: min(400px, calc(100vw - 72px));
+  min-height: 280px;
+}
+
+.panel-spike-attribute-explorer {
+  top: 145px;
+  left: clamp(58px, 20vw, 300px);
+}
+
+.panel-spike-attribute-explorer .dockable-widget {
+  width: min(760px, calc(100vw - 100px));
+  height: min(500px, calc(100vh - 205px));
+  min-width: min(400px, calc(100vw - 72px));
+  min-height: 280px;
+}
+
 .panel-analysis-workspace {
   top: 90px;
   left: clamp(46px, 14vw, 220px);

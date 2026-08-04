@@ -123,14 +123,16 @@
 }
 
 .isi-plot-shell,
-.amplitude-plot-shell {
+.amplitude-plot-shell,
+.firing-rate-plot-shell {
   position: absolute;
   inset: 0;
   min-width: 320px;
   min-height: 220px;
 }
 
-.amplitude-summary-strip {
+.amplitude-summary-strip,
+.firing-rate-summary-strip {
   display: flex;
   gap: 12px;
   padding: 4px 10px;
@@ -141,4 +143,5 @@
   color: rgba(226, 232, 240, 0.66);
 }
 
-.amplitude-summary-strip strong { color: #e2e8f0; }
+.amplitude-summary-strip strong,
+.firing-rate-summary-strip strong { color: #e2e8f0; }

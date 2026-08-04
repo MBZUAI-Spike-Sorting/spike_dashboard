@@ -16,6 +16,8 @@ const WaveformNeighboringChannelsView = ({
   clusterLookup = null,
   dataCacheScope = 'default',
   onLoadingChange,
+  linkedSelectedChannels = [],
+  onChannelSelect,
 }) => {
   const [selectedClusterId, setSelectedClusterId] = useState(null);
   const [multiChannelData, setMultiChannelData] = useState(null);
@@ -275,7 +277,13 @@ const WaveformNeighboringChannelsView = ({
         ) : (
           <div className="channel-plots-grid">
             {channelPlots.map(({ channelId, isPeakChannel, traces }) => (
-              <div key={channelId} className={`channel-plot-item ${isPeakChannel ? 'peak-channel' : ''}`}>
+              <div
+                key={channelId}
+                className={`channel-plot-item ${isPeakChannel ? 'peak-channel' : ''} ${linkedSelectedChannels.some((selected) => String(selected) === String(channelId)) ? 'selected-channel' : ''}`}
+                onClick={(event) => onChannelSelect?.(channelId, {
+                  additive: Boolean(event.shiftKey || event.ctrlKey || event.metaKey),
+                })}
+              >
                 <div className="channel-plot-header">
                   CH{channelId} {isPeakChannel && '(Peak)'}
                 </div>
