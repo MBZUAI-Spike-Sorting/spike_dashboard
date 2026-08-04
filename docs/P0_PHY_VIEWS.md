@@ -1,6 +1,6 @@
-# Phy-inspired P0 views
+# Phy-inspired curation views
 
-SpikeScope's Phy-inspired curation work adds linked diagnostic and feature views with a shared selection model.
+SpikeScope's Phy-inspired curation work adds linked diagnostic, feature, spatial, and raw-trace views with a shared selection model.
 
 ## Views
 
@@ -8,6 +8,7 @@ SpikeScope's Phy-inspired curation work adds linked diagnostic and feature views
 - **Correlogram Matrix** shows auto- and cross-correlograms for up to four linked clusters. It exposes local cluster controls plus bin, window, performance-limit, refractory, and count/rate/baseline-ratio controls.
 - **ISI Histogram** overlays up to twelve linked clusters and reports refractory violation rates in the legend. Local cluster choices, bin size, visible interval, refractory period, and linear/log x scale are configurable.
 - **Amplitude vs Time / Drift** extracts raw peak-to-peak amplitudes for up to twelve linked clusters, displays them against recording time with same-channel background spikes and marginal amplitude histograms, and supports box/lasso time selection.
+- **Firing Rate Timeline** bins all spikes for up to twelve linked clusters across the full recording. It switches between rate/count values and overlay/small-multiple layouts; clicking or brushing bins focuses the linked time range.
 - **Feature Matrix** compares up to six clusters across retained time, PCA, channel, amplitude, sorter, and template dimensions. Dimensions and channels are selectable, datasets are deterministically bounded, and box/lasso selection publishes exact stable spike identities.
 - **Template Feature Pair** focuses on exactly two clusters. It prefers retained sorter template features and otherwise exposes a clearly labeled deterministic projection along the two PCA centroids; selections are shared with the Feature Matrix and linked spike views.
 
@@ -19,7 +20,7 @@ The dashboard owns cluster, spike, and time selections. Widgets publish selectio
 
 - cluster selection updates every cluster-aware view;
 - spike clicks in PCA, raster, spike table, or amplitude view highlight the same spike in PCA, raster, waveform, and signal views;
-- a time brush in the amplitude view focuses both the raw signal and raster views.
+- a time brush in the amplitude or firing-rate view focuses the raw signal, raster, and other time-aware diagnostic views.
 
 ## API contracts
 
@@ -28,10 +29,27 @@ The diagnostic views use these POST endpoints:
 - `/api/cluster-statistics`
 - `/api/cluster-correlograms`
 - `/api/cluster-isi-histograms`
+- `/api/cluster-firing-rates`
 - `/api/cluster-amplitudes`
 - `/api/cluster-features`
 - `/api/cluster-waveforms`
 
-Times are represented as recording samples at the API boundary. Correlogram and ISI bin coordinates are milliseconds. Amplitude points include both `timeSamples` and `timeSeconds`; amplitudes are unstandardized peak-to-peak values from the loaded dataset. Waveform requests use deterministic, bounded sampling and always include explicitly highlighted spikes.
+Times are represented as recording samples at the API boundary. Correlogram and ISI bin coordinates are milliseconds. Firing-rate results expose sample-domain bin edges, second-domain centers, counts, and per-bin rates; a short final bin is normalized by its actual duration. Amplitude points include both `timeSamples` and `timeSeconds`; amplitudes are unstandardized peak-to-peak values from the loaded dataset. Waveform requests use deterministic, bounded sampling and always include explicitly highlighted spikes.
 
-The numerical implementations live in `processing/cluster_diagnostics.py` and `processing/feature_views.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js` and `src/utils/featureViews.js`.
+The numerical implementations live in `processing/cluster_diagnostics.py`, `processing/feature_views.py`, and `processing/spatial_views.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`, `src/utils/featureViews.js`, and `src/utils/spatialViews.js`.
+
+## P1 pair review
+
+The **Similarity Table** ranks merge candidates for the primary cluster and publishes a primary/secondary pair to linked diagnostic views. It uses retained sorter-template similarity when the clustering manager exposes it; otherwise it clearly labels a deterministic mean-waveform/channel or feature-centroid/channel fallback. The API contract is `POST /api/cluster-similarities`.
+
+## Spatial and raw-trace views
+
+- **Probe Map** renders retained physical probe coordinates when available and a clearly labeled deterministic grid otherwise. Selected-cluster channel footprints and peak channels are overlaid on the geometry.
+- **Trace Heatmap** provides a bounded, peak-preserving channel-by-time image with raw or per-channel robust-z scaling.
+- Probe, Signal, Trace Heatmap, and neighboring Waveform views share one-based channel selection. Signal also overlays the selected clusters' spike identities in the visible time interval.
+
+The spatial contracts use `POST /api/probe-geometry` and `POST /api/trace-heatmap`. Trace heatmaps cap channel and time-bin counts before JSON serialization.
+
+## Backlog position
+
+The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, Firing Rate Timeline, Similarity Table, Probe Map, Trace Heatmap, Feature Matrix, and Template Feature Pair. The next views in the gap-analysis order are Template View and Cluster Scatter View.

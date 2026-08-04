@@ -36,6 +36,10 @@ import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
 import FeatureMatrixWidget from './FeatureMatrixWidget';
 import TemplateFeaturePairWidget from './TemplateFeaturePairWidget';
+import ProbeMapWidget from './ProbeMapWidget';
+import TraceHeatmapWidget from './TraceHeatmapWidget';
+import SimilarityTableWidget from './SimilarityTableWidget';
+import FiringRateTimelineWidget from './FiringRateTimelineWidget';
 import CanvasMinimap from './CanvasMinimap';
 import apiClient from '../api/client';
 import {
@@ -84,6 +88,13 @@ const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
 const CANVAS_OVERLAY_IDLE_MS = 3000;
 const MINIMAP_VISIBLE_MS = 10000;
 const CURATOR_UPLOAD_ALGORITHM = 'preprocessed_kilosort4';
+
+const getDefaultChannelSelection = (datasetInfo) => {
+  const totalChannels = Math.max(0, Number(datasetInfo?.totalChannels || 0));
+  if (!totalChannels) return [];
+  if (totalChannels >= 183) return [179, 181, 183];
+  return Array.from({ length: Math.min(3, totalChannels) }, (_, index) => index + 1);
+};
 
 const CanvasCursorCoordinates = forwardRef(({ ariaLabel }, ref) => {
   const [point, setPoint] = useState(null);
@@ -138,8 +149,12 @@ const DEFAULT_WIDGET_STATES = {
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
   amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
-  featureMatrix: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'featureMatrix' },
-  templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 15, position: null, size: null, type: 'templateFeaturePair' }
+  firingRateTimeline: { visible: false, minimized: false, maximized: false, order: 14, position: null, size: null, type: 'firingRateTimeline' },
+  similarityTable: { visible: false, minimized: false, maximized: false, order: 15, position: null, size: null, type: 'similarityTable' },
+  probeMap: { visible: false, minimized: false, maximized: false, order: 16, position: null, size: null, type: 'probeMap' },
+  traceHeatmap: { visible: false, minimized: false, maximized: false, order: 17, position: null, size: null, type: 'traceHeatmap' },
+  featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
+  templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -231,7 +246,7 @@ const MultiPanelView = forwardRef(({
   const [clusterWaveforms, setClusterWaveforms] = useState({});
   const [highlightedSpikes, setHighlightedSpikes] = useState([]);
   const [curationSpikeSelection, setCurationSpikeSelection] = useState([]);
-  const [selectedChannels, setSelectedChannels] = useState([]);
+  const [selectedChannels, setSelectedChannels] = useState(() => getDefaultChannelSelection(datasetInfo));
   const [focusedTimeRange, setFocusedTimeRange] = useState(null);
   const [clusterAnnotations, setClusterAnnotations] = useState({});
   const [clusterGroupNames, setClusterGroupNames] = useState(DEFAULT_CLUSTER_GROUPS);
@@ -365,6 +380,19 @@ const MultiPanelView = forwardRef(({
   const hasMaximizedWidget = Object.values(widgetStates).some(
     (state) => state.visible && state.maximized
   );
+
+  useEffect(() => {
+    const totalChannels = Math.max(0, Number(datasetInfo?.totalChannels || 0));
+    setSelectedChannels((current) => {
+      const valid = current.map(Number).filter((channelId, index, values) => (
+        Number.isInteger(channelId)
+        && channelId >= 1
+        && channelId <= totalChannels
+        && values.indexOf(channelId) === index
+      ));
+      return valid.length ? valid : getDefaultChannelSelection(datasetInfo);
+    });
+  }, [datasetInfo]);
 
   useEffect(() => {
     const visibleSelection = selectedWidgetIdsRef.current.filter((widgetId) => {
@@ -1198,6 +1226,29 @@ const MultiPanelView = forwardRef(({
       : [primaryClusterId, secondaryClusterId]);
   }, []);
 
+  const handleSelectedChannelsChange = useCallback((channelIds) => {
+    const totalChannels = Math.max(0, Number(datasetInfo?.totalChannels || 0));
+    const normalized = (channelIds || []).map(Number).filter((channelId, index, values) => (
+      Number.isInteger(channelId)
+      && channelId >= 1
+      && channelId <= totalChannels
+      && values.indexOf(channelId) === index
+    ));
+    setSelectedChannels(normalized);
+  }, [datasetInfo]);
+
+  const handleChannelSelect = useCallback((channelId, options = {}) => {
+    const numericChannel = Number(channelId);
+    const totalChannels = Math.max(0, Number(datasetInfo?.totalChannels || 0));
+    if (!Number.isInteger(numericChannel) || numericChannel < 1 || numericChannel > totalChannels) return;
+    setSelectedChannels((current) => {
+      if (!options.additive) return [numericChannel];
+      return current.includes(numericChannel)
+        ? current.filter((candidate) => candidate !== numericChannel)
+        : [...current, numericChannel];
+    });
+  }, [datasetInfo]);
+
   const handleSpikeHighlight = useCallback((clusterOrEvent, pointIndex) => {
     const suppliedEvent = clusterOrEvent && typeof clusterOrEvent === 'object' ? clusterOrEvent : null;
     const clusterId = suppliedEvent?.clusterId ?? clusterOrEvent;
@@ -1229,13 +1280,6 @@ const MultiPanelView = forwardRef(({
     if (normalized.length > 0) handleSpikeHighlight(normalized[0]);
     else setHighlightedSpikes([]);
   }, [handleSpikeHighlight]);
-
-  const handleSelectedChannelsChange = useCallback((channels) => {
-    const normalized = [...new Set((Array.isArray(channels) ? channels : [])
-      .map(Number)
-      .filter(Number.isFinite))].sort((left, right) => left - right);
-    setSelectedChannels(normalized);
-  }, []);
 
   useEffect(() => {
     setHighlightedSpikes((previous) => previous.filter((spike) => (
@@ -2081,6 +2125,26 @@ const MultiPanelView = forwardRef(({
       )}
 
       {renderDockable(
+        'similarityTable',
+        'Similarity Table',
+        <SimilarityTableWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          clusterData={clusterData}
+          clusterWaveforms={clusterWaveforms}
+          clusteringResults={clusteringResults}
+          clusterStats={clusterStats}
+          clusterAnnotations={clusterAnnotations}
+          selectedAlgorithm={selectedAlgorithm}
+          demoMode={demoMode}
+          onClusterPairSelect={handleClusterPairSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-similarity-table'
+      )}
+
+      {renderDockable(
         'isiHistogram',
         'Inter-Spike Interval Histogram',
         <IsiHistogramWidget
@@ -2165,6 +2229,59 @@ const MultiPanelView = forwardRef(({
         'panel-template-feature-pair'
       )}
       {renderDockable(
+        'firingRateTimeline',
+        'Firing Rate Timeline',
+        <FiringRateTimelineWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          spikes={spikes}
+          clusterData={clusterData}
+          clusteringResults={clusteringResults}
+          selectedAlgorithm={selectedAlgorithm}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          linkedTimeRange={focusedTimeRange}
+          onTimeRangeSelect={handleTimeRangeSelect}
+          onClusterSelect={handleClusterSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-firing-rate-timeline'
+      )}
+      {renderDockable(
+        'probeMap',
+        'Probe Map',
+        <ProbeMapWidget
+          selectedClusters={selectedClusters}
+          selectedChannels={selectedChannels}
+          clusterData={clusterData}
+          selectedAlgorithm={selectedAlgorithm}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          onChannelSelect={handleChannelSelect}
+          onSelectedChannelsChange={handleSelectedChannelsChange}
+          onClusterSelect={handleClusterSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-probe-map'
+      )}
+      {renderDockable(
+        'traceHeatmap',
+        'Trace Heatmap',
+        <TraceHeatmapWidget
+          selectedChannels={selectedChannels}
+          linkedTimeRange={focusedTimeRange}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          onChannelSelect={handleChannelSelect}
+          onTimeRangeSelect={handleTimeRangeSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-trace-heatmap'
+      )}
+      {renderDockable(
         'spikeList',
         'Spike List Table',
         <SpikeListTable
@@ -2199,6 +2316,9 @@ const MultiPanelView = forwardRef(({
           onTimeRangeChange={handleTimeRangeSelect}
           datasetInfo={datasetInfo}
           demoSignalData={demoSignalData}
+          linkedSelectedChannels={selectedChannels}
+          onSelectedChannelsChange={handleSelectedChannelsChange}
+          clusterSpikes={spikes}
           dataCacheScope={dataCacheScope}
           onLoadingChange={handleWidgetLoadingChange}
         />,
@@ -2259,6 +2379,8 @@ const MultiPanelView = forwardRef(({
               clusterLookup={curatorDataset?.clusterLookup}
               dataCacheScope={dataCacheScope}
               onLoadingChange={handleWidgetLoadingChange}
+              linkedSelectedChannels={selectedChannels}
+              onChannelSelect={handleChannelSelect}
             />
           )}
         </>,

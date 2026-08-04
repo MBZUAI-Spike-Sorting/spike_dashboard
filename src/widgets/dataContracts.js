@@ -9,6 +9,7 @@
 export const DATA_TYPES = Object.freeze({
   CLUSTER_LIST: 'cluster_list',
   CLUSTER_IDS: 'cluster_ids',
+  CHANNEL_IDS: 'channel_ids',
   CLUSTER_ORDER: 'cluster_order',
   SPIKE_EVENTS: 'spike_events',
   SPIKE_SELECTION: 'spike_selection',
@@ -20,17 +21,21 @@ export const DATA_TYPES = Object.freeze({
   SIGNAL_TRACE: 'signal_trace',
   DATASET_INFO: 'dataset_info',
   CURATION_STATE: 'curation_state',
+  CLUSTER_SIMILARITY: 'cluster_similarity',
   CORRELOGRAMS: 'correlograms',
   ISI_HISTOGRAMS: 'isi_histograms',
+  FIRING_RATES: 'firing_rates',
   SPIKE_AMPLITUDES: 'spike_amplitudes',
   SPIKE_FEATURES: 'spike_features',
-  CHANNEL_IDS: 'channel_ids',
+  PROBE_GEOMETRY: 'probe_geometry',
+  TRACE_HEATMAP: 'trace_heatmap',
   TIME_RANGE: 'time_range'
 });
 
 export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.CLUSTER_LIST]: 'Cluster list',
   [DATA_TYPES.CLUSTER_IDS]: 'Cluster IDs',
+  [DATA_TYPES.CHANNEL_IDS]: 'Channel IDs',
   [DATA_TYPES.CLUSTER_ORDER]: 'Visible cluster order',
   [DATA_TYPES.SPIKE_EVENTS]: 'Spike events',
   [DATA_TYPES.SPIKE_SELECTION]: 'Spike selection',
@@ -42,11 +47,14 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.SIGNAL_TRACE]: 'Signal trace',
   [DATA_TYPES.DATASET_INFO]: 'Dataset info',
   [DATA_TYPES.CURATION_STATE]: 'Cluster curation state',
+  [DATA_TYPES.CLUSTER_SIMILARITY]: 'Cluster similarity ranking',
   [DATA_TYPES.CORRELOGRAMS]: 'Correlograms',
   [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
+  [DATA_TYPES.FIRING_RATES]: 'Firing-rate timelines',
   [DATA_TYPES.SPIKE_AMPLITUDES]: 'Spike amplitudes',
   [DATA_TYPES.SPIKE_FEATURES]: 'Spike features',
-  [DATA_TYPES.CHANNEL_IDS]: 'Channel IDs',
+  [DATA_TYPES.PROBE_GEOMETRY]: 'Probe geometry',
+  [DATA_TYPES.TRACE_HEATMAP]: 'Trace heatmap',
   [DATA_TYPES.TIME_RANGE]: 'Time range'
 });
 
@@ -71,6 +79,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     id: 'selectedClusters',
     label: 'Selected clusters',
     dataType: DATA_TYPES.CLUSTER_IDS,
+    shape: 'number[]',
+    validate: isNumberArray
+  },
+  selectedChannels: {
+    id: 'selectedChannels',
+    label: 'Selected channels',
+    dataType: DATA_TYPES.CHANNEL_IDS,
     shape: 'number[]',
     validate: isNumberArray
   },
@@ -102,13 +117,6 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     shape: 'Array<{ spikeId, clusterId, pointIndex, spikeIndex }>',
     validate: (value) => Array.isArray(value)
   },
-  selectedChannels: {
-    id: 'selectedChannels',
-    label: 'Selected channels',
-    dataType: DATA_TYPES.CHANNEL_IDS,
-    shape: 'number[]',
-    validate: isNumberArray
-  },
   clusterStats: {
     id: 'clusterStats',
     label: 'Cluster statistics',
@@ -122,6 +130,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     dataType: DATA_TYPES.CURATION_STATE,
     shape: 'Record<clusterId, { group, label, note }>',
     validate: isPlainObject
+  },
+  clusterSimilarities: {
+    id: 'clusterSimilarities',
+    label: 'Cluster similarity ranking',
+    dataType: DATA_TYPES.CLUSTER_SIMILARITY,
+    shape: '{ primaryClusterId, source, candidates }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.candidates)
   },
   clusterData: {
     id: 'clusterData',
@@ -177,6 +192,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     shape: '{ clusterIds, binCentersMs, series }',
     validate: (value) => isPlainObject(value) && Array.isArray(value.series)
   },
+  firingRates: {
+    id: 'firingRates',
+    label: 'Firing-rate timelines',
+    dataType: DATA_TYPES.FIRING_RATES,
+    shape: '{ clusterIds, binCentersSeconds, series }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
   spikeAmplitudes: {
     id: 'spikeAmplitudes',
     label: 'Spike amplitudes',
@@ -190,6 +212,20 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     dataType: DATA_TYPES.SPIKE_FEATURES,
     shape: '{ clusterIds, dimensions, series, backgroundPoints? }',
     validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
+  probeGeometry: {
+    id: 'probeGeometry',
+    label: 'Probe geometry',
+    dataType: DATA_TYPES.PROBE_GEOMETRY,
+    shape: '{ channels, clusterFootprints, source }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.channels)
+  },
+  traceHeatmap: {
+    id: 'traceHeatmap',
+    label: 'Trace heatmap',
+    dataType: DATA_TYPES.TRACE_HEATMAP,
+    shape: '{ channelIds, timeBinCentersSamples, values }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.values)
   },
   focusedTimeRange: {
     id: 'focusedTimeRange',
@@ -284,6 +320,12 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         required: false
       },
       {
+        id: 'selectedChannels',
+        label: 'Selected channels',
+        accepts: [DATA_TYPES.CHANNEL_IDS],
+        required: false
+      },
+      {
         id: 'timeRange',
         label: 'Focused time range',
         accepts: [DATA_TYPES.TIME_RANGE],
@@ -335,6 +377,12 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         id: 'highlightedSpikes',
         label: 'Highlighted spikes',
         accepts: [DATA_TYPES.SPIKE_SELECTION],
+        required: false
+      },
+      {
+        id: 'selectedChannels',
+        label: 'Selected channels',
+        accepts: [DATA_TYPES.CHANNEL_IDS],
         required: false
       }
     ]
@@ -441,6 +489,17 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       }
     ]
   },
+  similarityTable: {
+    widgetId: 'similarityTable',
+    label: 'Similarity Table',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'selectedClusters', label: 'Primary and secondary clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'statistics', label: 'Cluster statistics', accepts: [DATA_TYPES.CLUSTER_STATISTICS], required: false },
+      { id: 'annotations', label: 'Curation annotations', accepts: [DATA_TYPES.CURATION_STATE], required: false },
+      { id: 'similarities', label: 'Precomputed similarity ranking', accepts: [DATA_TYPES.CLUSTER_SIMILARITY], required: false }
+    ]
+  },
   correlogram: {
     widgetId: 'correlogram',
     label: 'Correlogram Matrix',
@@ -461,6 +520,17 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       { id: 'isiHistograms', label: 'Precomputed ISIs', accepts: [DATA_TYPES.ISI_HISTOGRAMS], required: false }
     ]
   },
+  firingRateTimeline: {
+    widgetId: 'firingRateTimeline',
+    label: 'Firing Rate Timeline',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'spikes', label: 'Spike events', accepts: [DATA_TYPES.SPIKE_EVENTS], required: true },
+      { id: 'firingRates', label: 'Precomputed firing rates', accepts: [DATA_TYPES.FIRING_RATES], required: false },
+      { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
+    ]
+  },
   amplitudeTime: {
     widgetId: 'amplitudeTime',
     label: 'Amplitude vs Time / Drift',
@@ -470,6 +540,27 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       { id: 'spikes', label: 'Spike events', accepts: [DATA_TYPES.SPIKE_EVENTS], required: true },
       { id: 'amplitudes', label: 'Spike amplitudes', accepts: [DATA_TYPES.SPIKE_AMPLITUDES], required: false },
       { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
+    ]
+  },
+  probeMap: {
+    widgetId: 'probeMap',
+    label: 'Probe Map',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: false },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'selectedChannels', label: 'Selected channels', accepts: [DATA_TYPES.CHANNEL_IDS], required: false },
+      { id: 'datasetInfo', label: 'Dataset info', accepts: [DATA_TYPES.DATASET_INFO], required: true },
+      { id: 'geometry', label: 'Precomputed probe geometry', accepts: [DATA_TYPES.PROBE_GEOMETRY], required: false }
+    ]
+  },
+  traceHeatmap: {
+    widgetId: 'traceHeatmap',
+    label: 'Trace Heatmap',
+    inputs: [
+      { id: 'datasetInfo', label: 'Dataset info', accepts: [DATA_TYPES.DATASET_INFO], required: true },
+      { id: 'selectedChannels', label: 'Selected channels', accepts: [DATA_TYPES.CHANNEL_IDS], required: false },
+      { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false },
+      { id: 'heatmap', label: 'Precomputed trace heatmap', accepts: [DATA_TYPES.TRACE_HEATMAP], required: false }
     ]
   },
   featureMatrix: {
