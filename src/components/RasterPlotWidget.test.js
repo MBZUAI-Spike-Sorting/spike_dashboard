@@ -1,4 +1,9 @@
-import { buildRasterEvents, panTimeDomain, zoomTimeDomain } from './RasterPlotWidget';
+import {
+  buildRasterEvents,
+  isAdditiveClusterSelection,
+  panTimeDomain,
+  zoomTimeDomain,
+} from './RasterPlotWidget';
 
 const fullDomain = { start: 0, end: 1000 };
 
@@ -39,9 +44,21 @@ test('returns to the full domain when zooming all the way out', () => {
   expect(zoomTimeDomain({ start: 250, end: 750 }, fullDomain, 2)).toBeNull();
 });
 
-test('does not treat an empty visible-cluster order as an active filter', () => {
+test('does not activate the visible-cluster filter before the table publishes it', () => {
   const events = buildRasterEvents({
     spikes: [],
+    selectedClusters: [12],
+    visibleClusterIds: null,
+    clusterData: {
+      clusters: [{ clusterId: 12, spikeTimes: [100, 200] }],
+    },
+  });
+
+  expect(events.map((event) => event.clusterId)).toEqual([12, 12]);
+});
+
+test('an intentionally empty table filter produces an empty raster', () => {
+  const events = buildRasterEvents({
     selectedClusters: [12],
     visibleClusterIds: [],
     clusterData: {
@@ -49,7 +66,7 @@ test('does not treat an empty visible-cluster order as an active filter', () => 
     },
   });
 
-  expect(events.map((event) => event.clusterId)).toEqual([12, 12]);
+  expect(events).toEqual([]);
 });
 
 test('uses complete cluster data so IDs above the spike preview range remain visible', () => {
@@ -59,7 +76,7 @@ test('uses complete cluster data so IDs above the spike preview range remain vis
       { time: 20, clusterId: 1 },
     ],
     selectedClusters: [],
-    visibleClusterIds: [],
+    visibleClusterIds: null,
     clusterData: {
       clusters: [
         { clusterId: 0, spikeTimes: [10] },
@@ -108,4 +125,11 @@ test('selected-only mode can intentionally produce an empty raster', () => {
   });
 
   expect(events).toEqual([]);
+});
+
+test('recognizes standard additive-selection modifiers for raster clicks', () => {
+  expect(isAdditiveClusterSelection({ ctrlKey: true })).toBe(true);
+  expect(isAdditiveClusterSelection({ metaKey: true })).toBe(true);
+  expect(isAdditiveClusterSelection({ shiftKey: true })).toBe(true);
+  expect(isAdditiveClusterSelection({})).toBe(false);
 });

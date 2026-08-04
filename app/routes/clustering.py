@@ -21,6 +21,7 @@ from processing.cluster_diagnostics import (
     calculate_isi_histograms,
     extract_spike_amplitudes,
 )
+from processing.template_gallery import extract_cluster_templates
 
 logger = get_logger(__name__)
 
@@ -252,6 +253,34 @@ def get_cluster_amplitudes():
     except Exception as error:
         logger.error(f"Error extracting spike amplitudes: {error}", exc_info=True)
         return server_error("Failed to extract cluster amplitudes", exception=error)
+
+
+@clustering_bp.route('/api/cluster-templates', methods=['POST'])
+def get_cluster_templates():
+    """Return ordered retained templates or deterministic raw means."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({'clusterIds': [], 'templates': []})
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({'clusterIds': [], 'templates': []})
+
+        result = extract_cluster_templates(
+            context['results'],
+            context['datasetManager'].data_array,
+            cluster_ids,
+            sample_rate_hz=context['sampleRateHz'],
+            window_samples=int(_bounded_number(data, 'windowSamples', 30, 1, 500)),
+            max_waveforms=int(_bounded_number(data, 'maxWaveforms', 64, 1, 256)),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error extracting cluster templates: {error}", exc_info=True)
+        return server_error("Failed to extract cluster templates", exception=error)
 
 
 

@@ -23,6 +23,7 @@ export const DATA_TYPES = Object.freeze({
   CORRELOGRAMS: 'correlograms',
   ISI_HISTOGRAMS: 'isi_histograms',
   SPIKE_AMPLITUDES: 'spike_amplitudes',
+  CLUSTER_TEMPLATES: 'cluster_templates',
   TIME_RANGE: 'time_range'
 });
 
@@ -43,6 +44,7 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.CORRELOGRAMS]: 'Correlograms',
   [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
   [DATA_TYPES.SPIKE_AMPLITUDES]: 'Spike amplitudes',
+  [DATA_TYPES.CLUSTER_TEMPLATES]: 'Cluster templates',
   [DATA_TYPES.TIME_RANGE]: 'Time range'
 });
 
@@ -165,6 +167,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     dataType: DATA_TYPES.SPIKE_AMPLITUDES,
     shape: '{ clusterIds, sampleRateHz, series }',
     validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
+  clusterTemplates: {
+    id: 'clusterTemplates',
+    label: 'Cluster templates',
+    dataType: DATA_TYPES.CLUSTER_TEMPLATES,
+    shape: '{ clusterIds, templates }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.templates)
   },
   focusedTimeRange: {
     id: 'focusedTimeRange',
@@ -414,6 +423,28 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
         accepts: [DATA_TYPES.CLUSTER_ORDER],
         required: false
       }
+    ]
+  },
+  templateGallery: {
+    widgetId: 'templateGallery',
+    label: 'Template Gallery',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'visibleClusters', label: 'Visible cluster order', accepts: [DATA_TYPES.CLUSTER_ORDER], required: true },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'waveforms', label: 'Waveform fallback', accepts: [DATA_TYPES.WAVEFORMS], required: false },
+      { id: 'templates', label: 'Cluster templates', accepts: [DATA_TYPES.CLUSTER_TEMPLATES], required: false }
+    ]
+  },
+  clusterMetricScatter: {
+    widgetId: 'clusterMetricScatter',
+    label: 'Cluster Metric Scatter',
+    inputs: [
+      { id: 'clusters', label: 'Clusters', accepts: [DATA_TYPES.CLUSTER_LIST], required: true },
+      { id: 'visibleClusters', label: 'Visible cluster order', accepts: [DATA_TYPES.CLUSTER_ORDER], required: true },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'statistics', label: 'Cluster statistics', accepts: [DATA_TYPES.CLUSTER_STATISTICS], required: true },
+      { id: 'annotations', label: 'Curation annotations', accepts: [DATA_TYPES.CURATION_STATE], required: false }
     ]
   },
   correlogram: {

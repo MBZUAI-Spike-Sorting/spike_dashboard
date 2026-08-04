@@ -493,6 +493,21 @@ const apiClient = {
       }),
     });
   },
+
+  /**
+   * Get ordered retained templates or deterministic raw mean waveforms.
+   */
+  async getClusterTemplates({
+    clusterIds,
+    algorithm = '',
+    windowSamples = 30,
+    maxWaveforms = 64,
+  }) {
+    return request('/api/cluster-templates', {
+      method: 'POST',
+      body: JSON.stringify({ clusterIds, algorithm, windowSamples, maxWaveforms }),
+    });
+  },
   
   /**
    * Get cluster waveforms
