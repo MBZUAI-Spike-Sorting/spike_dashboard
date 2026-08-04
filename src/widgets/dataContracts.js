@@ -446,6 +446,19 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       { id: 'amplitudes', label: 'Spike amplitudes', accepts: [DATA_TYPES.SPIKE_AMPLITUDES], required: false },
       { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
     ]
+  },
+  analysisWorkspace: {
+    widgetId: 'analysisWorkspace',
+    label: 'Analysis Workspace',
+    inputs: [
+      { id: 'datasetInfo', label: 'Dataset info', accepts: [DATA_TYPES.DATASET_INFO], required: false },
+      { id: 'clusters', label: 'Clusters', accepts: [DATA_TYPES.CLUSTER_LIST], required: false },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'statistics', label: 'Cluster statistics', accepts: [DATA_TYPES.CLUSTER_STATISTICS], required: false },
+      { id: 'annotations', label: 'Curation annotations', accepts: [DATA_TYPES.CURATION_STATE], required: false },
+      { id: 'spikeSelection', label: 'Highlighted spikes', accepts: [DATA_TYPES.SPIKE_SELECTION], required: false },
+      { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
+    ]
   }
 });
 

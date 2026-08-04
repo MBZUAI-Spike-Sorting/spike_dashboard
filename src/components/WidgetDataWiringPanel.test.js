@@ -52,3 +52,17 @@ test('amplitude distribution is wired to selected clusters and waveforms by defa
     variables
   ).valid).toBe(true);
 });
+
+test('analysis workspace exposes the current typed pipeline state', () => {
+  const bindings = createDefaultWidgetInputBindings();
+
+  expect(bindings.analysisWorkspace).toMatchObject({
+    datasetInfo: 'datasetInfo',
+    clusters: 'clusters',
+    selectedClusters: 'selectedClusters',
+    statistics: 'clusterStats',
+    annotations: 'clusterAnnotations',
+    spikeSelection: 'highlightedSpikes',
+    timeRange: 'focusedTimeRange',
+  });
+});

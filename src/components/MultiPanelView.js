@@ -34,6 +34,7 @@ import RasterPlotWidget from './RasterPlotWidget';
 import CorrelogramWidget from './CorrelogramWidget';
 import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
+import AnalysisWorkspaceWidget from './AnalysisWorkspaceWidget';
 import CanvasMinimap from './CanvasMinimap';
 import apiClient from '../api/client';
 import {
@@ -76,6 +77,7 @@ import {
   getOrLoadSessionCache,
   getSessionObjectId,
 } from '../utils/sessionCache';
+import { createAnalysisManifest } from '../utils/analysisWorkspace';
 
 const DISPLAY_SETTINGS_STORAGE_KEY = 'spikescope_display_settings:v1';
 const WIDGET_BINDINGS_STORAGE_KEY = 'spikescope_widget_input_bindings:v1';
@@ -135,7 +137,8 @@ const DEFAULT_WIDGET_STATES = {
   rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null, type: 'rasterPlot' },
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
-  amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' }
+  amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
+  analysisWorkspace: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'analysisWorkspace' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -1741,6 +1744,41 @@ const MultiPanelView = forwardRef(({
     spikes,
     visibleClusterOrder,
   ]);
+  const analysisManifest = useMemo(() => createAnalysisManifest({
+    apiBaseUrl: process.env.REACT_APP_API_URL
+      || (typeof window !== 'undefined' ? window.location.origin : ''),
+    demoMode,
+    selectedDataset,
+    selectedAlgorithm,
+    datasetInfo,
+    clusters,
+    selectedClusters,
+    visibleClusterOrder,
+    clusterStats,
+    clusterAnnotations,
+    highlightedSpikes,
+    focusedTimeRange,
+    currentViewId,
+    widgetStates,
+    widgetInputBindings,
+    pipelineVariables,
+  }), [
+    clusterAnnotations,
+    clusterStats,
+    clusters,
+    currentViewId,
+    datasetInfo,
+    demoMode,
+    focusedTimeRange,
+    highlightedSpikes,
+    pipelineVariables,
+    selectedAlgorithm,
+    selectedClusters,
+    selectedDataset,
+    visibleClusterOrder,
+    widgetInputBindings,
+    widgetStates,
+  ]);
   const minimapViewport = useMemo(() => {
     const zoom = hasMaximizedWidget ? 1 : displaySettings.scale;
     const offset = hasMaximizedWidget ? { x: 0, y: 0 } : canvasOffset;
@@ -2088,6 +2126,12 @@ const MultiPanelView = forwardRef(({
           onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-amplitude-time'
+      )}
+      {renderDockable(
+        'analysisWorkspace',
+        'Analysis Workspace',
+        <AnalysisWorkspaceWidget manifest={analysisManifest} />,
+        'panel-analysis-workspace'
       )}
       {renderDockable(
         'spikeList',
