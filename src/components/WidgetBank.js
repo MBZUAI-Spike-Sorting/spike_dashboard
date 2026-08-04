@@ -154,6 +154,22 @@ const WIDGET_DEFINITIONS = {
     icon: '⋈',
     category: 'analysis',
     defaultSize: { width: 720, height: 500 }
+  },
+  templateGallery: {
+    id: 'templateGallery',
+    name: 'Template Gallery',
+    description: 'Browse ordered retained templates or deterministic mean waveforms',
+    icon: '〽',
+    category: 'visualization',
+    defaultSize: { width: 840, height: 620 }
+  },
+  clusterMetricScatter: {
+    id: 'clusterMetricScatter',
+    name: 'Cluster Metric Scatter',
+    description: 'Compare the visible cluster population across configurable quality metrics',
+    icon: '⠿',
+    category: 'analysis',
+    defaultSize: { width: 740, height: 500 }
   }
 };
 

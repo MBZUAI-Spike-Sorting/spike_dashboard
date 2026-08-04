@@ -97,8 +97,7 @@ export const buildRasterEvents = ({
   clusterData,
   curatorDataset
 }) => {
-  const visibleFilterIsActive =
-    Array.isArray(visibleClusterIds) && visibleClusterIds.length > 0;
+  const visibleFilterIsActive = Array.isArray(visibleClusterIds);
   const filterIsActive = selectedOnly || visibleFilterIsActive;
   const filterSet = selectedSetFrom(
     selectedOnly
@@ -204,6 +203,10 @@ export const panTimeDomain = (activeDomain, fullDomain, delta) => (
   fitDomainWithin(activeDomain.start + delta, getDomainSpan(activeDomain), fullDomain)
 );
 
+export const isAdditiveClusterSelection = (event) => Boolean(
+  event?.ctrlKey || event?.metaKey || event?.shiftKey
+);
+
 const RasterPlotWidget = ({
   spikes = [],
   selectedClusters = [],
@@ -214,7 +217,8 @@ const RasterPlotWidget = ({
   curatorDataset = null,
   highlightedSpikes = [],
   linkedTimeRange = null,
-  onEventSelect
+  onEventSelect,
+  onClusterSelect,
 }) => {
   const canvasRef = useRef(null);
   const shellRef = useRef(null);
@@ -504,13 +508,16 @@ const RasterPlotWidget = ({
     });
   };
 
-  const handleClick = () => {
+  const handleClick = (event) => {
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
     }
-    if (hover?.event && typeof onEventSelect === 'function') {
-      onEventSelect(hover.event);
+    if (hover?.event) {
+      onClusterSelect?.(hover.event.clusterId, {
+        additive: isAdditiveClusterSelection(event),
+      });
+      onEventSelect?.({ ...hover.event, clusterSelectionHandled: true });
     }
   };
 

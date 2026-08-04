@@ -616,6 +616,30 @@
   min-height: 280px;
 }
 
+.panel-template-gallery {
+  top: 80px;
+  left: clamp(42px, 13vw, 210px);
+}
+
+.panel-template-gallery .dockable-widget {
+  width: min(840px, calc(100vw - 90px));
+  height: min(620px, calc(100vh - 145px));
+  min-width: min(440px, calc(100vw - 72px));
+  min-height: 320px;
+}
+
+.panel-cluster-metric-scatter {
+  top: 170px;
+  left: clamp(60px, 22vw, 330px);
+}
+
+.panel-cluster-metric-scatter .dockable-widget {
+  width: min(740px, calc(100vw - 100px));
+  height: min(500px, calc(100vh - 230px));
+  min-width: min(400px, calc(100vw - 72px));
+  min-height: 280px;
+}
+
 /* Waveform View Toggle */
 .waveform-view-toggle {
   display: flex !important;

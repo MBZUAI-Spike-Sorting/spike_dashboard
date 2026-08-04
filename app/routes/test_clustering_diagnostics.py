@@ -135,6 +135,19 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         self.assertEqual(payload['amplitudeUnit'], 'raw')
         self.assertGreater(payload['series'][0]['points'][0]['amplitude'], 0)
 
+    def test_template_contract_preserves_requested_order_and_uses_fallback(self):
+        payload = self.client.post('/api/cluster-templates', json={
+            'clusterIds': [1, 0],
+            'algorithm': 'test',
+            'windowSamples': 3,
+            'maxWaveforms': 2,
+        }).get_json()
+
+        self.assertEqual(payload['clusterIds'], [1, 0])
+        self.assertEqual(payload['templates'][0]['source'], 'mean_raw_waveform')
+        self.assertEqual(payload['templates'][0]['peakChannel'], 2)
+        self.assertGreater(len(payload['templates'][0]['template']), 0)
+
     def test_waveform_sampling_is_stable_and_includes_selected_spike(self):
         payload = self.client.post('/api/cluster-waveforms', json={
             'clusterIds': [0],

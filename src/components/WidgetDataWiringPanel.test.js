@@ -53,6 +53,19 @@ test('amplitude distribution is wired to selected clusters and waveforms by defa
   ).valid).toBe(true);
 });
 
+test('population views follow the shared visible cluster order by default', () => {
+  const bindings = createDefaultWidgetInputBindings();
+
+  expect(bindings.templateGallery).toMatchObject({
+    visibleClusters: 'visibleClusterOrder',
+    selectedClusters: 'selectedClusters',
+  });
+  expect(bindings.clusterMetricScatter).toMatchObject({
+    visibleClusters: 'visibleClusterOrder',
+    statistics: 'clusterStats',
+  });
+});
+
 test('feature views prefer exact curation selections and shared channels', () => {
   const bindings = createDefaultWidgetInputBindings();
 

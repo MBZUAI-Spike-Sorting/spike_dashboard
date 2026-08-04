@@ -34,6 +34,8 @@ import RasterPlotWidget from './RasterPlotWidget';
 import CorrelogramWidget from './CorrelogramWidget';
 import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
+import TemplateGalleryWidget from './TemplateGalleryWidget';
+import ClusterMetricScatterWidget from './ClusterMetricScatterWidget';
 import FeatureMatrixWidget from './FeatureMatrixWidget';
 import TemplateFeaturePairWidget from './TemplateFeaturePairWidget';
 import ProbeMapWidget from './ProbeMapWidget';
@@ -154,7 +156,9 @@ const DEFAULT_WIDGET_STATES = {
   probeMap: { visible: false, minimized: false, maximized: false, order: 16, position: null, size: null, type: 'probeMap' },
   traceHeatmap: { visible: false, minimized: false, maximized: false, order: 17, position: null, size: null, type: 'traceHeatmap' },
   featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
-  templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' }
+  templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' },
+  templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
+  clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -251,6 +255,7 @@ const MultiPanelView = forwardRef(({
   const [clusterAnnotations, setClusterAnnotations] = useState({});
   const [clusterGroupNames, setClusterGroupNames] = useState(DEFAULT_CLUSTER_GROUPS);
   const [visibleClusterOrder, setVisibleClusterOrder] = useState([]);
+  const [visibleClusterFilterActive, setVisibleClusterFilterActive] = useState(false);
   const [curatorDataset, setCuratorDataset] = useState(null);
   const [waveformViewMode, setWaveformViewMode] = useState('single');
   const [displaySettings, setDisplaySettings] = useState(() => (
@@ -900,6 +905,8 @@ const MultiPanelView = forwardRef(({
     });
     setClusterStats(normalizedStats);
     setClusterWaveforms(demoWaveforms || {});
+    setVisibleClusterFilterActive(false);
+    setVisibleClusterOrder([]);
   }, [demoMode, demoClusterPlotData, demoSpikeTable, demoClusterStats, demoWaveforms]);
 
   useEffect(() => {
@@ -922,6 +929,7 @@ const MultiPanelView = forwardRef(({
       setCurationSpikeSelection([]);
       setSelectedChannels([]);
       setFocusedTimeRange(null);
+      setVisibleClusterFilterActive(false);
     };
 
     const applyClusterData = (data) => {
@@ -1199,6 +1207,7 @@ const MultiPanelView = forwardRef(({
     setSelectedChannels([]);
     setFocusedTimeRange(null);
     setVisibleClusterOrder(clusterIds);
+    setVisibleClusterFilterActive(true);
     setSelectedClusters((previous) => (
       reconcileCuratorClusterSelection(previous, clusterIds)
     ));
@@ -1264,9 +1273,11 @@ const MultiPanelView = forwardRef(({
     };
 
     setHighlightedSpikes([event]);
-    setSelectedClusters((previous) => previous.some((id) => String(id) === String(clusterId))
-      ? previous
-      : [clusterId, ...previous]);
+    if (!suppliedEvent?.clusterSelectionHandled) {
+      setSelectedClusters((previous) => previous.some((id) => String(id) === String(clusterId))
+        ? previous
+        : [clusterId, ...previous]);
+    }
   }, [clusterData]);
 
   const handleCurationSpikeSelection = useCallback((selection) => {
@@ -1350,6 +1361,7 @@ const MultiPanelView = forwardRef(({
   }, [annotationStorageKey, clusterGroupStorageKey]);
 
   const handleVisibleClusterOrderChange = useCallback((clusterIds) => {
+    setVisibleClusterFilterActive(true);
     setVisibleClusterOrder((previous) => {
       if (previous.length === clusterIds.length && previous.every((id, index) => String(id) === String(clusterIds[index]))) {
         return previous;
@@ -1357,6 +1369,12 @@ const MultiPanelView = forwardRef(({
       return clusterIds;
     });
   }, []);
+
+  const populationClusterIds = useMemo(() => (
+    visibleClusterFilterActive
+      ? visibleClusterOrder
+      : clusterData?.clusterIds || clusters.map((cluster) => cluster.id)
+  ), [clusterData, clusters, visibleClusterFilterActive, visibleClusterOrder]);
 
   const handleAmplitudeSummaries = useCallback((summaries) => {
     setClusterStats((previous) => {
@@ -2095,15 +2113,46 @@ const MultiPanelView = forwardRef(({
     clusteringResults={clusteringResults}
     clusterData={clusterData}
     curatorDataset={curatorDataset}
-    visibleClusterIds={visibleClusterOrder}
+    visibleClusterIds={visibleClusterFilterActive ? visibleClusterOrder : null}
     clusterOrder={visibleClusterOrder}
     highlightedSpikes={highlightedSpikes}
     linkedTimeRange={focusedTimeRange}
     onEventSelect={handleSpikeHighlight}
+    onClusterSelect={handleClusterSelect}
     demoMode={demoMode}
   />,
   'panel-raster-plot'
 )}
+      {renderDockable(
+        'templateGallery',
+        'Template Gallery',
+        <TemplateGalleryWidget
+          visibleClusterIds={populationClusterIds}
+          selectedClusters={selectedClusters}
+          clusterData={clusterData}
+          clusterWaveforms={clusterWaveforms}
+          selectedAlgorithm={selectedAlgorithm}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          onClusterSelect={handleClusterSelect}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-template-gallery'
+      )}
+      {renderDockable(
+        'clusterMetricScatter',
+        'Cluster Metric Scatter',
+        <ClusterMetricScatterWidget
+          visibleClusterIds={populationClusterIds}
+          selectedClusters={selectedClusters}
+          clusters={clusters}
+          clusterStats={clusterStats}
+          clusterAnnotations={clusterAnnotations}
+          onClusterSelect={handleClusterSelect}
+        />,
+        'panel-cluster-metric-scatter'
+      )}
       {renderDockable(
         'correlogram',
         'Correlogram Matrix',

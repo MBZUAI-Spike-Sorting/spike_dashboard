@@ -24,6 +24,8 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
+import TemplateGalleryWidget from '../components/TemplateGalleryWidget';
+import ClusterMetricScatterWidget from '../components/ClusterMetricScatterWidget';
 import FeatureMatrixWidget from '../components/FeatureMatrixWidget';
 import TemplateFeaturePairWidget from '../components/TemplateFeaturePairWidget';
 import ProbeMapWidget from '../components/ProbeMapWidget';
@@ -303,6 +305,34 @@ const BUILTIN_WIDGETS = [
     requiredData: ['clusters'],
     dataContract: WIDGET_DATA_CONTRACTS.templateFeaturePair,
     order: 19,
+  },
+  {
+    id: 'templateGallery',
+    name: 'Template Gallery',
+    description: 'Browse ordered retained templates or deterministic mean waveforms',
+    icon: '〽',
+    category: 'visualization',
+    defaultSize: { width: 840, height: 620 },
+    minWidth: 440,
+    minHeight: 320,
+    component: TemplateGalleryWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.templateGallery,
+    order: 20,
+  },
+  {
+    id: 'clusterMetricScatter',
+    name: 'Cluster Metric Scatter',
+    description: 'Compare the visible cluster population across configurable quality metrics',
+    icon: '⠿',
+    category: 'analysis',
+    defaultSize: { width: 740, height: 500 },
+    minWidth: 400,
+    minHeight: 280,
+    component: ClusterMetricScatterWidget,
+    requiredData: ['clusters', 'statistics'],
+    dataContract: WIDGET_DATA_CONTRACTS.clusterMetricScatter,
+    order: 21,
   },
 ];
 
