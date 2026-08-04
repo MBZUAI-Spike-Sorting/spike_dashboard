@@ -18,6 +18,7 @@ from app.utils.responses import server_error, validation_error, not_found_error,
 from processing.cluster_diagnostics import (
     calculate_cluster_metrics,
     calculate_correlograms,
+    calculate_cluster_similarities,
     calculate_isi_histograms,
     extract_spike_amplitudes,
 )
@@ -217,6 +218,49 @@ def get_cluster_isi_histograms():
     except Exception as error:
         logger.error(f"Error calculating ISI histograms: {error}", exc_info=True)
         return server_error("Failed to calculate ISI histograms", exception=error)
+
+
+@clustering_bp.route('/api/cluster-similarities', methods=['POST'])
+def get_cluster_similarities():
+    """Rank merge candidates for a primary cluster."""
+    try:
+        data = request.get_json() or {}
+        primary_cluster_id = data.get('primaryClusterId')
+        if primary_cluster_id is None:
+            return validation_error('A primary cluster ID is required')
+
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({
+                'primaryClusterId': primary_cluster_id,
+                'source': 'unavailable',
+                'candidates': [],
+            })
+
+        manager = context['manager']
+        sorter_similarity = getattr(manager, 'similar_templates', None)
+        sorter_artifacts = getattr(manager, 'sorter_artifacts', None)
+        if sorter_similarity is None and isinstance(sorter_artifacts, dict):
+            sorter_similarity = sorter_artifacts.get('similar_templates')
+
+        result = calculate_cluster_similarities(
+            context['results'],
+            primary_cluster_id,
+            data_array=context['datasetManager'].data_array,
+            candidate_cluster_ids=data.get('candidateClusterIds'),
+            sorter_similarity_matrix=sorter_similarity,
+            max_candidates=int(_bounded_number(data, 'maxCandidates', 20, 1, 100)),
+            max_spikes_per_cluster=int(
+                _bounded_number(data, 'maxSpikesPerCluster', 100, 5, 1000)
+            ),
+            window_samples=int(_bounded_number(data, 'windowSamples', 15, 1, 200)),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error calculating cluster similarities: {error}", exc_info=True)
+        return server_error("Failed to calculate cluster similarities", exception=error)
 
 
 @clustering_bp.route('/api/cluster-amplitudes', methods=['POST'])

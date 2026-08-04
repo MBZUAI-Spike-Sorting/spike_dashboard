@@ -32,3 +32,7 @@ The diagnostic views use these POST endpoints:
 Times are represented as recording samples at the API boundary. Correlogram and ISI bin coordinates are milliseconds. Amplitude points include both `timeSamples` and `timeSeconds`; amplitudes are unstandardized peak-to-peak values from the loaded dataset. Waveform requests use deterministic, bounded sampling and always include explicitly highlighted spikes.
 
 The numerical implementations live in `processing/cluster_diagnostics.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`.
+
+## P1 pair review
+
+The **Similarity Table** ranks merge candidates for the primary cluster and publishes a primary/secondary pair to linked diagnostic views. It uses retained sorter-template similarity when the clustering manager exposes it; otherwise it clearly labels a deterministic mean-waveform/channel or feature-centroid/channel fallback. The API contract is `POST /api/cluster-similarities`.

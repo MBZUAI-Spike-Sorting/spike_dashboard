@@ -24,6 +24,7 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
+import SimilarityTableWidget from '../components/SimilarityTableWidget';
 
 /**
  * Built-in widget definitions
@@ -213,6 +214,20 @@ const BUILTIN_WIDGETS = [
     requiredData: ['clusters', 'spikes'],
     dataContract: WIDGET_DATA_CONTRACTS.amplitudeTime,
     order: 13,
+  },
+  {
+    id: 'similarityTable',
+    name: 'Similarity Table',
+    description: 'Rank and review clusters similar to the primary cluster',
+    icon: '≈',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 480 },
+    minWidth: 480,
+    minHeight: 280,
+    component: SimilarityTableWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.similarityTable,
+    order: 14,
   },
 ];
 

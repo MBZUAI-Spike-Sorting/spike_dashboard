@@ -1,0 +1,121 @@
+.similarity-table-widget {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text-primary, #e2e8f0);
+  background: var(--panel-background, rgba(8, 13, 31, 0.82));
+}
+
+.similarity-toolbar,
+.similarity-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-color: rgba(64, 224, 208, 0.16);
+  background: rgba(18, 24, 48, 0.76);
+  font-size: 0.72rem;
+}
+
+.similarity-toolbar { border-bottom: 1px solid rgba(64, 224, 208, 0.16); }
+.similarity-footer { border-top: 1px solid rgba(64, 224, 208, 0.12); color: rgba(226, 232, 240, 0.58); }
+
+.similarity-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(226, 232, 240, 0.68);
+}
+
+.similarity-toolbar select {
+  height: 27px;
+  padding: 0 7px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 4px;
+  background: #11182e;
+  color: #e2e8f0;
+  font-size: 0.72rem;
+}
+
+.similarity-source {
+  margin-left: auto;
+  color: rgba(153, 246, 228, 0.76);
+}
+
+.similarity-table-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.similarity-message {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: rgba(226, 232, 240, 0.58);
+  text-align: center;
+}
+
+.similarity-error { color: #fda4af; }
+
+.similarity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+}
+
+.similarity-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  background: #121830;
+  color: rgba(226, 232, 240, 0.62);
+  text-align: left;
+  font-weight: 600;
+}
+
+.similarity-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.09);
+  white-space: nowrap;
+}
+
+.similarity-table tbody tr { cursor: pointer; }
+.similarity-table tbody tr:hover { background: rgba(64, 224, 208, 0.08); }
+.similarity-table tbody .similarity-row-selected { background: rgba(64, 224, 208, 0.14); }
+
+.similarity-table button {
+  padding: 4px 8px;
+  border: 1px solid rgba(64, 224, 208, 0.32);
+  border-radius: 4px;
+  background: rgba(64, 224, 208, 0.1);
+  color: #99f6e4;
+  cursor: pointer;
+}
+
+.similarity-score-cell {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.similarity-meter {
+  width: 64px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.similarity-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #38bdf8, #40e0d0);
+}

@@ -471,6 +471,30 @@ const apiClient = {
   },
 
   /**
+   * Rank clusters similar to a primary cluster for pair review.
+   */
+  async getClusterSimilarities({
+    primaryClusterId,
+    candidateClusterIds = null,
+    algorithm = '',
+    maxCandidates = 20,
+    maxSpikesPerCluster = 100,
+    windowSamples = 15,
+  }) {
+    return request('/api/cluster-similarities', {
+      method: 'POST',
+      body: JSON.stringify({
+        primaryClusterId,
+        candidateClusterIds,
+        algorithm,
+        maxCandidates,
+        maxSpikesPerCluster,
+        windowSamples,
+      }),
+    });
+  },
+
+  /**
    * Get unstandardized peak-to-peak amplitudes through recording time.
    */
   async getClusterAmplitudes({
