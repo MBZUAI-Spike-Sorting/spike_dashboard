@@ -106,6 +106,14 @@ const WIDGET_DEFINITIONS = {
     icon: '↘',
     category: 'visualization',
     defaultSize: { width: 760, height: 440 }
+  },
+  firingRateTimeline: {
+    id: 'firingRateTimeline',
+    name: 'Firing Rate Timeline',
+    description: 'Inspect cluster activity and stability across recording time',
+    icon: '⌁',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 440 }
   }
 };
 

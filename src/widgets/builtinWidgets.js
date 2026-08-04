@@ -24,6 +24,7 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
+import FiringRateTimelineWidget from '../components/FiringRateTimelineWidget';
 
 /**
  * Built-in widget definitions
@@ -213,6 +214,20 @@ const BUILTIN_WIDGETS = [
     requiredData: ['clusters', 'spikes'],
     dataContract: WIDGET_DATA_CONTRACTS.amplitudeTime,
     order: 13,
+  },
+  {
+    id: 'firingRateTimeline',
+    name: 'Firing Rate Timeline',
+    description: 'Inspect cluster activity and stability across recording time',
+    icon: '⌁',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 440 },
+    minWidth: 400,
+    minHeight: 280,
+    component: FiringRateTimelineWidget,
+    requiredData: ['clusters', 'spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.firingRateTimeline,
+    order: 14,
   },
 ];
 

@@ -2,7 +2,8 @@
 
 The functions in this module deliberately do not depend on Flask.  Keeping the
 analysis code separate makes the API routes small and gives the frontend a
-stable, JSON-friendly contract for correlograms, ISIs, metrics, and drift.
+stable, JSON-friendly contract for correlograms, ISIs, firing rates, metrics,
+and drift.
 """
 
 from collections import Counter
@@ -284,6 +285,93 @@ def calculate_isi_histograms(
         'binSizeMs': bin_size_ms,
         'windowSizeMs': actual_window_ms,
         'refractoryPeriodMs': refractory_period_ms,
+        'sampleRateHz': sample_rate_hz,
+        'series': series,
+    }
+
+
+def calculate_firing_rate_histograms(
+    clustering_results,
+    cluster_ids,
+    sample_rate_hz=30000.0,
+    bin_size_seconds=1.0,
+    recording_duration_samples=None,
+    max_bins=5000,
+):
+    """Return full-recording spike counts and rates for selected clusters.
+
+    The final bin may be shorter than the requested bin size, so rates are
+    normalized by the width of each individual bin. Very long recordings are
+    bounded by ``max_bins``; in that case the effective bin size is increased
+    and reported in the response.
+    """
+    sample_rate_hz = max(float(sample_rate_hz), 1.0)
+    requested_bin_size_seconds = max(float(bin_size_seconds), 1.0 / sample_rate_hz)
+    max_bins = min(max(int(max_bins), 1), 20000)
+    cluster_ids = normalize_cluster_ids(clustering_results, cluster_ids, limit=20)
+    times_by_cluster = {
+        cluster_id: _cluster_times(clustering_results, cluster_id)
+        for cluster_id in cluster_ids
+    }
+
+    latest_spike_sample = max(
+        (times[-1] for times in times_by_cluster.values() if times.size),
+        default=0.0,
+    )
+    if recording_duration_samples is None:
+        recording_duration_samples = latest_spike_sample + 1.0
+    duration_samples = max(
+        float(recording_duration_samples),
+        float(latest_spike_sample) + 1.0,
+        1.0,
+    )
+
+    requested_bin_samples = max(requested_bin_size_seconds * sample_rate_hz, 1.0)
+    requested_bin_count = max(1, int(np.ceil(duration_samples / requested_bin_samples)))
+    bin_count = min(requested_bin_count, max_bins)
+    effective_bin_samples = (
+        duration_samples / bin_count
+        if requested_bin_count > max_bins
+        else requested_bin_samples
+    )
+
+    edges_samples = np.arange(bin_count + 1, dtype=np.float64) * effective_bin_samples
+    edges_samples[-1] = duration_samples
+    widths_seconds = np.diff(edges_samples) / sample_rate_hz
+    centers_seconds = (
+        (edges_samples[:-1] + edges_samples[1:]) / (2.0 * sample_rate_hz)
+    )
+    duration_seconds = duration_samples / sample_rate_hz
+    series = []
+
+    for cluster_id in cluster_ids:
+        times = times_by_cluster[cluster_id]
+        counts = np.histogram(times, bins=edges_samples)[0]
+        rates = np.divide(
+            counts,
+            widths_seconds,
+            out=np.zeros_like(widths_seconds, dtype=np.float64),
+            where=widths_seconds > 0,
+        )
+        series.append({
+            'clusterId': cluster_id,
+            'counts': counts.tolist(),
+            'rateHz': rates.tolist(),
+            'totalSpikes': int(times.size),
+            'meanRateHz': float(times.size / duration_seconds) if duration_seconds else 0.0,
+            'maxRateHz': float(np.max(rates)) if rates.size else 0.0,
+        })
+
+    return {
+        'clusterIds': cluster_ids,
+        'binEdgesSamples': edges_samples.tolist(),
+        'binCentersSeconds': centers_seconds.tolist(),
+        'binWidthsSeconds': widths_seconds.tolist(),
+        'requestedBinSizeSeconds': requested_bin_size_seconds,
+        'binSizeSeconds': float(effective_bin_samples / sample_rate_hz),
+        'binSizeAdjusted': requested_bin_count > max_bins,
+        'recordingDurationSamples': duration_samples,
+        'recordingDurationSeconds': duration_seconds,
         'sampleRateHz': sample_rate_hz,
         'series': series,
     }
