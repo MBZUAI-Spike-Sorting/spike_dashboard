@@ -32,3 +32,11 @@ The diagnostic views use these POST endpoints:
 Times are represented as recording samples at the API boundary. Correlogram and ISI bin coordinates are milliseconds. Amplitude points include both `timeSamples` and `timeSeconds`; amplitudes are unstandardized peak-to-peak values from the loaded dataset. Waveform requests use deterministic, bounded sampling and always include explicitly highlighted spikes.
 
 The numerical implementations live in `processing/cluster_diagnostics.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`.
+
+## Spatial and raw-trace views
+
+- **Probe Map** renders retained physical probe coordinates when available and a clearly labeled deterministic grid otherwise. Selected-cluster channel footprints and peak channels are overlaid on the geometry.
+- **Trace Heatmap** provides a bounded, peak-preserving channel-by-time image with raw or per-channel robust-z scaling.
+- Probe, Signal, Trace Heatmap, and neighboring Waveform views share one-based channel selection. Signal also overlays the selected clusters' spike identities in the visible time interval.
+
+The spatial contracts use `POST /api/probe-geometry` and `POST /api/trace-heatmap`. Trace heatmaps cap channel and time-bin counts before JSON serialization.

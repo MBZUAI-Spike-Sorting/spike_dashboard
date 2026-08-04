@@ -106,6 +106,22 @@ const WIDGET_DEFINITIONS = {
     icon: '↘',
     category: 'visualization',
     defaultSize: { width: 760, height: 440 }
+  },
+  probeMap: {
+    id: 'probeMap',
+    name: 'Probe Map',
+    description: 'Inspect physical channel geometry and selected-cluster footprints',
+    icon: '⌇',
+    category: 'visualization',
+    defaultSize: { width: 560, height: 620 }
+  },
+  traceHeatmap: {
+    id: 'traceHeatmap',
+    name: 'Trace Heatmap',
+    description: 'Downsampled all-channel trace image with linked time navigation',
+    icon: '▥',
+    category: 'visualization',
+    defaultSize: { width: 820, height: 520 }
   }
 };
 

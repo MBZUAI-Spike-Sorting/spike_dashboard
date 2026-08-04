@@ -21,6 +21,7 @@ from processing.cluster_diagnostics import (
     calculate_isi_histograms,
     extract_spike_amplitudes,
 )
+from processing.spatial_views import build_probe_geometry
 
 logger = get_logger(__name__)
 
@@ -217,6 +218,36 @@ def get_cluster_isi_histograms():
     except Exception as error:
         logger.error(f"Error calculating ISI histograms: {error}", exc_info=True)
         return server_error("Failed to calculate ISI histograms", exception=error)
+
+
+@clustering_bp.route('/api/probe-geometry', methods=['POST'])
+def get_probe_geometry():
+    """Return physical/fallback probe geometry and cluster channel footprints."""
+    try:
+        data = request.get_json() or {}
+        context = _load_clustering_results(data.get('algorithm', ''))
+        dataset_array = context['datasetManager'].data_array
+        channel_count = int(dataset_array.shape[0]) if dataset_array is not None else 0
+        manager = context['manager']
+        probe = getattr(manager, 'probe', None)
+        sorter_artifacts = getattr(manager, 'sorter_artifacts', None)
+        if probe is None and isinstance(sorter_artifacts, dict):
+            probe = sorter_artifacts.get('probe')
+        if probe is None:
+            probe = getattr(context['datasetManager'], 'probe', None)
+
+        result = build_probe_geometry(
+            channel_count,
+            probe=probe,
+            clustering_results=context['results'],
+            cluster_ids=data.get('clusterIds'),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error loading probe geometry: {error}", exc_info=True)
+        return server_error("Failed to load probe geometry", exception=error)
 
 
 @clustering_bp.route('/api/cluster-amplitudes', methods=['POST'])

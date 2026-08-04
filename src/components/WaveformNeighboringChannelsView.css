@@ -86,6 +86,11 @@
   box-shadow: 0 0 8px rgba(64, 224, 208, 0.3);
 }
 
+.channel-plot-item.selected-channel {
+  border-color: #f8fafc;
+  box-shadow: 0 0 0 1px rgba(64, 224, 208, 0.75), 0 0 10px rgba(64, 224, 208, 0.24);
+}
+
 .channel-plot-header {
   color: #40e0d0;
   font-size: var(--dashboard-font-sm, 0.85rem);

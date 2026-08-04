@@ -17,7 +17,8 @@ const SpikeGrid = ({
   onSpikeNavigation, 
   filterType,
   channelsPerView = 3, // Default to 3 channels for backward compatibility
-  highlightedSpikes = []
+  highlightedSpikes = [],
+  clusterSpikes = []
 }) => {
   // Calculate which channels to render (render one extra on each side for smooth scrolling)
   const startIndex = Math.max(0, Math.floor(channelScrollOffset) - 1);
@@ -70,6 +71,7 @@ const SpikeGrid = ({
               onSpikeNavigation={onSpikeNavigation}
               filterType={filterType}
               highlightedSpikes={highlightedSpikes}
+              clusterSpikes={clusterSpikes}
             />
           ))}
         </div>
