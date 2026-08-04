@@ -25,6 +25,14 @@ import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
 import SpikeAttributeExplorerWidget from '../components/SpikeAttributeExplorerWidget';
+import TemplateGalleryWidget from '../components/TemplateGalleryWidget';
+import ClusterMetricScatterWidget from '../components/ClusterMetricScatterWidget';
+import FeatureMatrixWidget from '../components/FeatureMatrixWidget';
+import TemplateFeaturePairWidget from '../components/TemplateFeaturePairWidget';
+import ProbeMapWidget from '../components/ProbeMapWidget';
+import TraceHeatmapWidget from '../components/TraceHeatmapWidget';
+import SimilarityTableWidget from '../components/SimilarityTableWidget';
+import FiringRateTimelineWidget from '../components/FiringRateTimelineWidget';
 
 /**
  * Built-in widget definitions
@@ -216,6 +224,118 @@ const BUILTIN_WIDGETS = [
     order: 13,
   },
   {
+    id: 'firingRateTimeline',
+    name: 'Firing Rate Timeline',
+    description: 'Inspect cluster activity and stability across recording time',
+    icon: '⌁',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 440 },
+    minWidth: 400,
+    minHeight: 280,
+    component: FiringRateTimelineWidget,
+    requiredData: ['clusters', 'spikes'],
+    dataContract: WIDGET_DATA_CONTRACTS.firingRateTimeline,
+    order: 14,
+  },
+  {
+    id: 'similarityTable',
+    name: 'Similarity Table',
+    description: 'Rank and review clusters similar to the primary cluster',
+    icon: '≈',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 480 },
+    minWidth: 480,
+    minHeight: 280,
+    component: SimilarityTableWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.similarityTable,
+    order: 15,
+  },
+  {
+    id: 'probeMap',
+    name: 'Probe Map',
+    description: 'Inspect physical channel geometry and selected-cluster footprints',
+    icon: '⌇',
+    category: 'visualization',
+    defaultSize: { width: 560, height: 620 },
+    minWidth: 360,
+    minHeight: 300,
+    component: ProbeMapWidget,
+    requiredData: ['datasetInfo'],
+    dataContract: WIDGET_DATA_CONTRACTS.probeMap,
+    order: 16,
+  },
+  {
+    id: 'traceHeatmap',
+    name: 'Trace Heatmap',
+    description: 'Downsampled all-channel trace image with linked time navigation',
+    icon: '▥',
+    category: 'visualization',
+    defaultSize: { width: 820, height: 520 },
+    minWidth: 440,
+    minHeight: 300,
+    component: TraceHeatmapWidget,
+    requiredData: ['datasetInfo'],
+    dataContract: WIDGET_DATA_CONTRACTS.traceHeatmap,
+    order: 17,
+  },
+  {
+    id: 'featureMatrix',
+    name: 'Feature Matrix',
+    description: 'Compare retained spike features and lasso exact spikes for curation',
+    icon: '▩',
+    category: 'analysis',
+    defaultSize: { width: 860, height: 680 },
+    minWidth: 460,
+    minHeight: 340,
+    component: FeatureMatrixWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.featureMatrix,
+    order: 18,
+  },
+  {
+    id: 'templateFeaturePair',
+    name: 'Template Feature Pair',
+    description: 'Review pairwise separation for exactly two linked clusters',
+    icon: '⋈',
+    category: 'analysis',
+    defaultSize: { width: 720, height: 500 },
+    minWidth: 400,
+    minHeight: 280,
+    component: TemplateFeaturePairWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.templateFeaturePair,
+    order: 19,
+  },
+  {
+    id: 'templateGallery',
+    name: 'Template Gallery',
+    description: 'Browse ordered retained templates or deterministic mean waveforms',
+    icon: '〽',
+    category: 'visualization',
+    defaultSize: { width: 840, height: 620 },
+    minWidth: 440,
+    minHeight: 320,
+    component: TemplateGalleryWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.templateGallery,
+    order: 20,
+  },
+  {
+    id: 'clusterMetricScatter',
+    name: 'Cluster Metric Scatter',
+    description: 'Compare the visible cluster population across configurable quality metrics',
+    icon: '⠿',
+    category: 'analysis',
+    defaultSize: { width: 740, height: 500 },
+    minWidth: 400,
+    minHeight: 280,
+    component: ClusterMetricScatterWidget,
+    requiredData: ['clusters', 'statistics'],
+    dataContract: WIDGET_DATA_CONTRACTS.clusterMetricScatter,
+    order: 21,
+  },
+  {
     id: 'spikeAttributeExplorer',
     name: 'Spike Attribute Explorer',
     description: 'Discover and plot compatible retained scalar or two-dimensional spike attributes',
@@ -227,7 +347,7 @@ const BUILTIN_WIDGETS = [
     component: SpikeAttributeExplorerWidget,
     requiredData: ['clusters'],
     dataContract: WIDGET_DATA_CONTRACTS.spikeAttributeExplorer,
-    order: 18,
+    order: 22,
   },
 ];
 

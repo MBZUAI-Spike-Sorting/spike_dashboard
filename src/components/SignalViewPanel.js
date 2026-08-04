@@ -17,6 +17,9 @@ const SignalViewPanel = ({
   onTimeRangeChange,
   datasetInfo,
   demoSignalData,
+  linkedSelectedChannels = [],
+  onSelectedChannelsChange,
+  clusterSpikes = [],
   dataCacheScope = '',
   onLoadingChange,
 }) => {
@@ -40,6 +43,23 @@ const SignalViewPanel = ({
   const totalChannels = datasetInfo?.totalChannels || 385;
 
   const windowSizeRef = useRef(windowSize);
+
+  useEffect(() => {
+    const normalized = linkedSelectedChannels
+      .map(Number)
+      .filter((channelId, index, values) => (
+        Number.isInteger(channelId)
+        && channelId >= 1
+        && channelId <= totalChannels
+        && values.indexOf(channelId) === index
+      ));
+    setSelectedChannels((previous) => (
+      previous.length === normalized.length
+      && previous.every((channelId, index) => channelId === normalized[index])
+        ? previous
+        : normalized
+    ));
+  }, [linkedSelectedChannels, totalChannels]);
 
   useEffect(() => {
     onLoadingChange?.('signalView', isLoading, 'Loading signal data…');
@@ -69,9 +89,10 @@ const SignalViewPanel = ({
         spikeChannel,
         ...previous.filter((channelId) => String(channelId) !== String(spikeChannel)),
       ]);
+      onSelectedChannelsChange?.([spikeChannel]);
       setChannelScrollOffset(0);
     }
-  }, [highlightedSpikes]);
+  }, [highlightedSpikes, onSelectedChannelsChange]);
 
   useEffect(() => {
     const start = Number(linkedTimeRange?.start);
@@ -204,11 +225,11 @@ const SignalViewPanel = ({
 
   const handleChannelToggle = (channelId) => {
     setSelectedChannels(prev => {
-      if (prev.includes(channelId)) {
-        return prev.filter(id => id !== channelId);
-      } else {
-        return [...prev, channelId];
-      }
+      const next = prev.includes(channelId)
+        ? prev.filter(id => id !== channelId)
+        : [...prev, channelId];
+      onSelectedChannelsChange?.(next);
+      return next;
     });
     setChannelScrollOffset(0);
   };
@@ -397,13 +418,13 @@ const SignalViewPanel = ({
             <span>Channels ({selectedChannels.length}/{totalChannels})</span>
           </div>
           <div className="channel-grid">
-            {Array.from({ length: totalChannels }, (_, i) => (
+            {Array.from({ length: totalChannels }, (_, i) => i + 1).map((channelId) => (
               <button
-                key={i}
-                className={`channel-button ${selectedChannels.includes(i) ? 'selected' : ''}`}
-                onClick={() => handleChannelToggle(i)}
+                key={channelId}
+                className={`channel-button ${selectedChannels.includes(channelId) ? 'selected' : ''}`}
+                onClick={() => handleChannelToggle(channelId)}
               >
-                {i}
+                {channelId}
               </button>
             ))}
           </div>
@@ -427,6 +448,7 @@ const SignalViewPanel = ({
             filterType={filterType}
             channelsPerView={1}
             highlightedSpikes={highlightedSpikes}
+            clusterSpikes={clusterSpikes}
           />
 
           {/* Timeline - exact same as VisualizationArea */}

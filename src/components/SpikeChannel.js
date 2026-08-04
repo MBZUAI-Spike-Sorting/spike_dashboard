@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import Plot from 'react-plotly.js';
 import './SpikeChannel.css';
 
-const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeThreshold, isLoading, selectedDataType, filteredLineColor, usePrecomputedSpikes, onSpikeNavigation, filterType, highlightedSpikes = [] }) => {
+const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeThreshold, isLoading, selectedDataType, filteredLineColor, usePrecomputedSpikes, onSpikeNavigation, filterType, highlightedSpikes = [], clusterSpikes = [] }) => {
   const plotData = useMemo(() => {
     const channelHighlights = highlightedSpikes.filter((spike) => (
       Number.isFinite(Number(spike?.time)) &&
@@ -26,6 +26,32 @@ const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeT
       yanchor: 'bottom',
       font: { color: '#f8fafc', size: 9 },
     }));
+    const visibleClusterSpikes = clusterSpikes.filter((spike) => (
+      Number.isFinite(Number(spike?.time))
+      && Number(spike.time) >= Number(timeRange.start)
+      && Number(spike.time) <= Number(timeRange.end)
+      && (spike?.channel === undefined || String(spike.channel) === String(channelId))
+    ));
+    const maximumOverlays = 400;
+    const overlaySpikes = visibleClusterSpikes.length <= maximumOverlays
+      ? visibleClusterSpikes
+      : Array.from({ length: maximumOverlays }, (_, index) => (
+          visibleClusterSpikes[Math.floor(index * visibleClusterSpikes.length / maximumOverlays)]
+        ));
+    const clusterOverlayShapes = overlaySpikes.map((spike) => ({
+      type: 'line',
+      x0: Number(spike.time),
+      x1: Number(spike.time),
+      y0: 0,
+      y1: 1,
+      yref: 'paper',
+      line: {
+        color: `hsla(${(Number(spike.clusterId) * 137) % 360}, 78%, 65%, .42)`,
+        width: 1,
+      },
+      layer: 'below',
+    }));
+    const overlayShapes = [...clusterOverlayShapes, ...highlightShapes];
 
     if (!data || !data.data || !isActive) {
       return {
@@ -55,7 +81,7 @@ const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeT
           paper_bgcolor: 'transparent',
           font: { color: '#e0e6ed' },
           margin: { l: 50, r: 20, t: 20, b: 50 },
-          shapes: highlightShapes,
+          shapes: overlayShapes,
           annotations: highlightAnnotations
         },
         config: {
@@ -213,7 +239,7 @@ const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeT
         font: { color: '#e0e6ed' },
         margin: { l: 50, r: 20, t: 20, b: 50 },
         showlegend: false,
-        shapes: highlightShapes,
+        shapes: overlayShapes,
         annotations: highlightAnnotations
       },
       config: {
@@ -221,7 +247,7 @@ const SpikeChannel = ({ channelId, data, isActive, timeRange, windowSize, spikeT
         responsive: true
       }
     };
-  }, [channelId, data, highlightedSpikes, isActive, timeRange, selectedDataType, filteredLineColor]);
+  }, [channelId, clusterSpikes, data, highlightedSpikes, isActive, timeRange, selectedDataType, filteredLineColor]);
 
   return (
     <div className={`spike-channel ${!isActive ? 'inactive' : ''}`}>

@@ -366,6 +366,28 @@ const apiClient = {
       }),
     });
   },
+
+  /** Get a bounded channel-by-time trace image. */
+  async getTraceHeatmap({
+    startSample,
+    endSample,
+    channelIds = null,
+    maxTimeBins = 1000,
+    maxChannels = 512,
+    normalization = 'robust_zscore',
+  }) {
+    return request('/api/trace-heatmap', {
+      method: 'POST',
+      body: JSON.stringify({
+        startSample,
+        endSample,
+        channelIds,
+        maxTimeBins,
+        maxChannels,
+        normalization,
+      }),
+    });
+  },
   
   /**
    * Check if precomputed spike times are available
@@ -426,6 +448,14 @@ const apiClient = {
     });
   },
 
+  /** Get physical or fallback probe geometry and cluster footprints. */
+  async getProbeGeometry({ clusterIds = [], algorithm = '' }) {
+    return request('/api/probe-geometry', {
+      method: 'POST',
+      body: JSON.stringify({ clusterIds, algorithm }),
+    });
+  },
+
   /**
    * Get an auto/cross-correlogram matrix for selected clusters.
    */
@@ -471,6 +501,50 @@ const apiClient = {
   },
 
   /**
+   * Rank clusters similar to a primary cluster for pair review.
+   */
+  async getClusterSimilarities({
+    primaryClusterId,
+    candidateClusterIds = null,
+    algorithm = '',
+    maxCandidates = 20,
+    maxSpikesPerCluster = 100,
+    windowSamples = 15,
+  }) {
+    return request('/api/cluster-similarities', {
+      method: 'POST',
+      body: JSON.stringify({
+        primaryClusterId,
+        candidateClusterIds,
+        algorithm,
+        maxCandidates,
+        maxSpikesPerCluster,
+        windowSamples,
+      }),
+    });
+  },
+
+  /**
+   * Get binned spike counts and firing rates through recording time.
+   */
+  async getClusterFiringRates({
+    clusterIds,
+    algorithm = '',
+    binSizeSeconds = 1,
+    maxBins = 5000,
+  }) {
+    return request('/api/cluster-firing-rates', {
+      method: 'POST',
+      body: JSON.stringify({
+        clusterIds,
+        algorithm,
+        binSizeSeconds,
+        maxBins,
+      }),
+    });
+  },
+
+  /**
    * Get unstandardized peak-to-peak amplitudes through recording time.
    */
   async getClusterAmplitudes({
@@ -510,6 +584,45 @@ const apiClient = {
         algorithm,
         attributeId,
         maxSpikesPerCluster,
+      }),
+    });
+  },
+
+  /**
+   * Get ordered retained templates or deterministic raw mean waveforms.
+   */
+  async getClusterTemplates({
+    clusterIds,
+    algorithm = '',
+    windowSamples = 30,
+    maxWaveforms = 64,
+  }) {
+    return request('/api/cluster-templates', {
+      method: 'POST',
+      body: JSON.stringify({ clusterIds, algorithm, windowSamples, maxWaveforms }),
+    });
+  },
+
+  /**
+   * Get bounded per-spike features for matrix and pair-review views.
+   */
+  async getClusterFeatures({
+    clusterIds,
+    algorithm = '',
+    maxSpikesPerCluster = 5000,
+    includeBackground = true,
+    maxBackgroundSpikes = 5000,
+    selectedChannels = [],
+  }) {
+    return request('/api/cluster-features', {
+      method: 'POST',
+      body: JSON.stringify({
+        clusterIds,
+        algorithm,
+        maxSpikesPerCluster,
+        includeBackground,
+        maxBackgroundSpikes,
+        selectedChannels,
       }),
     });
   },

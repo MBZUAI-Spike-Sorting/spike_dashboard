@@ -61,3 +61,29 @@ test('attribute explorer prefers the exact curation spike selection', () => {
     spikeSelection: 'curationSpikeSelection',
   });
 });
+
+test('population views follow the shared visible cluster order by default', () => {
+  const bindings = createDefaultWidgetInputBindings();
+
+  expect(bindings.templateGallery).toMatchObject({
+    visibleClusters: 'visibleClusterOrder',
+    selectedClusters: 'selectedClusters',
+  });
+  expect(bindings.clusterMetricScatter).toMatchObject({
+    visibleClusters: 'visibleClusterOrder',
+    statistics: 'clusterStats',
+  });
+});
+
+test('feature views prefer exact curation selections and shared channels', () => {
+  const bindings = createDefaultWidgetInputBindings();
+
+  expect(bindings.featureMatrix).toMatchObject({
+    spikeSelection: 'curationSpikeSelection',
+    channels: 'selectedChannels',
+  });
+  expect(bindings.templateFeaturePair).toMatchObject({
+    spikeSelection: 'curationSpikeSelection',
+    channels: 'selectedChannels',
+  });
+});

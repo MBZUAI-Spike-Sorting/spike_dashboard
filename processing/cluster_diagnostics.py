@@ -2,7 +2,8 @@
 
 The functions in this module deliberately do not depend on Flask.  Keeping the
 analysis code separate makes the API routes small and gives the frontend a
-stable, JSON-friendly contract for correlograms, ISIs, metrics, and drift.
+stable, JSON-friendly contract for correlograms, ISIs, firing rates, metrics,
+and drift.
 """
 
 from collections import Counter
@@ -284,6 +285,317 @@ def calculate_isi_histograms(
         'binSizeMs': bin_size_ms,
         'windowSizeMs': actual_window_ms,
         'refractoryPeriodMs': refractory_period_ms,
+        'sampleRateHz': sample_rate_hz,
+        'series': series,
+    }
+
+
+def _cluster_feature_centroid(spikes):
+    points = []
+    for spike in spikes or []:
+        try:
+            x_value = float(spike.get('x'))
+            y_value = float(spike.get('y'))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if np.isfinite(x_value) and np.isfinite(y_value):
+            points.append((x_value, y_value))
+    return np.mean(np.asarray(points, dtype=np.float64), axis=0) if points else None
+
+
+def _cluster_peak_channel_index(spikes, channel_count):
+    channels = []
+    for spike in spikes or []:
+        try:
+            channel = _channel_index(spike.get('channel'), channel_count)
+        except AttributeError:
+            channel = None
+        if channel is not None:
+            channels.append(channel)
+    return Counter(channels).most_common(1)[0][0] if channels else None
+
+
+def _mean_waveform_signature(
+    spikes,
+    data_array,
+    channel_index,
+    max_spikes,
+    window_samples,
+):
+    if data_array is None or getattr(data_array, 'ndim', 0) < 2 or channel_index is None:
+        return None
+
+    sample_count = data_array.shape[1]
+    times = _cluster_times([spikes], 0)
+    times = _evenly_sample(times, max_spikes)
+    waveforms = []
+    for raw_time in times:
+        spike_time = int(round(float(raw_time)))
+        start = spike_time - window_samples
+        end = spike_time + window_samples + 1
+        if start < 0 or end > sample_count:
+            continue
+        waveform = np.asarray(data_array[channel_index, start:end], dtype=np.float64)
+        if waveform.size != (2 * window_samples + 1) or not np.all(np.isfinite(waveform)):
+            continue
+        waveform = waveform - np.mean(waveform)
+        scale = np.linalg.norm(waveform)
+        if scale > 0:
+            waveforms.append(waveform / scale)
+
+    if not waveforms:
+        return None
+    signature = np.mean(np.asarray(waveforms), axis=0)
+    signature = signature - np.mean(signature)
+    signature_norm = np.linalg.norm(signature)
+    return signature / signature_norm if signature_norm > 0 else None
+
+
+def _infer_channel_count(clustering_results):
+    channel_values = []
+    for cluster in clustering_results or []:
+        for spike in cluster or []:
+            try:
+                channel = int(round(float(spike.get('channel'))))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if channel >= 0:
+                channel_values.append(channel)
+    return max(max(channel_values, default=1), 1)
+
+
+def calculate_cluster_similarities(
+    clustering_results,
+    primary_cluster_id,
+    data_array=None,
+    candidate_cluster_ids=None,
+    sorter_similarity_matrix=None,
+    max_candidates=20,
+    max_spikes_per_cluster=100,
+    window_samples=15,
+):
+    """Rank clusters similar to a primary cluster using the best available source."""
+    primary_ids = normalize_cluster_ids(clustering_results, [primary_cluster_id], limit=1)
+    if not primary_ids:
+        return {
+            'primaryClusterId': None,
+            'source': 'unavailable',
+            'candidates': [],
+        }
+
+    primary_cluster_id = primary_ids[0]
+    candidate_ids = normalize_cluster_ids(clustering_results, candidate_cluster_ids)
+    candidate_ids = [cluster_id for cluster_id in candidate_ids if cluster_id != primary_cluster_id]
+    max_candidates = min(max(int(max_candidates), 1), 100)
+    max_spikes_per_cluster = min(max(int(max_spikes_per_cluster), 1), 1000)
+    window_samples = min(max(int(window_samples), 1), 200)
+    channel_count = (
+        int(data_array.shape[0])
+        if data_array is not None and getattr(data_array, 'ndim', 0) >= 2
+        else _infer_channel_count(clustering_results)
+    )
+    channel_count = max(channel_count, 1)
+
+    cluster_ids = [primary_cluster_id, *candidate_ids]
+    peak_channels = {
+        cluster_id: _cluster_peak_channel_index(
+            clustering_results[cluster_id], channel_count
+        )
+        for cluster_id in cluster_ids
+    }
+    centroids = {
+        cluster_id: _cluster_feature_centroid(clustering_results[cluster_id])
+        for cluster_id in cluster_ids
+    }
+    signatures = {
+        cluster_id: _mean_waveform_signature(
+            clustering_results[cluster_id],
+            data_array,
+            peak_channels[cluster_id],
+            max_spikes_per_cluster,
+            window_samples,
+        )
+        for cluster_id in cluster_ids
+    }
+
+    sorter_matrix = None
+    if sorter_similarity_matrix is not None:
+        try:
+            candidate_matrix = np.asarray(sorter_similarity_matrix, dtype=np.float64)
+            if candidate_matrix.ndim == 2:
+                sorter_matrix = candidate_matrix
+        except (TypeError, ValueError):
+            sorter_matrix = None
+
+    primary_channel = peak_channels[primary_cluster_id]
+    primary_centroid = centroids[primary_cluster_id]
+    primary_signature = signatures[primary_cluster_id]
+    rows = []
+    used_sources = set()
+
+    for candidate_id in candidate_ids:
+        candidate_channel = peak_channels[candidate_id]
+        channel_distance = (
+            abs(candidate_channel - primary_channel)
+            if candidate_channel is not None and primary_channel is not None
+            else None
+        )
+        channel_similarity = (
+            float(np.exp(-channel_distance / 4.0))
+            if channel_distance is not None
+            else 0.0
+        )
+
+        candidate_centroid = centroids[candidate_id]
+        feature_distance = (
+            float(np.linalg.norm(candidate_centroid - primary_centroid))
+            if candidate_centroid is not None and primary_centroid is not None
+            else None
+        )
+        feature_similarity = (
+            float(1.0 / (1.0 + feature_distance))
+            if feature_distance is not None
+            else None
+        )
+
+        candidate_signature = signatures[candidate_id]
+        waveform_similarity = None
+        if primary_signature is not None and candidate_signature is not None:
+            cosine = float(np.dot(primary_signature, candidate_signature))
+            waveform_similarity = float(np.clip((cosine + 1.0) / 2.0, 0.0, 1.0))
+
+        sorter_similarity = None
+        if (
+            sorter_matrix is not None
+            and primary_cluster_id < sorter_matrix.shape[0]
+            and candidate_id < sorter_matrix.shape[1]
+        ):
+            raw_similarity = sorter_matrix[primary_cluster_id, candidate_id]
+            if np.isfinite(raw_similarity):
+                sorter_similarity = float(np.clip(raw_similarity, 0.0, 1.0))
+
+        if sorter_similarity is not None:
+            similarity = sorter_similarity
+            source = 'sorter_template'
+        elif waveform_similarity is not None:
+            similarity = 0.85 * waveform_similarity + 0.15 * channel_similarity
+            source = 'mean_waveform_channel'
+        elif feature_similarity is not None:
+            similarity = 0.8 * feature_similarity + 0.2 * channel_similarity
+            source = 'feature_centroid_channel'
+        else:
+            similarity = channel_similarity
+            source = 'channel_distance'
+        used_sources.add(source)
+
+        rows.append({
+            'clusterId': candidate_id,
+            'similarity': float(np.clip(similarity, 0.0, 1.0)),
+            'source': source,
+            'sorterSimilarity': sorter_similarity,
+            'waveformSimilarity': waveform_similarity,
+            'featureSimilarity': feature_similarity,
+            'channelSimilarity': channel_similarity,
+            'channelDistance': channel_distance,
+            'peakChannel': candidate_channel + 1 if candidate_channel is not None else None,
+            'numSpikes': len(clustering_results[candidate_id] or []),
+        })
+
+    rows.sort(key=lambda row: (-row['similarity'], row['clusterId']))
+    response_source = next(iter(used_sources)) if len(used_sources) == 1 else 'mixed_fallback'
+    return {
+        'primaryClusterId': primary_cluster_id,
+        'primaryPeakChannel': primary_channel + 1 if primary_channel is not None else None,
+        'source': response_source if rows else 'unavailable',
+        'maxCandidates': max_candidates,
+        'windowSamples': window_samples,
+        'sampledSpikesPerCluster': max_spikes_per_cluster,
+        'candidates': rows[:max_candidates],
+    }
+
+
+def calculate_firing_rate_histograms(
+    clustering_results,
+    cluster_ids,
+    sample_rate_hz=30000.0,
+    bin_size_seconds=1.0,
+    recording_duration_samples=None,
+    max_bins=5000,
+):
+    """Return full-recording spike counts and rates for selected clusters.
+
+    The final bin may be shorter than the requested bin size, so rates are
+    normalized by the width of each individual bin. Very long recordings are
+    bounded by ``max_bins``; in that case the effective bin size is increased
+    and reported in the response.
+    """
+    sample_rate_hz = max(float(sample_rate_hz), 1.0)
+    requested_bin_size_seconds = max(float(bin_size_seconds), 1.0 / sample_rate_hz)
+    max_bins = min(max(int(max_bins), 1), 20000)
+    cluster_ids = normalize_cluster_ids(clustering_results, cluster_ids, limit=20)
+    times_by_cluster = {
+        cluster_id: _cluster_times(clustering_results, cluster_id)
+        for cluster_id in cluster_ids
+    }
+
+    latest_spike_sample = max(
+        (times[-1] for times in times_by_cluster.values() if times.size),
+        default=0.0,
+    )
+    if recording_duration_samples is None:
+        recording_duration_samples = latest_spike_sample + 1.0
+    duration_samples = max(
+        float(recording_duration_samples),
+        float(latest_spike_sample) + 1.0,
+        1.0,
+    )
+
+    requested_bin_samples = max(requested_bin_size_seconds * sample_rate_hz, 1.0)
+    requested_bin_count = max(1, int(np.ceil(duration_samples / requested_bin_samples)))
+    bin_count = min(requested_bin_count, max_bins)
+    effective_bin_samples = (
+        duration_samples / bin_count
+        if requested_bin_count > max_bins
+        else requested_bin_samples
+    )
+
+    edges_samples = np.arange(bin_count + 1, dtype=np.float64) * effective_bin_samples
+    edges_samples[-1] = duration_samples
+    widths_seconds = np.diff(edges_samples) / sample_rate_hz
+    centers_seconds = (
+        (edges_samples[:-1] + edges_samples[1:]) / (2.0 * sample_rate_hz)
+    )
+    duration_seconds = duration_samples / sample_rate_hz
+    series = []
+
+    for cluster_id in cluster_ids:
+        times = times_by_cluster[cluster_id]
+        counts = np.histogram(times, bins=edges_samples)[0]
+        rates = np.divide(
+            counts,
+            widths_seconds,
+            out=np.zeros_like(widths_seconds, dtype=np.float64),
+            where=widths_seconds > 0,
+        )
+        series.append({
+            'clusterId': cluster_id,
+            'counts': counts.tolist(),
+            'rateHz': rates.tolist(),
+            'totalSpikes': int(times.size),
+            'meanRateHz': float(times.size / duration_seconds) if duration_seconds else 0.0,
+            'maxRateHz': float(np.max(rates)) if rates.size else 0.0,
+        })
+
+    return {
+        'clusterIds': cluster_ids,
+        'binEdgesSamples': edges_samples.tolist(),
+        'binCentersSeconds': centers_seconds.tolist(),
+        'binWidthsSeconds': widths_seconds.tolist(),
+        'requestedBinSizeSeconds': requested_bin_size_seconds,
+        'binSizeSeconds': float(effective_bin_samples / sample_rate_hz),
+        'binSizeAdjusted': requested_bin_count > max_bins,
+        'recordingDurationSamples': duration_samples,
+        'recordingDurationSeconds': duration_seconds,
         'sampleRateHz': sample_rate_hz,
         'series': series,
     }
