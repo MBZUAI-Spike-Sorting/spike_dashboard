@@ -23,6 +23,8 @@ export const DATA_TYPES = Object.freeze({
   CORRELOGRAMS: 'correlograms',
   ISI_HISTOGRAMS: 'isi_histograms',
   SPIKE_AMPLITUDES: 'spike_amplitudes',
+  SPIKE_FEATURES: 'spike_features',
+  CHANNEL_IDS: 'channel_ids',
   TIME_RANGE: 'time_range'
 });
 
@@ -43,6 +45,8 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.CORRELOGRAMS]: 'Correlograms',
   [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
   [DATA_TYPES.SPIKE_AMPLITUDES]: 'Spike amplitudes',
+  [DATA_TYPES.SPIKE_FEATURES]: 'Spike features',
+  [DATA_TYPES.CHANNEL_IDS]: 'Channel IDs',
   [DATA_TYPES.TIME_RANGE]: 'Time range'
 });
 
@@ -90,6 +94,20 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     dataType: DATA_TYPES.SPIKE_SELECTION,
     shape: 'Array<{ clusterId, pointIndex, time? }>',
     validate: (value) => Array.isArray(value)
+  },
+  curationSpikeSelection: {
+    id: 'curationSpikeSelection',
+    label: 'Curation spike selection',
+    dataType: DATA_TYPES.SPIKE_SELECTION,
+    shape: 'Array<{ spikeId, clusterId, pointIndex, spikeIndex }>',
+    validate: (value) => Array.isArray(value)
+  },
+  selectedChannels: {
+    id: 'selectedChannels',
+    label: 'Selected channels',
+    dataType: DATA_TYPES.CHANNEL_IDS,
+    shape: 'number[]',
+    validate: isNumberArray
   },
   clusterStats: {
     id: 'clusterStats',
@@ -164,6 +182,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     label: 'Spike amplitudes',
     dataType: DATA_TYPES.SPIKE_AMPLITUDES,
     shape: '{ clusterIds, sampleRateHz, series }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
+  spikeFeatures: {
+    id: 'spikeFeatures',
+    label: 'Spike features',
+    dataType: DATA_TYPES.SPIKE_FEATURES,
+    shape: '{ clusterIds, dimensions, series, backgroundPoints? }',
     validate: (value) => isPlainObject(value) && Array.isArray(value.series)
   },
   focusedTimeRange: {
@@ -446,6 +471,28 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       { id: 'amplitudes', label: 'Spike amplitudes', accepts: [DATA_TYPES.SPIKE_AMPLITUDES], required: false },
       { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
     ]
+  },
+  featureMatrix: {
+    widgetId: 'featureMatrix',
+    label: 'Feature Matrix',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'features', label: 'Spike features', accepts: [DATA_TYPES.SPIKE_FEATURES], required: false },
+      { id: 'spikeSelection', label: 'Curation spike selection', accepts: [DATA_TYPES.SPIKE_SELECTION], required: false, defaultVariableId: 'curationSpikeSelection' },
+      { id: 'channels', label: 'Selected channels', accepts: [DATA_TYPES.CHANNEL_IDS], required: false, defaultVariableId: 'selectedChannels' }
+    ]
+  },
+  templateFeaturePair: {
+    widgetId: 'templateFeaturePair',
+    label: 'Template Feature Pair',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'selectedClusters', label: 'Selected cluster pair', accepts: [DATA_TYPES.CLUSTER_IDS], required: true },
+      { id: 'features', label: 'Spike features', accepts: [DATA_TYPES.SPIKE_FEATURES], required: false },
+      { id: 'spikeSelection', label: 'Curation spike selection', accepts: [DATA_TYPES.SPIKE_SELECTION], required: false, defaultVariableId: 'curationSpikeSelection' },
+      { id: 'channels', label: 'Selected channels', accepts: [DATA_TYPES.CHANNEL_IDS], required: false, defaultVariableId: 'selectedChannels' }
+    ]
   }
 });
 
@@ -493,9 +540,13 @@ export function createDefaultWidgetInputBindings(pipelineVariables = PIPELINE_VA
     bindings[widgetId] = {};
 
     contract.inputs.forEach((input) => {
-      const compatibleVariable = Object.values(pipelineVariables).find((variable) =>
-        input.accepts.includes(variable.dataType)
-      );
+      const preferredVariable = pipelineVariables[input.defaultVariableId];
+      const compatibleVariable = preferredVariable
+        && input.accepts.includes(preferredVariable.dataType)
+        ? preferredVariable
+        : Object.values(pipelineVariables).find((variable) =>
+            input.accepts.includes(variable.dataType)
+          );
 
       bindings[widgetId][input.id] = compatibleVariable?.id || '';
     });

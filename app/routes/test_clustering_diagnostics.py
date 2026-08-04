@@ -80,6 +80,24 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         self.assertEqual(len(correlograms['pairs']), 4)
         self.assertEqual(isis['series'][0]['violationCount'], 1)
 
+    def test_feature_contract_keeps_stable_identity_and_pair_projection(self):
+        for cluster_index, spikes in enumerate(
+            self.client.application.config['clustering_manager'].clustering_results
+        ):
+            for point_index, spike in enumerate(spikes):
+                spike['x'] = cluster_index * 2 + point_index * 0.1
+                spike['y'] = cluster_index * 2 + point_index * 0.2
+
+        payload = self.client.post('/api/cluster-features', json={
+            'clusterIds': [0, 1],
+            'algorithm': 'test',
+            'includeBackground': False,
+        }).get_json()
+
+        self.assertEqual(payload['clusterIds'], [0, 1])
+        self.assertEqual(payload['series'][0]['points'][0]['spikeId'], '0:0')
+        self.assertIn('pairProjection', [dimension['id'] for dimension in payload['dimensions']])
+
     def test_amplitude_contract_uses_raw_data(self):
         payload = self.client.post('/api/cluster-amplitudes', json={
             'clusterIds': [0],

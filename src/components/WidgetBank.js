@@ -106,6 +106,22 @@ const WIDGET_DEFINITIONS = {
     icon: '↘',
     category: 'visualization',
     defaultSize: { width: 760, height: 440 }
+  },
+  featureMatrix: {
+    id: 'featureMatrix',
+    name: 'Feature Matrix',
+    description: 'Compare retained spike features and lasso exact spikes for curation',
+    icon: '▩',
+    category: 'analysis',
+    defaultSize: { width: 860, height: 680 }
+  },
+  templateFeaturePair: {
+    id: 'templateFeaturePair',
+    name: 'Template Feature Pair',
+    description: 'Review pairwise separation for exactly two linked clusters',
+    icon: '⋈',
+    category: 'analysis',
+    defaultSize: { width: 720, height: 500 }
   }
 };
 
