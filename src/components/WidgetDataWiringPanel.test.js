@@ -65,3 +65,16 @@ test('population views follow the shared visible cluster order by default', () =
     statistics: 'clusterStats',
   });
 });
+
+test('feature views prefer exact curation selections and shared channels', () => {
+  const bindings = createDefaultWidgetInputBindings();
+
+  expect(bindings.featureMatrix).toMatchObject({
+    spikeSelection: 'curationSpikeSelection',
+    channels: 'selectedChannels',
+  });
+  expect(bindings.templateFeaturePair).toMatchObject({
+    spikeSelection: 'curationSpikeSelection',
+    channels: 'selectedChannels',
+  });
+});

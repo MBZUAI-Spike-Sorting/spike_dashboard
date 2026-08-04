@@ -29,8 +29,10 @@ const DEFAULT_VIEW = {
     correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
     isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
     amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
-    templateGallery: { visible: false, minimized: false, maximized: false, order: 16, position: null, size: null, type: 'templateGallery' },
-    clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 17, position: null, size: null, type: 'clusterMetricScatter' }
+    featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
+    templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' },
+    templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
+    clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' }
   }
 };
 
@@ -48,8 +50,10 @@ const EMPTY_WIDGET_STATES = {
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
   amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
-  templateGallery: { visible: false, minimized: false, maximized: false, order: 16, position: null, size: null, type: 'templateGallery' },
-  clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 17, position: null, size: null, type: 'clusterMetricScatter' }
+  featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
+  templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' },
+  templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
+  clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' }
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {
