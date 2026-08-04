@@ -1,0 +1,23 @@
+.spike-attribute-toolbar > label:nth-of-type(1) select {
+  width: 160px;
+}
+
+.spike-attribute-toolbar button {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(64, 224, 208, 0.28);
+  border-radius: 4px;
+  background: rgba(64, 224, 208, 0.1);
+  color: #ccfbf1;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.spike-attribute-toolbar button:hover { background: rgba(64, 224, 208, 0.2); }
+
+.spike-attribute-plot-shell {
+  position: absolute;
+  inset: 0;
+  min-width: 340px;
+  min-height: 240px;
+}

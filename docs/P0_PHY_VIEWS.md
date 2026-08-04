@@ -1,6 +1,6 @@
 # Phy-inspired P0 views
 
-SpikeScope's first Phy-inspired curation increment adds four linked views and a shared selection model.
+SpikeScope's Phy-inspired curation work adds linked diagnostic and schema-driven views with a shared selection model.
 
 ## Views
 
@@ -8,6 +8,7 @@ SpikeScope's first Phy-inspired curation increment adds four linked views and a 
 - **Correlogram Matrix** shows auto- and cross-correlograms for up to four linked clusters. It exposes local cluster controls plus bin, window, performance-limit, refractory, and count/rate/baseline-ratio controls.
 - **ISI Histogram** overlays up to twelve linked clusters and reports refractory violation rates in the legend. Local cluster choices, bin size, visible interval, refractory period, and linear/log x scale are configurable.
 - **Amplitude vs Time / Drift** extracts raw peak-to-peak amplitudes for up to twelve linked clusters, displays them against recording time with same-channel background spikes and marginal amplitude histograms, and supports box/lasso time selection.
+- **Spike Attribute Explorer** discovers compatible scalar and two-dimensional per-spike fields and renders them through one typed schema rather than attribute-specific components. Scalar fields use recording time on X; two-dimensional fields use their retained axes. Labels, units, provenance, stable spike IDs, and deterministic per-cluster limits travel with the payload.
 
 All views are available from the Widget Bank. Existing saved layouts are migrated by merging the new widget definitions as hidden entries.
 
@@ -27,8 +28,9 @@ The diagnostic views use these POST endpoints:
 - `/api/cluster-correlograms`
 - `/api/cluster-isi-histograms`
 - `/api/cluster-amplitudes`
+- `/api/spike-attributes`
 - `/api/cluster-waveforms`
 
 Times are represented as recording samples at the API boundary. Correlogram and ISI bin coordinates are milliseconds. Amplitude points include both `timeSamples` and `timeSeconds`; amplitudes are unstandardized peak-to-peak values from the loaded dataset. Waveform requests use deterministic, bounded sampling and always include explicitly highlighted spikes.
 
-The numerical implementations live in `processing/cluster_diagnostics.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`.
+The numerical implementations live in `processing/cluster_diagnostics.py` and `processing/spike_attributes.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js` and `src/utils/spikeAttributes.js`.

@@ -21,6 +21,7 @@ from processing.cluster_diagnostics import (
     calculate_isi_histograms,
     extract_spike_amplitudes,
 )
+from processing.spike_attributes import extract_spike_attribute
 
 logger = get_logger(__name__)
 
@@ -252,6 +253,47 @@ def get_cluster_amplitudes():
     except Exception as error:
         logger.error(f"Error extracting spike amplitudes: {error}", exc_info=True)
         return server_error("Failed to extract cluster amplitudes", exception=error)
+
+
+@clustering_bp.route('/api/spike-attributes', methods=['POST'])
+def get_spike_attributes():
+    """Discover and return one bounded, typed per-spike attribute."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({
+                'clusterIds': [],
+                'attributeDefinitions': [],
+                'selectedAttributeId': None,
+                'attributeDefinition': None,
+                'series': [],
+            })
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({
+                'clusterIds': [],
+                'attributeDefinitions': [],
+                'selectedAttributeId': None,
+                'attributeDefinition': None,
+                'series': [],
+            })
+
+        result = extract_spike_attribute(
+            context['results'],
+            cluster_ids,
+            attribute_id=data.get('attributeId'),
+            sample_rate_hz=context['sampleRateHz'],
+            max_spikes_per_cluster=int(
+                _bounded_number(data, 'maxSpikesPerCluster', 5000, 10, 20000)
+            ),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error extracting spike attributes: {error}", exc_info=True)
+        return server_error("Failed to extract spike attributes", exception=error)
 
 
 

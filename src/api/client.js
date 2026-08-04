@@ -493,6 +493,26 @@ const apiClient = {
       }),
     });
   },
+
+  /**
+   * Discover and load one typed per-spike attribute.
+   */
+  async getSpikeAttributes({
+    clusterIds,
+    algorithm = '',
+    attributeId = '',
+    maxSpikesPerCluster = 5000,
+  }) {
+    return request('/api/spike-attributes', {
+      method: 'POST',
+      body: JSON.stringify({
+        clusterIds,
+        algorithm,
+        attributeId,
+        maxSpikesPerCluster,
+      }),
+    });
+  },
   
   /**
    * Get cluster waveforms

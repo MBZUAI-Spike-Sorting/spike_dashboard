@@ -89,6 +89,18 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         self.assertEqual(payload['amplitudeUnit'], 'raw')
         self.assertGreater(payload['series'][0]['points'][0]['amplitude'], 0)
 
+    def test_spike_attribute_contract_is_typed_and_keeps_stable_identity(self):
+        payload = self.client.post('/api/spike-attributes', json={
+            'clusterIds': [0, 1],
+            'algorithm': 'test',
+            'attributeId': 'metadata:channel',
+        }).get_json()
+
+        self.assertEqual(payload['selectedAttributeId'], 'metadata:channel')
+        self.assertEqual(payload['attributeDefinition']['shape'], 'scalar')
+        self.assertEqual(payload['attributeDefinition']['dimensions'][0]['unit'], 'channel_id')
+        self.assertEqual(payload['series'][0]['points'][0]['spikeId'], '0:0')
+
     def test_waveform_sampling_is_stable_and_includes_selected_spike(self):
         payload = self.client.post('/api/cluster-waveforms', json={
             'clusterIds': [0],

@@ -34,6 +34,7 @@ import RasterPlotWidget from './RasterPlotWidget';
 import CorrelogramWidget from './CorrelogramWidget';
 import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
+import SpikeAttributeExplorerWidget from './SpikeAttributeExplorerWidget';
 import CanvasMinimap from './CanvasMinimap';
 import apiClient from '../api/client';
 import {
@@ -135,7 +136,8 @@ const DEFAULT_WIDGET_STATES = {
   rasterPlot: { visible: false, minimized: false, maximized: false, order: 10, position: null, size: null, type: 'rasterPlot' },
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
-  amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' }
+  amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
+  spikeAttributeExplorer: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'spikeAttributeExplorer' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -226,6 +228,7 @@ const MultiPanelView = forwardRef(({
   const [clusterData, setClusterData] = useState(null);
   const [clusterWaveforms, setClusterWaveforms] = useState({});
   const [highlightedSpikes, setHighlightedSpikes] = useState([]);
+  const [curationSpikeSelection, setCurationSpikeSelection] = useState([]);
   const [focusedTimeRange, setFocusedTimeRange] = useState(null);
   const [clusterAnnotations, setClusterAnnotations] = useState({});
   const [clusterGroupNames, setClusterGroupNames] = useState(DEFAULT_CLUSTER_GROUPS);
@@ -885,6 +888,7 @@ const MultiPanelView = forwardRef(({
       setClusterData(null);
       setClusterWaveforms({});
       setHighlightedSpikes([]);
+      setCurationSpikeSelection([]);
       setFocusedTimeRange(null);
     };
 
@@ -1159,6 +1163,7 @@ const MultiPanelView = forwardRef(({
     setSelectedSpike(null);
     setClusterWaveforms(dashboardData.clusterWaveforms);
     setHighlightedSpikes([]);
+    setCurationSpikeSelection([]);
     setFocusedTimeRange(null);
     setVisibleClusterOrder(clusterIds);
     setSelectedClusters((previous) => (
@@ -1207,6 +1212,18 @@ const MultiPanelView = forwardRef(({
       ? previous
       : [clusterId, ...previous]);
   }, [clusterData]);
+
+  const handleCurationSpikeSelection = useCallback((selection) => {
+    const normalized = [...new Map((Array.isArray(selection) ? selection : [])
+      .filter((spike) => spike && spike.clusterId !== undefined)
+      .map((spike) => [
+        spike.spikeId || `${spike.clusterId}:${spike.spikeIndex ?? spike.pointIndex ?? 0}`,
+        spike,
+      ])).values()];
+    setCurationSpikeSelection(normalized);
+    if (normalized.length > 0) handleSpikeHighlight(normalized[0]);
+    else setHighlightedSpikes([]);
+  }, [handleSpikeHighlight]);
 
   useEffect(() => {
     setHighlightedSpikes((previous) => previous.filter((spike) => (
@@ -1718,6 +1735,7 @@ const MultiPanelView = forwardRef(({
     visibleClusterOrder,
     spikes,
     highlightedSpikes,
+    curationSpikeSelection,
     clusterStats,
     clusterAnnotations,
     clusterData,
@@ -1736,6 +1754,7 @@ const MultiPanelView = forwardRef(({
     datasetInfo,
     demoSignalData,
     focusedTimeRange,
+    curationSpikeSelection,
     highlightedSpikes,
     selectedClusters,
     spikes,
@@ -2088,6 +2107,25 @@ const MultiPanelView = forwardRef(({
           onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-amplitude-time'
+      )}
+      {renderDockable(
+        'spikeAttributeExplorer',
+        'Spike Attribute Explorer',
+        <SpikeAttributeExplorerWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          clusterData={clusterData}
+          clusteringResults={curatorDataset ? null : clusteringResults}
+          selectedAlgorithm={selectedAlgorithm}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          curationSpikeSelection={curationSpikeSelection}
+          onCurationSelectionChange={handleCurationSpikeSelection}
+          onSpikeSelect={handleSpikeHighlight}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-spike-attribute-explorer'
       )}
       {renderDockable(
         'spikeList',

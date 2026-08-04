@@ -23,6 +23,7 @@ export const DATA_TYPES = Object.freeze({
   CORRELOGRAMS: 'correlograms',
   ISI_HISTOGRAMS: 'isi_histograms',
   SPIKE_AMPLITUDES: 'spike_amplitudes',
+  SPIKE_ATTRIBUTES: 'spike_attributes',
   TIME_RANGE: 'time_range'
 });
 
@@ -43,6 +44,7 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.CORRELOGRAMS]: 'Correlograms',
   [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
   [DATA_TYPES.SPIKE_AMPLITUDES]: 'Spike amplitudes',
+  [DATA_TYPES.SPIKE_ATTRIBUTES]: 'Spike attributes',
   [DATA_TYPES.TIME_RANGE]: 'Time range'
 });
 
@@ -89,6 +91,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     label: 'Highlighted spikes',
     dataType: DATA_TYPES.SPIKE_SELECTION,
     shape: 'Array<{ clusterId, pointIndex, time? }>',
+    validate: (value) => Array.isArray(value)
+  },
+  curationSpikeSelection: {
+    id: 'curationSpikeSelection',
+    label: 'Curation spike selection',
+    dataType: DATA_TYPES.SPIKE_SELECTION,
+    shape: 'Array<{ spikeId, clusterId, pointIndex, spikeIndex }>',
     validate: (value) => Array.isArray(value)
   },
   clusterStats: {
@@ -164,6 +173,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     label: 'Spike amplitudes',
     dataType: DATA_TYPES.SPIKE_AMPLITUDES,
     shape: '{ clusterIds, sampleRateHz, series }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
+  spikeAttributes: {
+    id: 'spikeAttributes',
+    label: 'Spike attribute payload',
+    dataType: DATA_TYPES.SPIKE_ATTRIBUTES,
+    shape: '{ attributeDefinitions, attributeDefinition, series }',
     validate: (value) => isPlainObject(value) && Array.isArray(value.series)
   },
   focusedTimeRange: {
@@ -446,6 +462,16 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       { id: 'amplitudes', label: 'Spike amplitudes', accepts: [DATA_TYPES.SPIKE_AMPLITUDES], required: false },
       { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
     ]
+  },
+  spikeAttributeExplorer: {
+    widgetId: 'spikeAttributeExplorer',
+    label: 'Spike Attribute Explorer',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'attributes', label: 'Spike attribute payload', accepts: [DATA_TYPES.SPIKE_ATTRIBUTES], required: false },
+      { id: 'spikeSelection', label: 'Curation spike selection', accepts: [DATA_TYPES.SPIKE_SELECTION], required: false, defaultVariableId: 'curationSpikeSelection' }
+    ]
   }
 });
 
@@ -493,9 +519,13 @@ export function createDefaultWidgetInputBindings(pipelineVariables = PIPELINE_VA
     bindings[widgetId] = {};
 
     contract.inputs.forEach((input) => {
-      const compatibleVariable = Object.values(pipelineVariables).find((variable) =>
-        input.accepts.includes(variable.dataType)
-      );
+      const preferredVariable = pipelineVariables[input.defaultVariableId];
+      const compatibleVariable = preferredVariable
+        && input.accepts.includes(preferredVariable.dataType)
+        ? preferredVariable
+        : Object.values(pipelineVariables).find((variable) =>
+            input.accepts.includes(variable.dataType)
+          );
 
       bindings[widgetId][input.id] = compatibleVariable?.id || '';
     });
