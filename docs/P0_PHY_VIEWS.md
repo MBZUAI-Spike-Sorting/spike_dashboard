@@ -39,6 +39,14 @@ The numerical implementations live in `processing/cluster_diagnostics.py` and ar
 
 The **Similarity Table** ranks merge candidates for the primary cluster and publishes a primary/secondary pair to linked diagnostic views. It uses retained sorter-template similarity when the clustering manager exposes it; otherwise it clearly labels a deterministic mean-waveform/channel or feature-centroid/channel fallback. The API contract is `POST /api/cluster-similarities`.
 
+## Spatial and raw-trace views
+
+- **Probe Map** renders retained physical probe coordinates when available and a clearly labeled deterministic grid otherwise. Selected-cluster channel footprints and peak channels are overlaid on the geometry.
+- **Trace Heatmap** provides a bounded, peak-preserving channel-by-time image with raw or per-channel robust-z scaling.
+- Probe, Signal, Trace Heatmap, and neighboring Waveform views share one-based channel selection. Signal also overlays the selected clusters' spike identities in the visible time interval.
+
+The spatial contracts use `POST /api/probe-geometry` and `POST /api/trace-heatmap`. Trace heatmaps cap channel and time-bin counts before JSON serialization.
+
 ## Backlog position
 
-The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, Firing Rate Timeline, and Similarity Table. The next view in the gap-analysis order is Probe Map.
+The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, Firing Rate Timeline, Similarity Table, Probe Map, and Trace Heatmap. The next views in the gap-analysis order are Feature View and Template Feature View.

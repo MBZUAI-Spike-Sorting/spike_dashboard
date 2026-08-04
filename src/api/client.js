@@ -366,6 +366,28 @@ const apiClient = {
       }),
     });
   },
+
+  /** Get a bounded channel-by-time trace image. */
+  async getTraceHeatmap({
+    startSample,
+    endSample,
+    channelIds = null,
+    maxTimeBins = 1000,
+    maxChannels = 512,
+    normalization = 'robust_zscore',
+  }) {
+    return request('/api/trace-heatmap', {
+      method: 'POST',
+      body: JSON.stringify({
+        startSample,
+        endSample,
+        channelIds,
+        maxTimeBins,
+        maxChannels,
+        normalization,
+      }),
+    });
+  },
   
   /**
    * Check if precomputed spike times are available
@@ -421,6 +443,14 @@ const apiClient = {
    */
   async getClusterStatistics(clusterIds, algorithm = '') {
     return request('/api/cluster-statistics', {
+      method: 'POST',
+      body: JSON.stringify({ clusterIds, algorithm }),
+    });
+  },
+
+  /** Get physical or fallback probe geometry and cluster footprints. */
+  async getProbeGeometry({ clusterIds = [], algorithm = '' }) {
+    return request('/api/probe-geometry', {
       method: 'POST',
       body: JSON.stringify({ clusterIds, algorithm }),
     });

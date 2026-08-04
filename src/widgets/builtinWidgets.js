@@ -24,6 +24,8 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
+import ProbeMapWidget from '../components/ProbeMapWidget';
+import TraceHeatmapWidget from '../components/TraceHeatmapWidget';
 import SimilarityTableWidget from '../components/SimilarityTableWidget';
 import FiringRateTimelineWidget from '../components/FiringRateTimelineWidget';
 
@@ -243,6 +245,34 @@ const BUILTIN_WIDGETS = [
     requiredData: ['clusters'],
     dataContract: WIDGET_DATA_CONTRACTS.similarityTable,
     order: 15,
+  },
+  {
+    id: 'probeMap',
+    name: 'Probe Map',
+    description: 'Inspect physical channel geometry and selected-cluster footprints',
+    icon: '⌇',
+    category: 'visualization',
+    defaultSize: { width: 560, height: 620 },
+    minWidth: 360,
+    minHeight: 300,
+    component: ProbeMapWidget,
+    requiredData: ['datasetInfo'],
+    dataContract: WIDGET_DATA_CONTRACTS.probeMap,
+    order: 16,
+  },
+  {
+    id: 'traceHeatmap',
+    name: 'Trace Heatmap',
+    description: 'Downsampled all-channel trace image with linked time navigation',
+    icon: '▥',
+    category: 'visualization',
+    defaultSize: { width: 820, height: 520 },
+    minWidth: 440,
+    minHeight: 300,
+    component: TraceHeatmapWidget,
+    requiredData: ['datasetInfo'],
+    dataContract: WIDGET_DATA_CONTRACTS.traceHeatmap,
+    order: 17,
   },
 ];
 

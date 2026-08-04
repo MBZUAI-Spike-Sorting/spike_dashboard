@@ -568,6 +568,30 @@
   min-height: 280px;
 }
 
+.panel-probe-map {
+  top: 80px;
+  left: clamp(44px, 12vw, 190px);
+}
+
+.panel-probe-map .dockable-widget {
+  width: min(560px, calc(100vw - 90px));
+  height: min(620px, calc(100vh - 140px));
+  min-width: min(360px, calc(100vw - 72px));
+  min-height: 300px;
+}
+
+.panel-trace-heatmap {
+  top: 130px;
+  left: clamp(60px, 18vw, 290px);
+}
+
+.panel-trace-heatmap .dockable-widget {
+  width: min(820px, calc(100vw - 100px));
+  height: min(520px, calc(100vh - 190px));
+  min-width: min(440px, calc(100vw - 72px));
+  min-height: 300px;
+}
+
 /* Waveform View Toggle */
 .waveform-view-toggle {
   display: flex !important;
