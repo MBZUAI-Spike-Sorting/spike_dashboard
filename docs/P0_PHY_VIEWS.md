@@ -1,6 +1,6 @@
 # Phy-inspired curation views
 
-SpikeScope's Phy-inspired curation work adds linked diagnostic, feature, population, spatial, and raw-trace views with a shared selection model.
+SpikeScope's Phy-inspired curation work adds linked diagnostic, feature, population, schema-driven, spatial, and raw-trace views with a shared selection model.
 
 ## Views
 
@@ -14,6 +14,7 @@ SpikeScope's Phy-inspired curation work adds linked diagnostic, feature, populat
 - **Template Gallery** follows the Cluster Curation Table's exact visible sort/filter order. It uses retained sorter templates when present and labels the deterministic, bounded raw mean-waveform fallback when they are not.
 - **Cluster Metric Scatter** compares the currently visible population with configurable X, Y, marker-size, and color metrics. Missing metric values are omitted from the current projection rather than fabricated.
 - **Raster Plot** follows the same visible order/filter and now publishes plain or additive cluster selection as well as exact spike selection.
+- **Spike Attribute Explorer** discovers compatible scalar and two-dimensional per-spike fields and renders them through one typed schema rather than attribute-specific components. Scalar fields use recording time on X; two-dimensional fields use their retained axes. Labels, units, provenance, stable spike IDs, and deterministic per-cluster limits travel with the payload.
 
 All views are available from the Widget Bank. Existing saved layouts are migrated by merging the new widget definitions as hidden entries.
 
@@ -34,13 +35,14 @@ The diagnostic views use these POST endpoints:
 - `/api/cluster-isi-histograms`
 - `/api/cluster-firing-rates`
 - `/api/cluster-amplitudes`
+- `/api/spike-attributes`
 - `/api/cluster-templates`
 - `/api/cluster-features`
 - `/api/cluster-waveforms`
 
 Times are represented as recording samples at the API boundary. Correlogram and ISI bin coordinates are milliseconds. Firing-rate results expose sample-domain bin edges, second-domain centers, counts, and per-bin rates; a short final bin is normalized by its actual duration. Amplitude points include both `timeSamples` and `timeSeconds`; amplitudes are unstandardized peak-to-peak values from the loaded dataset. Waveform requests use deterministic, bounded sampling and always include explicitly highlighted spikes.
 
-The numerical implementations live in `processing/cluster_diagnostics.py`, `processing/feature_views.py`, `processing/spatial_views.py`, and `processing/template_gallery.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`, `src/utils/featureViews.js`, `src/utils/spatialViews.js`, and `src/utils/templateGallery.js`.
+The numerical implementations live in `processing/cluster_diagnostics.py`, `processing/feature_views.py`, `processing/spatial_views.py`, `processing/template_gallery.py`, and `processing/spike_attributes.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`, `src/utils/featureViews.js`, `src/utils/spatialViews.js`, `src/utils/templateGallery.js`, and `src/utils/spikeAttributes.js`.
 
 ## P1 pair review
 
@@ -56,4 +58,4 @@ The spatial contracts use `POST /api/probe-geometry` and `POST /api/trace-heatma
 
 ## Backlog position
 
-The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, Firing Rate Timeline, Similarity Table, Probe Map, Trace Heatmap, Feature Matrix, Template Feature Pair, Template Gallery, and Cluster Metric Scatter. The next view in the gap-analysis order is Spike Attribute View.
+The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, Firing Rate Timeline, Similarity Table, Probe Map, Trace Heatmap, Feature Matrix, Template Feature Pair, Template Gallery, Cluster Metric Scatter, and Spike Attribute Explorer. The next delivery is the safe exploratory workspace.

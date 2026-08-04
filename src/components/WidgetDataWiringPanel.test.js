@@ -53,6 +53,15 @@ test('amplitude distribution is wired to selected clusters and waveforms by defa
   ).valid).toBe(true);
 });
 
+test('attribute explorer prefers the exact curation spike selection', () => {
+  const bindings = createDefaultWidgetInputBindings();
+
+  expect(bindings.spikeAttributeExplorer).toMatchObject({
+    selectedClusters: 'selectedClusters',
+    spikeSelection: 'curationSpikeSelection',
+  });
+});
+
 test('population views follow the shared visible cluster order by default', () => {
   const bindings = createDefaultWidgetInputBindings();
 

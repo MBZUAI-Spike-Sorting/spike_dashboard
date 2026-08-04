@@ -170,6 +170,14 @@ const WIDGET_DEFINITIONS = {
     icon: '⠿',
     category: 'analysis',
     defaultSize: { width: 740, height: 500 }
+  },
+  spikeAttributeExplorer: {
+    id: 'spikeAttributeExplorer',
+    name: 'Spike Attribute Explorer',
+    description: 'Discover and plot compatible retained scalar or two-dimensional spike attributes',
+    icon: '◇',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 500 }
   }
 };
 

@@ -32,7 +32,8 @@ const DEFAULT_VIEW = {
     featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
     templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' },
     templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
-    clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' }
+    clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' },
+    spikeAttributeExplorer: { visible: false, minimized: false, maximized: false, order: 22, position: null, size: null, type: 'spikeAttributeExplorer' }
   }
 };
 
@@ -53,7 +54,8 @@ const EMPTY_WIDGET_STATES = {
   featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
   templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' },
   templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
-  clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' }
+  clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' },
+  spikeAttributeExplorer: { visible: false, minimized: false, maximized: false, order: 22, position: null, size: null, type: 'spikeAttributeExplorer' }
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {

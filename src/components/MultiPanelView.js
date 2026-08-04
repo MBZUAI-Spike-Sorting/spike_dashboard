@@ -34,6 +34,7 @@ import RasterPlotWidget from './RasterPlotWidget';
 import CorrelogramWidget from './CorrelogramWidget';
 import IsiHistogramWidget from './IsiHistogramWidget';
 import AmplitudeTimeWidget from './AmplitudeTimeWidget';
+import SpikeAttributeExplorerWidget from './SpikeAttributeExplorerWidget';
 import TemplateGalleryWidget from './TemplateGalleryWidget';
 import ClusterMetricScatterWidget from './ClusterMetricScatterWidget';
 import FeatureMatrixWidget from './FeatureMatrixWidget';
@@ -158,7 +159,8 @@ const DEFAULT_WIDGET_STATES = {
   featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
   templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' },
   templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
-  clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' }
+  clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' },
+  spikeAttributeExplorer: { visible: false, minimized: false, maximized: false, order: 22, position: null, size: null, type: 'spikeAttributeExplorer' }
 };
 
 export const CURATOR_LINKED_WIDGET_IDS = [
@@ -2234,6 +2236,25 @@ const MultiPanelView = forwardRef(({
           onLoadingChange={handleWidgetLoadingChange}
         />,
         'panel-amplitude-time'
+      )}
+      {renderDockable(
+        'spikeAttributeExplorer',
+        'Spike Attribute Explorer',
+        <SpikeAttributeExplorerWidget
+          availableClusterIds={clusterData?.clusterIds || clusters.map((cluster) => cluster.id)}
+          linkedSelectedClusters={selectedClusters}
+          clusterData={clusterData}
+          clusteringResults={curatorDataset ? null : clusteringResults}
+          selectedAlgorithm={selectedAlgorithm}
+          datasetInfo={datasetInfo}
+          demoMode={demoMode}
+          curationSpikeSelection={curationSpikeSelection}
+          onCurationSelectionChange={handleCurationSpikeSelection}
+          onSpikeSelect={handleSpikeHighlight}
+          dataCacheScope={dataCacheScope}
+          onLoadingChange={handleWidgetLoadingChange}
+        />,
+        'panel-spike-attribute-explorer'
       )}
       {renderDockable(
         'featureMatrix',

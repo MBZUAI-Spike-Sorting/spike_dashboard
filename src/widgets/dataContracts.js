@@ -26,6 +26,7 @@ export const DATA_TYPES = Object.freeze({
   ISI_HISTOGRAMS: 'isi_histograms',
   FIRING_RATES: 'firing_rates',
   SPIKE_AMPLITUDES: 'spike_amplitudes',
+  SPIKE_ATTRIBUTES: 'spike_attributes',
   CLUSTER_TEMPLATES: 'cluster_templates',
   SPIKE_FEATURES: 'spike_features',
   PROBE_GEOMETRY: 'probe_geometry',
@@ -53,6 +54,7 @@ export const DATA_TYPE_LABELS = Object.freeze({
   [DATA_TYPES.ISI_HISTOGRAMS]: 'ISI histograms',
   [DATA_TYPES.FIRING_RATES]: 'Firing-rate timelines',
   [DATA_TYPES.SPIKE_AMPLITUDES]: 'Spike amplitudes',
+  [DATA_TYPES.SPIKE_ATTRIBUTES]: 'Spike attributes',
   [DATA_TYPES.CLUSTER_TEMPLATES]: 'Cluster templates',
   [DATA_TYPES.SPIKE_FEATURES]: 'Spike features',
   [DATA_TYPES.PROBE_GEOMETRY]: 'Probe geometry',
@@ -206,6 +208,13 @@ export const PIPELINE_VARIABLE_DEFINITIONS = Object.freeze({
     label: 'Spike amplitudes',
     dataType: DATA_TYPES.SPIKE_AMPLITUDES,
     shape: '{ clusterIds, sampleRateHz, series }',
+    validate: (value) => isPlainObject(value) && Array.isArray(value.series)
+  },
+  spikeAttributes: {
+    id: 'spikeAttributes',
+    label: 'Spike attribute payload',
+    dataType: DATA_TYPES.SPIKE_ATTRIBUTES,
+    shape: '{ attributeDefinitions, attributeDefinition, series }',
     validate: (value) => isPlainObject(value) && Array.isArray(value.series)
   },
   clusterTemplates: {
@@ -571,6 +580,16 @@ export const WIDGET_DATA_CONTRACTS = Object.freeze({
       { id: 'spikes', label: 'Spike events', accepts: [DATA_TYPES.SPIKE_EVENTS], required: true },
       { id: 'amplitudes', label: 'Spike amplitudes', accepts: [DATA_TYPES.SPIKE_AMPLITUDES], required: false },
       { id: 'timeRange', label: 'Focused time range', accepts: [DATA_TYPES.TIME_RANGE], required: false }
+    ]
+  },
+  spikeAttributeExplorer: {
+    widgetId: 'spikeAttributeExplorer',
+    label: 'Spike Attribute Explorer',
+    inputs: [
+      { id: 'clusterData', label: 'Available clusters', accepts: [DATA_TYPES.CLUSTER_EMBEDDING, DATA_TYPES.CLUSTERING_RESULTS], required: true },
+      { id: 'selectedClusters', label: 'Selected clusters', accepts: [DATA_TYPES.CLUSTER_IDS], required: false },
+      { id: 'attributes', label: 'Spike attribute payload', accepts: [DATA_TYPES.SPIKE_ATTRIBUTES], required: false },
+      { id: 'spikeSelection', label: 'Curation spike selection', accepts: [DATA_TYPES.SPIKE_SELECTION], required: false, defaultVariableId: 'curationSpikeSelection' }
     ]
   },
   probeMap: {

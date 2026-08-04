@@ -24,6 +24,7 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
+import SpikeAttributeExplorerWidget from '../components/SpikeAttributeExplorerWidget';
 import TemplateGalleryWidget from '../components/TemplateGalleryWidget';
 import ClusterMetricScatterWidget from '../components/ClusterMetricScatterWidget';
 import FeatureMatrixWidget from '../components/FeatureMatrixWidget';
@@ -333,6 +334,20 @@ const BUILTIN_WIDGETS = [
     requiredData: ['clusters', 'statistics'],
     dataContract: WIDGET_DATA_CONTRACTS.clusterMetricScatter,
     order: 21,
+  },
+  {
+    id: 'spikeAttributeExplorer',
+    name: 'Spike Attribute Explorer',
+    description: 'Discover and plot compatible retained scalar or two-dimensional spike attributes',
+    icon: '◇',
+    category: 'analysis',
+    defaultSize: { width: 760, height: 500 },
+    minWidth: 400,
+    minHeight: 280,
+    component: SpikeAttributeExplorerWidget,
+    requiredData: ['clusters'],
+    dataContract: WIDGET_DATA_CONTRACTS.spikeAttributeExplorer,
+    order: 22,
   },
 ];
 
