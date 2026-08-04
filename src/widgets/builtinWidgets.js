@@ -24,6 +24,7 @@ import RasterPlotWidget from '../components/RasterPlotWidget';
 import CorrelogramWidget from '../components/CorrelogramWidget';
 import IsiHistogramWidget from '../components/IsiHistogramWidget';
 import AmplitudeTimeWidget from '../components/AmplitudeTimeWidget';
+import AnalysisWorkspaceWidget from '../components/AnalysisWorkspaceWidget';
 import SpikeAttributeExplorerWidget from '../components/SpikeAttributeExplorerWidget';
 import TemplateGalleryWidget from '../components/TemplateGalleryWidget';
 import ClusterMetricScatterWidget from '../components/ClusterMetricScatterWidget';
@@ -348,6 +349,20 @@ const BUILTIN_WIDGETS = [
     requiredData: ['clusters'],
     dataContract: WIDGET_DATA_CONTRACTS.spikeAttributeExplorer,
     order: 22,
+  },
+  {
+    id: 'analysisWorkspace',
+    name: 'Analysis Workspace',
+    description: 'Inspect and export read-only session, wiring, selection, and provenance state',
+    icon: '{ }',
+    category: 'analysis',
+    defaultSize: { width: 820, height: 600 },
+    minWidth: 460,
+    minHeight: 340,
+    component: AnalysisWorkspaceWidget,
+    requiredData: [],
+    dataContract: WIDGET_DATA_CONTRACTS.analysisWorkspace,
+    order: 23,
   },
 ];
 

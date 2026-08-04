@@ -178,6 +178,14 @@ const WIDGET_DEFINITIONS = {
     icon: '◇',
     category: 'analysis',
     defaultSize: { width: 760, height: 500 }
+  },
+  analysisWorkspace: {
+    id: 'analysisWorkspace',
+    name: 'Analysis Workspace',
+    description: 'Inspect and export read-only session, wiring, selection, and provenance state',
+    icon: '{ }',
+    category: 'analysis',
+    defaultSize: { width: 820, height: 600 }
   }
 };
 

@@ -1,6 +1,6 @@
 # Phy-inspired curation views
 
-SpikeScope's Phy-inspired curation work adds linked diagnostic, feature, population, schema-driven, spatial, and raw-trace views with a shared selection model.
+SpikeScope's Phy-inspired curation work adds linked diagnostic, feature, population, schema-driven, spatial, and raw-trace views plus a safe analysis workspace with a shared selection model.
 
 ## Views
 
@@ -15,6 +15,7 @@ SpikeScope's Phy-inspired curation work adds linked diagnostic, feature, populat
 - **Cluster Metric Scatter** compares the currently visible population with configurable X, Y, marker-size, and color metrics. Missing metric values are omitted from the current projection rather than fabricated.
 - **Raster Plot** follows the same visible order/filter and now publishes plain or additive cluster selection as well as exact spike selection.
 - **Spike Attribute Explorer** discovers compatible scalar and two-dimensional per-spike fields and renders them through one typed schema rather than attribute-specific components. Scalar fields use recording time on X; two-dimensional fields use their retained axes. Labels, units, provenance, stable spike IDs, and deterministic per-cluster limits travel with the payload.
+- **Analysis Workspace** is a read-only counterpart to Phy's IPython view. It inspects dataset, algorithm, cluster, selection, widget, wiring, and provenance state; exports a structured session manifest; and supplies a copyable local-notebook snippet. It never evaluates user code.
 
 All views are available from the Widget Bank. Existing saved layouts are migrated by merging the new widget definitions as hidden entries.
 
@@ -44,6 +45,8 @@ Times are represented as recording samples at the API boundary. Correlogram and 
 
 The numerical implementations live in `processing/cluster_diagnostics.py`, `processing/feature_views.py`, `processing/spatial_views.py`, `processing/template_gallery.py`, and `processing/spike_attributes.py` and are independent of Flask for direct testing. Demo mode uses matching local contracts from `src/utils/clusterDiagnostics.js`, `src/utils/featureViews.js`, `src/utils/spatialViews.js`, `src/utils/templateGallery.js`, and `src/utils/spikeAttributes.js`.
 
+The Analysis Workspace security boundary and manifest format are documented in [`ANALYSIS_WORKSPACE.md`](ANALYSIS_WORKSPACE.md).
+
 ## P1 pair review
 
 The **Similarity Table** ranks merge candidates for the primary cluster and publishes a primary/secondary pair to linked diagnostic views. It uses retained sorter-template similarity when the clustering manager exposes it; otherwise it clearly labels a deterministic mean-waveform/channel or feature-centroid/channel fallback. The API contract is `POST /api/cluster-similarities`.
@@ -58,4 +61,4 @@ The spatial contracts use `POST /api/probe-geometry` and `POST /api/trace-heatma
 
 ## Backlog position
 
-The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, Firing Rate Timeline, Similarity Table, Probe Map, Trace Heatmap, Feature Matrix, Template Feature Pair, Template Gallery, Cluster Metric Scatter, and Spike Attribute Explorer. The next delivery is the safe exploratory workspace.
+The completed sequence is Cluster Curation Table, Correlogram Matrix, ISI Histogram, Amplitude vs Time / Drift, Firing Rate Timeline, Similarity Table, Probe Map, Trace Heatmap, Feature Matrix, Template Feature Pair, Template Gallery, Cluster Metric Scatter, Spike Attribute Explorer, and Analysis Workspace. The next delivery is transactional curation actions and session history.
