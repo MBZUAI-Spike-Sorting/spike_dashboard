@@ -18,6 +18,7 @@ from app.utils.responses import server_error, validation_error, not_found_error,
 from processing.cluster_diagnostics import (
     calculate_cluster_metrics,
     calculate_correlograms,
+    calculate_firing_rate_histograms,
     calculate_isi_histograms,
     extract_spike_amplitudes,
 )
@@ -217,6 +218,47 @@ def get_cluster_isi_histograms():
     except Exception as error:
         logger.error(f"Error calculating ISI histograms: {error}", exc_info=True)
         return server_error("Failed to calculate ISI histograms", exception=error)
+
+
+@clustering_bp.route('/api/cluster-firing-rates', methods=['POST'])
+def get_cluster_firing_rates():
+    """Return binned spike counts and firing rates across the recording."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({
+                'clusterIds': [],
+                'series': [],
+                'binCentersSeconds': [],
+                'binEdgesSamples': [],
+            })
+
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({
+                'clusterIds': [],
+                'series': [],
+                'binCentersSeconds': [],
+                'binEdgesSamples': [],
+            })
+
+        result = calculate_firing_rate_histograms(
+            context['results'],
+            cluster_ids,
+            sample_rate_hz=context['sampleRateHz'],
+            bin_size_seconds=_bounded_number(
+                data, 'binSizeSeconds', 1.0, 0.001, 3600.0
+            ),
+            recording_duration_samples=context['durationSamples'],
+            max_bins=int(_bounded_number(data, 'maxBins', 5000, 10, 20000)),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error calculating firing rates: {error}", exc_info=True)
+        return server_error("Failed to calculate cluster firing rates", exception=error)
 
 
 @clustering_bp.route('/api/cluster-amplitudes', methods=['POST'])

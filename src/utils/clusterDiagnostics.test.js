@@ -1,6 +1,7 @@
 import {
   buildLocalAmplitudeSeries,
   buildLocalCorrelograms,
+  buildLocalFiringRates,
   buildLocalIsiHistograms,
   collectClusterEvents,
 } from './clusterDiagnostics';
@@ -46,6 +47,39 @@ test('local ISI histograms report refractory violations', () => {
   });
   expect(result.series[0].totalIntervals).toBe(2);
   expect(result.series[0].violationCount).toBe(1);
+});
+
+test('local firing rates preserve counts and normalize a short final bin', () => {
+  const events = collectClusterEvents({ clusterData, selectedClusters: [0, 1] });
+  const result = buildLocalFiringRates({
+    events,
+    clusterIds: [0, 1],
+    sampleRateHz: 1000,
+    binSizeSeconds: 0.05,
+    recordingDurationSamples: 120,
+  });
+
+  expect(result.binEdgesSamples).toEqual([0, 50, 100, 120]);
+  expect(result.series[0].counts).toEqual([2, 1, 0]);
+  expect(result.series[0].rateHz).toEqual([40, 20, 0]);
+  expect(result.series[1].counts).toEqual([2, 0, 0]);
+  expect(result.series[0].meanRateHz).toBe(25);
+});
+
+test('local firing-rate timelines cap the number of bins', () => {
+  const events = collectClusterEvents({ clusterData, selectedClusters: [0] });
+  const result = buildLocalFiringRates({
+    events,
+    clusterIds: [0],
+    sampleRateHz: 1000,
+    binSizeSeconds: 0.001,
+    recordingDurationSamples: 10000,
+    maxBins: 25,
+  });
+
+  expect(result.binSizeAdjusted).toBe(true);
+  expect(result.binCentersSeconds).toHaveLength(25);
+  expect(result.binSizeSeconds).toBeCloseTo(0.4);
 });
 
 test('local amplitude series preserves spike identity and time', () => {
