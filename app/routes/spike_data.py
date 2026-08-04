@@ -10,6 +10,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.logger import get_logger
 from app.services.filter_processor import FilterProcessor
 from app.utils.responses import not_found_error, server_error, validation_error
+from processing.spatial_views import downsample_trace_heatmap
 
 logger = get_logger(__name__)
 
@@ -49,6 +50,33 @@ def get_spike_data():
     except Exception as e:
         logger.error(f"Error in get_spike_data: {e}", exc_info=True)
         return server_error("Failed to get spike data", exception=e)
+
+
+@spike_data_bp.route('/api/trace-heatmap', methods=['POST'])
+def get_trace_heatmap():
+    """Return a bounded all-channel trace image for a requested time range."""
+    try:
+        data = request.get_json() or {}
+        dataset_manager = current_app.config['dataset_manager']
+        data_array = dataset_manager.data_array
+        if data_array is None:
+            return jsonify({'channelIds': [], 'timeBinCentersSamples': [], 'values': []})
+
+        sample_rate_hz = float(current_app.config['app_config'].SAMPLING_RATE)
+        result = downsample_trace_heatmap(
+            data_array,
+            start_sample=data.get('startSample', 0),
+            end_sample=data.get('endSample'),
+            channel_ids=data.get('channelIds'),
+            max_time_bins=data.get('maxTimeBins', 1000),
+            max_channels=data.get('maxChannels', 512),
+            normalization=data.get('normalization', 'robust_zscore'),
+            sample_rate_hz=sample_rate_hz,
+        )
+        return jsonify(result)
+    except Exception as error:
+        logger.error(f"Error creating trace heatmap: {error}", exc_info=True)
+        return server_error("Failed to create trace heatmap", exception=error)
 
 
 @spike_data_bp.route('/api/spike-times-available', methods=['GET'])

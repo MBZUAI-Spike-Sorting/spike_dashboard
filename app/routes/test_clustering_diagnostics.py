@@ -80,6 +80,52 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         self.assertEqual(len(correlograms['pairs']), 4)
         self.assertEqual(isis['series'][0]['violationCount'], 1)
 
+    def test_feature_contract_keeps_stable_identity_and_pair_projection(self):
+        for cluster_index, spikes in enumerate(
+            self.client.application.config['clustering_manager'].clustering_results
+        ):
+            for point_index, spike in enumerate(spikes):
+                spike['x'] = cluster_index * 2 + point_index * 0.1
+                spike['y'] = cluster_index * 2 + point_index * 0.2
+
+        payload = self.client.post('/api/cluster-features', json={
+            'clusterIds': [0, 1],
+            'algorithm': 'test',
+            'includeBackground': False,
+        }).get_json()
+
+        self.assertEqual(payload['clusterIds'], [0, 1])
+        self.assertEqual(payload['series'][0]['points'][0]['spikeId'], '0:0')
+        self.assertIn('pairProjection', [dimension['id'] for dimension in payload['dimensions']])
+
+    def test_similarity_contract_excludes_primary_cluster(self):
+        payload = self.client.post('/api/cluster-similarities', json={
+            'primaryClusterId': 0,
+            'algorithm': 'test',
+            'maxCandidates': 10,
+            'windowSamples': 3,
+        }).get_json()
+
+        self.assertEqual(payload['primaryClusterId'], 0)
+        self.assertEqual([row['clusterId'] for row in payload['candidates']], [1])
+        self.assertIn(payload['source'], {
+            'mean_waveform_channel',
+            'feature_centroid_channel',
+            'channel_distance',
+        })
+
+    def test_firing_rate_contract_uses_recording_duration(self):
+        payload = self.client.post('/api/cluster-firing-rates', json={
+            'clusterIds': [0, 1],
+            'algorithm': 'test',
+            'binSizeSeconds': 0.05,
+        }).get_json()
+
+        self.assertEqual(payload['sampleRateHz'], 1000)
+        self.assertEqual(payload['recordingDurationSamples'], 120.0)
+        self.assertEqual(payload['series'][0]['counts'], [2, 1, 0])
+        self.assertEqual(payload['series'][0]['rateHz'], [40.0, 20.0, 0.0])
+
     def test_amplitude_contract_uses_raw_data(self):
         payload = self.client.post('/api/cluster-amplitudes', json={
             'clusterIds': [0],
@@ -88,6 +134,31 @@ class ClusterDiagnosticRouteTests(unittest.TestCase):
         }).get_json()
         self.assertEqual(payload['amplitudeUnit'], 'raw')
         self.assertGreater(payload['series'][0]['points'][0]['amplitude'], 0)
+
+    def test_spike_attribute_contract_is_typed_and_keeps_stable_identity(self):
+        payload = self.client.post('/api/spike-attributes', json={
+            'clusterIds': [0, 1],
+            'algorithm': 'test',
+            'attributeId': 'metadata:channel',
+        }).get_json()
+
+        self.assertEqual(payload['selectedAttributeId'], 'metadata:channel')
+        self.assertEqual(payload['attributeDefinition']['shape'], 'scalar')
+        self.assertEqual(payload['attributeDefinition']['dimensions'][0]['unit'], 'channel_id')
+        self.assertEqual(payload['series'][0]['points'][0]['spikeId'], '0:0')
+
+    def test_template_contract_preserves_requested_order_and_uses_fallback(self):
+        payload = self.client.post('/api/cluster-templates', json={
+            'clusterIds': [1, 0],
+            'algorithm': 'test',
+            'windowSamples': 3,
+            'maxWaveforms': 2,
+        }).get_json()
+
+        self.assertEqual(payload['clusterIds'], [1, 0])
+        self.assertEqual(payload['templates'][0]['source'], 'mean_raw_waveform')
+        self.assertEqual(payload['templates'][0]['peakChannel'], 2)
+        self.assertGreater(len(payload['templates'][0]['template']), 0)
 
     def test_waveform_sampling_is_stable_and_includes_selected_spike(self):
         payload = self.client.post('/api/cluster-waveforms', json={

@@ -29,7 +29,13 @@ const DEFAULT_VIEW = {
     correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
     isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
     amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
-    curationActions: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'curationActions' }
+    featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
+    templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' },
+    templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
+    clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' },
+    spikeAttributeExplorer: { visible: false, minimized: false, maximized: false, order: 22, position: null, size: null, type: 'spikeAttributeExplorer' },
+    analysisWorkspace: { visible: false, minimized: false, maximized: false, order: 23, position: null, size: null, type: 'analysisWorkspace' },
+    curationActions: { visible: false, minimized: false, maximized: false, order: 24, position: null, size: null, type: 'curationActions' }
   }
 };
 
@@ -47,7 +53,13 @@ const EMPTY_WIDGET_STATES = {
   correlogram: { visible: false, minimized: false, maximized: false, order: 11, position: null, size: null, type: 'correlogram' },
   isiHistogram: { visible: false, minimized: false, maximized: false, order: 12, position: null, size: null, type: 'isiHistogram' },
   amplitudeTime: { visible: false, minimized: false, maximized: false, order: 13, position: null, size: null, type: 'amplitudeTime' },
-  curationActions: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'curationActions' }
+  featureMatrix: { visible: false, minimized: false, maximized: false, order: 18, position: null, size: null, type: 'featureMatrix' },
+  templateFeaturePair: { visible: false, minimized: false, maximized: false, order: 19, position: null, size: null, type: 'templateFeaturePair' },
+  templateGallery: { visible: false, minimized: false, maximized: false, order: 20, position: null, size: null, type: 'templateGallery' },
+  clusterMetricScatter: { visible: false, minimized: false, maximized: false, order: 21, position: null, size: null, type: 'clusterMetricScatter' },
+  spikeAttributeExplorer: { visible: false, minimized: false, maximized: false, order: 22, position: null, size: null, type: 'spikeAttributeExplorer' },
+  analysisWorkspace: { visible: false, minimized: false, maximized: false, order: 23, position: null, size: null, type: 'analysisWorkspace' },
+  curationActions: { visible: false, minimized: false, maximized: false, order: 24, position: null, size: null, type: 'curationActions' }
 };
 
 const mergeWidgetStateDefaults = (widgetStates = {}, defaults = DEFAULT_VIEW.widgetStates) => {

@@ -18,9 +18,15 @@ from app.utils.responses import server_error, validation_error, not_found_error,
 from processing.cluster_diagnostics import (
     calculate_cluster_metrics,
     calculate_correlograms,
+    calculate_cluster_similarities,
+    calculate_firing_rate_histograms,
     calculate_isi_histograms,
     extract_spike_amplitudes,
 )
+from processing.spike_attributes import extract_spike_attribute
+from processing.template_gallery import extract_cluster_templates
+from processing.feature_views import extract_cluster_features
+from processing.spatial_views import build_probe_geometry
 
 logger = get_logger(__name__)
 
@@ -219,6 +225,153 @@ def get_cluster_isi_histograms():
         return server_error("Failed to calculate ISI histograms", exception=error)
 
 
+@clustering_bp.route('/api/cluster-features', methods=['POST'])
+def get_cluster_features():
+    """Return bounded per-spike features with stable identities."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({'clusterIds': [], 'dimensions': [], 'series': [], 'backgroundPoints': []})
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({'clusterIds': [], 'dimensions': [], 'series': [], 'backgroundPoints': []})
+
+        result = extract_cluster_features(
+            context['results'],
+            cluster_ids,
+            sample_rate_hz=context['sampleRateHz'],
+            max_spikes_per_cluster=int(
+                _bounded_number(data, 'maxSpikesPerCluster', 5000, 10, 20000)
+            ),
+            include_background=bool(data.get('includeBackground', True)),
+            max_background_spikes=int(
+                _bounded_number(data, 'maxBackgroundSpikes', 5000, 0, 20000)
+            ),
+            selected_channels=data.get('selectedChannels'),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error extracting cluster features: {error}", exc_info=True)
+        return server_error("Failed to extract cluster features", exception=error)
+
+
+@clustering_bp.route('/api/probe-geometry', methods=['POST'])
+def get_probe_geometry():
+    """Return physical/fallback probe geometry and cluster channel footprints."""
+    try:
+        data = request.get_json() or {}
+        context = _load_clustering_results(data.get('algorithm', ''))
+        dataset_array = context['datasetManager'].data_array
+        channel_count = int(dataset_array.shape[0]) if dataset_array is not None else 0
+        manager = context['manager']
+        probe = getattr(manager, 'probe', None)
+        sorter_artifacts = getattr(manager, 'sorter_artifacts', None)
+        if probe is None and isinstance(sorter_artifacts, dict):
+            probe = sorter_artifacts.get('probe')
+        if probe is None:
+            probe = getattr(context['datasetManager'], 'probe', None)
+
+        result = build_probe_geometry(
+            channel_count,
+            probe=probe,
+            clustering_results=context['results'],
+            cluster_ids=data.get('clusterIds'),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error loading probe geometry: {error}", exc_info=True)
+        return server_error("Failed to load probe geometry", exception=error)
+
+
+@clustering_bp.route('/api/cluster-similarities', methods=['POST'])
+def get_cluster_similarities():
+    """Rank merge candidates for a primary cluster."""
+    try:
+        data = request.get_json() or {}
+        primary_cluster_id = data.get('primaryClusterId')
+        if primary_cluster_id is None:
+            return validation_error('A primary cluster ID is required')
+
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({
+                'primaryClusterId': primary_cluster_id,
+                'source': 'unavailable',
+                'candidates': [],
+            })
+
+        manager = context['manager']
+        sorter_similarity = getattr(manager, 'similar_templates', None)
+        sorter_artifacts = getattr(manager, 'sorter_artifacts', None)
+        if sorter_similarity is None and isinstance(sorter_artifacts, dict):
+            sorter_similarity = sorter_artifacts.get('similar_templates')
+
+        result = calculate_cluster_similarities(
+            context['results'],
+            primary_cluster_id,
+            data_array=context['datasetManager'].data_array,
+            candidate_cluster_ids=data.get('candidateClusterIds'),
+            sorter_similarity_matrix=sorter_similarity,
+            max_candidates=int(_bounded_number(data, 'maxCandidates', 20, 1, 100)),
+            max_spikes_per_cluster=int(
+                _bounded_number(data, 'maxSpikesPerCluster', 100, 5, 1000)
+            ),
+            window_samples=int(_bounded_number(data, 'windowSamples', 15, 1, 200)),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error calculating cluster similarities: {error}", exc_info=True)
+        return server_error("Failed to calculate cluster similarities", exception=error)
+
+
+@clustering_bp.route('/api/cluster-firing-rates', methods=['POST'])
+def get_cluster_firing_rates():
+    """Return binned spike counts and firing rates across the recording."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({
+                'clusterIds': [],
+                'series': [],
+                'binCentersSeconds': [],
+                'binEdgesSamples': [],
+            })
+
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({
+                'clusterIds': [],
+                'series': [],
+                'binCentersSeconds': [],
+                'binEdgesSamples': [],
+            })
+
+        result = calculate_firing_rate_histograms(
+            context['results'],
+            cluster_ids,
+            sample_rate_hz=context['sampleRateHz'],
+            bin_size_seconds=_bounded_number(
+                data, 'binSizeSeconds', 1.0, 0.001, 3600.0
+            ),
+            recording_duration_samples=context['durationSamples'],
+            max_bins=int(_bounded_number(data, 'maxBins', 5000, 10, 20000)),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error calculating firing rates: {error}", exc_info=True)
+        return server_error("Failed to calculate cluster firing rates", exception=error)
+
+
 @clustering_bp.route('/api/cluster-amplitudes', methods=['POST'])
 def get_cluster_amplitudes():
     """Return unstandardized peak-to-peak amplitudes for drift inspection."""
@@ -252,6 +405,75 @@ def get_cluster_amplitudes():
     except Exception as error:
         logger.error(f"Error extracting spike amplitudes: {error}", exc_info=True)
         return server_error("Failed to extract cluster amplitudes", exception=error)
+
+
+@clustering_bp.route('/api/spike-attributes', methods=['POST'])
+def get_spike_attributes():
+    """Discover and return one bounded, typed per-spike attribute."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({
+                'clusterIds': [],
+                'attributeDefinitions': [],
+                'selectedAttributeId': None,
+                'attributeDefinition': None,
+                'series': [],
+            })
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({
+                'clusterIds': [],
+                'attributeDefinitions': [],
+                'selectedAttributeId': None,
+                'attributeDefinition': None,
+                'series': [],
+            })
+
+        result = extract_spike_attribute(
+            context['results'],
+            cluster_ids,
+            attribute_id=data.get('attributeId'),
+            sample_rate_hz=context['sampleRateHz'],
+            max_spikes_per_cluster=int(
+                _bounded_number(data, 'maxSpikesPerCluster', 5000, 10, 20000)
+            ),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error extracting spike attributes: {error}", exc_info=True)
+        return server_error("Failed to extract spike attributes", exception=error)
+
+
+@clustering_bp.route('/api/cluster-templates', methods=['POST'])
+def get_cluster_templates():
+    """Return ordered retained templates or deterministic raw means."""
+    try:
+        data = request.get_json() or {}
+        cluster_ids = data.get('clusterIds', [])
+        if not cluster_ids:
+            return jsonify({'clusterIds': [], 'templates': []})
+        context = _load_clustering_results(data.get('algorithm', ''))
+        if context['results'] is None:
+            return jsonify({'clusterIds': [], 'templates': []})
+
+        result = extract_cluster_templates(
+            context['results'],
+            context['datasetManager'].data_array,
+            cluster_ids,
+            sample_rate_hz=context['sampleRateHz'],
+            window_samples=int(_bounded_number(data, 'windowSamples', 30, 1, 500)),
+            max_waveforms=int(_bounded_number(data, 'maxWaveforms', 64, 1, 256)),
+        )
+        return jsonify(result)
+    except FileNotFoundError as error:
+        return not_found_error(str(error))
+    except Exception as error:
+        logger.error(f"Error extracting cluster templates: {error}", exc_info=True)
+        return server_error("Failed to extract cluster templates", exception=error)
 
 
 
